@@ -276,6 +276,7 @@
 
   function isValidBackupDate(value) {
     if (value === "") return true;
+    nativeAdminOnly: if (nativeAdmin) return isValidNativeCaptureDate(value);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
     var parts = value.split("-").map(Number);
     var date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
@@ -316,6 +317,8 @@
       var minimum = spec.min !== undefined ? Number(spec.min) : -Infinity;
       var maximum = spec.max !== undefined ? Number(spec.max) : Infinity;
       var step = spec.step !== undefined ? Number(spec.step) : 0;
+      nativeAdminOnly: if (nativeAdmin && ["schedule_wake_timeout", "brightness_day", "brightness_night",
+        "base_tone", "warm_tone_intensity"].indexOf(stateKey) !== -1) step = 1;
       if (numberValue < minimum || numberValue > maximum || !backupNumberStepAligned(numberValue, minimum, step)) {
         return backupImportValidation(false, value, backupImportFieldLabel(entry) + " was outside the device range - not imported");
       }
@@ -324,6 +327,9 @@
 
     if (spec.domain === "select") {
       var optionValue = String(value);
+      nativeAdminOnly: if (nativeAdmin && stateKey === "interval" && nativeIntervalSeconds(optionValue)) {
+        return backupImportValidation(true, optionValue);
+      }
       if (productSettingOptions(stateKey, true).indexOf(optionValue) === -1) {
         return backupImportValidation(false, value, backupImportFieldLabel(entry) + " had an unsupported option - not imported");
       }

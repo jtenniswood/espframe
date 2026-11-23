@@ -72,6 +72,11 @@
       "generator": "scripts/generate_assets.py"
     },
     {
+      "path": "firmware/native/main/web/admin/app.js",
+      "sources": ["docs/webserver/src", "product/contract"],
+      "generator": "scripts/generate_assets.py"
+    },
+    {
       "path": "firmware/native/main/web/shared_settings.js",
       "sources": ["docs/webserver/src", "product/contract"],
       "generator": "scripts/generate_assets.py"

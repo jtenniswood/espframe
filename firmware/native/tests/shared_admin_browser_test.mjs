@@ -7,7 +7,7 @@ const web = '../main/web/'
 const load = path => readFile(new URL(path, import.meta.url), 'utf8')
 const [html, bundle, cards, css] = await Promise.all([
   load(web + 'admin_preview.html'),
-  load('../../../docs/public/webserver/app.js'),
+  load(web + 'admin/app.js'),
   load(web + 'admin_cards.js'),
   load('../../../docs/public/webserver/style.css'),
 ])
@@ -22,6 +22,7 @@ const deviceActions = []
 const logPositions = []
 const releaseRequests = []
 const wifiRequests = []
+const uploadedImages = []
 const unexpected = []
 let restartPending = false
 let restartsObserved = 0
@@ -32,8 +33,11 @@ let configurationTag = 0
 let lastConfiguration
 let unchangedReads = 0
 let release = { current: 'v0.1.0-preview.9', versions: [], status: 'idle', available: true }
+let releaseFeedOffline = false
 let wifi = { current: '2.12.8', latest: '', status: 'idle' }
 let wireguard = { running: false, connected: false }
+const uploadedTarget = { offset: 0x410000, elf_sha256: 'a'.repeat(64) }
+let uploadedBootChecks = 0
 const snapshot = {
   api_version: 1, reset_epoch: 2, api_key_configured: true,
   secrets_configured: { wireguard_private_key: false },
@@ -46,6 +50,10 @@ const snapshot = {
     memories_fallback: true,
     albums_enabled: true,
     album_ids: '11111111-1111-4111-8111-111111111111',
+    album_matching: 'Any selected album',
+    inclusion_matching: 'Match all enabled groups',
+    album_id: '',
+    photo_source_mode: 'custom',
     album_labels: '["Summer"]',
     excluded_tag_labels: '',
     portrait_pairing: true,
@@ -58,6 +66,7 @@ const snapshot = {
     developer_features_enabled: false,
     brightness_day: 90,
     brightness_night: 75,
+    schedule_enabled: true, schedule_on_hour: 6, schedule_off_hour: 23, schedule_wake_timeout: 60,
     sunrise: '',
     sunset: '',
     show_clock: true,
@@ -99,6 +108,7 @@ const browserTest = String.raw`
     }
     const button = (root, label) => [...root.querySelectorAll('button')].find(el => el.textContent.trim() === label)
     const setting = (root, label) => root.querySelector('[aria-label="' + label + '"]')
+    const field = (root, label) => [...root.querySelectorAll('label')].find(el => el.textContent === label).control
     const savedValue = async (key, expected) => {
       const response = await fetch('/espframe/api/v1/configuration')
       return (await response.json()).values[key] === expected
@@ -120,7 +130,8 @@ const browserTest = String.raw`
           version: 3,
           connection: { immich_url: 'backup-photos.test', api_key: 'ignore-test-key' },
           photos: { portrait_pair_framing: 'Fit' },
-          screen: { brightness_day: 75 },
+          frequency: { interval: '47 seconds' },
+          screen: { brightness_day: 77, schedule_wake_timeout: 83 },
           firmware_updates: { wifi_auto_update: true },
         })], 'fixture.json'))
         this.files = transfer.files
@@ -130,8 +141,10 @@ const browserTest = String.raw`
       button(openCard('Backup'), 'Import').click()
       await until(() => document.body.textContent.includes('Backup restored successfully'), 'the backup restore')
       if (!await savedValue('immich_url', 'https://backup-photos.test/api') ||
-          !await savedValue('portrait_pair_framing', 'Fit') || !await savedValue('c6_auto_update', true)) {
-        throw new Error('Backup did not restore the URL, portrait framing or WiFi update preference')
+          !await savedValue('portrait_pair_framing', 'Fit') || !await savedValue('c6_auto_update', true) ||
+          !await savedValue('interval', '47 seconds') || !await savedValue('brightness_day', 77) ||
+          !await savedValue('schedule_wake_timeout', 83)) {
+        throw new Error('Backup did not restore connection, playback, display and update preferences')
       }
       document.body.dataset.result = 'passed'
       return
@@ -156,13 +169,20 @@ const browserTest = String.raw`
     button(vpn, 'Restart now').click()
     await until(() => vpn.querySelector('#wireguard-status').textContent.includes('Connected'), 'WireGuard status after restart')
     if (!vpn.querySelector('#wireguard-status').textContent.includes('handshake')) throw new Error('WireGuard handshake age was missing')
-    const select = openCard('Frequency').querySelector('select')
+    const frequencyCard = openCard('Frequency')
+    const select = frequencyCard.querySelector('select')
     if (select.value !== '15 seconds') throw new Error('Native configuration was not loaded')
     change(select, '30 seconds')
     await until(async () => {
       const response = await fetch('/espframe/api/v1/configuration')
       return (await response.json()).values.interval === '30 seconds'
     }, 'the interval save')
+    change(select, 'Custom')
+    const interval = field(frequencyCard, 'Exact duration (seconds)')
+    if (interval.min !== '2' || interval.max !== '86400' || interval.value !== '30') throw new Error('Exact interval range is wrong')
+    change(interval, '43')
+    await until(() => savedValue('interval', '43 seconds'), 'the exact interval save')
+    interval.blur()
     const pairing = openCard('Portrait Pairing')
     const framing = [...pairing.querySelectorAll('select')].find(control =>
       [...control.options].some(option => option.textContent === 'Fill each half'))
@@ -192,8 +212,25 @@ const browserTest = String.raw`
     label.value = 'Family trip'
     label.dispatchEvent(new Event('input', { bubbles: true }))
     await until(() => savedValue('album_labels', '["Family trip"]'), 'the album IDs and labels to save as a pair')
+    change(field(album, 'Matching Albums'), 'All selected albums')
+    await until(() => savedValue('album_matching', 'All selected albums'), 'album matching save')
+    change(field(filters, 'Inclusion Groups'), 'Match any enabled group')
+    await until(() => savedValue('inclusion_matching', 'Match any enabled group'), 'inclusion matching save')
     setting(filters, 'Filter by Date').click()
-    await until(() => savedValue('date_filter_enabled', true), 'the date range to save')
+    change(field(filters, 'From'), '0096-02-29')
+    await until(() => savedValue('date_from', '0096-02-29'), 'the date range to save')
+
+    const presets = () => button(openCard('Filters'), 'Photo source presets').closest('.inline-disclosure')
+    button(filters, 'Photo source presets').click()
+    change(field(presets(), 'Photo source'), 'album')
+    field(presets(), 'Immich album link or ID').value = 'https://photos.test/albums/AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA'
+    button(presets(), 'Save photo source').click()
+    await until(async () => !button(presets(), 'Save photo source').disabled && await savedValue('photo_source_mode', 'album'),
+      'the standalone album source')
+    if (!await savedValue('album_id', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')) throw new Error('The album link did not save as an ID')
+    change(field(presets(), 'Photo source'), 'custom')
+    button(presets(), 'Save photo source').click()
+    await until(() => savedValue('photo_source_mode', 'custom'), 'the custom source to resume')
     const connection = openCard('Connection')
     const url = connection.querySelector('input[type="url"]')
     change(url, 'new-photos.test')
@@ -208,12 +245,18 @@ const browserTest = String.raw`
     if (tab('Device').getAttribute('aria-selected') !== 'true' ||
         !document.querySelector('#sp-settings.active') || !card('Rotation') || !card('Screen Brightness'))
       throw new Error('Device tab did not use the shared shell')
-    const tools = document.querySelector('#sp-settings a[href="/settings"]')
-    if (!tools || tools.textContent !== 'Photo sources & device tools') throw new Error('Device tools are unreachable')
+    if (document.querySelector('a[href="/settings"]')) throw new Error('The old device tools shortcut is still visible')
     const brightness = openCard('Screen Brightness').querySelector('input[type="range"]')
     if (brightness.value !== '90') throw new Error('Brightness preference was not loaded')
     if (document.querySelector('#sun-info').style.display !== 'none') throw new Error('Solar times appeared before clock sync')
-    change(brightness, '85')
+    change(brightness, '87')
+    const schedule = openCard('Night Schedule')
+    change(field(schedule, 'When Woken, Idle Time To Screen Off'), 'Custom')
+    const wake = field(schedule, 'Exact duration (seconds)')
+    if (wake.min !== '10' || wake.max !== '3600' || wake.value !== '60') throw new Error('Exact wake duration range is wrong')
+    change(wake, '73')
+    await until(() => savedValue('schedule_wake_timeout', 73), 'the exact wake timeout save')
+    wake.blur()
 
     const firmware = openCard('Firmware')
     const disclosures = [...firmware.querySelectorAll('.inline-disclosure-button')]
@@ -260,10 +303,27 @@ const browserTest = String.raw`
     button(previous, 'Install').click()
     if (!downgrading) throw new Error('Installing an older release did not ask for confirmation')
     await until(() => updates.textContent.includes('Current version v0.1.0-preview.8'), 'the older release')
+    disclosure('Upload firmware file').click()
+    const upload = disclosure('Upload firmware file').closest('.inline-disclosure')
+    const image = field(upload, 'Native firmware image')
+    const installFile = button(upload, 'Install update and restart')
+    await until(() => !installFile.disabled && upload.textContent.includes('Choose v2-ota.bin') &&
+      updates.textContent.includes('Firmware release information is unavailable.'), 'file upload without a release feed')
+    const chooseFirmware = (bytes) => {
+      const transfer = new DataTransfer()
+      transfer.items.add(new File([bytes], 'v2-ota.bin', { type: 'application/octet-stream' }))
+      image.files = transfer.files
+    }
+    chooseFirmware('invalid image')
+    installFile.click()
+    await until(() => upload.textContent.includes('The firmware image failed validation.') && !installFile.disabled, 'an upload rejection and retry')
+    chooseFirmware('native image')
+    installFile.click()
+    await until(() => upload.textContent.includes('The frame passed its startup checks.'), 'a verified boot of the uploaded image')
     await until(async () => {
       const response = await fetch('/espframe/api/v1/configuration')
       const { values } = await response.json()
-      return values.brightness_day === 85 && values.auto_update === false && values.update_frequency === 'Weekly'
+      return values.brightness_day === 87 && values.auto_update === false && values.update_frequency === 'Weekly'
     }, 'brightness and update preference saves')
     if (!document.querySelector('a.sp-tab-docs')) throw new Error('Shared Docs link is missing')
     tab('Logs').click()
@@ -293,7 +353,8 @@ const browserTest = String.raw`
     const backup = await exported
     if (backup.version !== 3 || backup.photos.portrait_pair_framing !== 'Fill' ||
         backup.connection.api_key !== undefined || backup.wireguard !== undefined ||
-        backup.firmware_updates.wifi_auto_update !== false) {
+        backup.firmware_updates.wifi_auto_update !== false || backup.frequency.interval !== '43 seconds' ||
+        backup.screen.brightness_day !== 87 || backup.screen.schedule_wake_timeout !== 73) {
       throw new Error('Backup included a secret or lost a native setting')
     }
     tab('Immich').click()
@@ -307,7 +368,7 @@ const browserTest = String.raw`
     draft.value = 'unsaved.example.test'
     await fetch('/test/remote-settings', { method: 'POST' })
     await new Promise(resolve => setTimeout(resolve, 2200))
-    if (document.activeElement !== draft || draft.value !== 'unsaved.example.test' || liveSelect.value !== '30 seconds') {
+    if (document.activeElement !== draft || draft.value !== 'unsaved.example.test' || liveSelect.value !== 'Custom') {
       throw new Error('A remote change interrupted an active edit')
     }
     draft.blur()
@@ -392,6 +453,11 @@ const server = createServer(async (req, res) => {
         const { api_key, wireguard_private_key, ...values } = update.values
         const wasConfigured = snapshot.api_key_configured && Boolean(snapshot.values.immich_url)
         Object.assign(snapshot.values, values)
+        if (values.photo_source_mode) {
+          snapshot.values.photo_source = { album: 'Album', custom: 'Custom' }[values.photo_source_mode]
+        } else if (values.photo_source) {
+          snapshot.values.photo_source_mode = { Memories: 'memories', Custom: 'custom' }[values.photo_source]
+        }
         if (['90', '270'].includes(snapshot.values.screen_rotation)) {
           if (snapshot.values.developer_features_enabled) snapshot.values.portrait_pairing = false
           else snapshot.values.screen_rotation = '0'
@@ -460,6 +526,7 @@ const server = createServer(async (req, res) => {
       }
       return json({ status: 'ready', epoch: snapshot.reset_epoch })
     case releasePath:
+      if (releaseFeedOffline) return res.writeHead(503).end()
       if (req.method === 'POST') {
         const chunks = []
         for await (const chunk of req) chunks.push(chunk)
@@ -483,7 +550,23 @@ const server = createServer(async (req, res) => {
         return res.writeHead(202).end()
       }
       return json(wifi)
+    case '/api/playback':
+      assert.equal(req.method, 'GET')
+      releaseFeedOffline = true
+      return json({ firmware_update: true, board_revision: 'v2' })
     case '/api/firmware':
+      if (req.method === 'POST') {
+        assert.equal(req.headers['content-type'], 'application/octet-stream')
+        const chunks = []
+        for await (const chunk of req) chunks.push(chunk)
+        const bytes = Buffer.concat(chunks).toString()
+        uploadedImages.push(bytes)
+        if (bytes === 'invalid image') return res.writeHead(400).end('The firmware image failed validation.')
+        return json({ staged: true, target: uploadedTarget })
+      }
+      if (uploadedImages.includes('native image')) {
+        return json({ running: uploadedTarget, boot_verified: ++uploadedBootChecks > 1 })
+      }
       ++bootChecks
       if (bootChecks > 1) release.status = 'ready'
       return json({ boot_verified: bootChecks > 1 })
@@ -516,14 +599,20 @@ try {
     { wireguard_endpoint: 'vpn.example.test' },
     { wireguard_private_key: 'A'.repeat(43) + '=' },
     { interval: '30 seconds' },
+    { interval: '43 seconds' },
     { portrait_pair_framing: 'Fill' },
     { photo_source: 'Memories' },
     { photo_source: 'Custom' },
     { album_ids: '22222222-2222-4222-8222-222222222222', album_labels: '["Family trip"]' },
-    { date_filter_enabled: true, date_filter_mode: 'Fixed Range', date_from: '', date_to: '', relative_amount: 1, relative_unit: 'Years' },
+    { album_matching: 'All selected albums' },
+    { inclusion_matching: 'Match any enabled group' },
+    { date_filter_enabled: true, date_filter_mode: 'Fixed Range', date_from: '0096-02-29', date_to: '', relative_amount: 1, relative_unit: 'Years' },
+    { photo_source_mode: 'album', album_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+    { photo_source_mode: 'custom' },
     { immich_url: 'https://new-photos.test/api' },
     { api_key: 'replacement-test-key' },
-    { brightness_day: 85 },
+    { brightness_day: 87 },
+    { schedule_wake_timeout: 73 },
     { c6_auto_update: false },
     { update_frequency: 'Weekly' },
     { auto_update: false },
@@ -536,9 +625,11 @@ try {
   ].map(values => ({ api_version: 1, reset_epoch: 2, values })))
   assert.deepEqual(writes.slice(-2), [
     { api_version: 1, reset_epoch: 3, values: { immich_url: 'https://setup-photos.test/api', api_key: 'setup-key' } },
-    { api_version: 1, reset_epoch: 3, values: { immich_url: 'https://backup-photos.test/api', brightness_day: 75,
-      portrait_pair_framing: 'Fit', c6_auto_update: true } },
+    { api_version: 1, reset_epoch: 3, values: { immich_url: 'https://backup-photos.test/api', brightness_day: 77,
+      interval: '47 seconds', schedule_wake_timeout: 83, portrait_pair_framing: 'Fit', c6_auto_update: true } },
   ])
+  assert.deepEqual(uploadedImages, ['invalid image', 'native image'])
+  assert.ok(uploadedBootChecks >= 2)
   assert.deepEqual(deviceActions, ['reboot', 'reboot', 'customization'])
   assert.deepEqual(logPositions, [0, 1, 1, 2, 3, 0])
   assert.deepEqual(releaseRequests, ['', '', 'v0.1.0-preview.10', 'v0.1.0-preview.8'])
@@ -547,7 +638,7 @@ try {
   assert.ok(unchangedReads > 0, 'idle polling should receive empty 304 replies')
   assert.ok(bootChecks > 2)
   assert.deepEqual(unexpected, [])
-  console.log('Shared admin verified live logs, settings, release requests, backup, reboot and first-time setup')
+  console.log('Shared admin verified photo sources, exact playback and display settings, firmware uploads, backups, logs and resets')
 } finally {
   server.close()
 }

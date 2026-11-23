@@ -188,6 +188,41 @@ export const MAX_PHOTO_ID_FIELD_LENGTH = 255;
   }
 
   var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  export function normalizeImmichAlbumId(value: string): string {
+    if (UUID_RE.test(value)) return value.toLowerCase();
+    try {
+      const url = new URL(value);
+      const parts = url.pathname.split("/").filter(Boolean);
+      const id = parts[parts.length - 1];
+      if ((url.protocol === "http:" || url.protocol === "https:") && parts[parts.length - 2] === "albums" && UUID_RE.test(id)) {
+        return id.toLowerCase();
+      }
+    } catch (_) {
+      // Leave invalid input for the existing ID validation to report.
+    }
+    return value;
+  }
+
+  export function nativeIntervalSeconds(value: string): number {
+    const match = /^(\d+) (second|minute|hour)s?$/.exec(value);
+    if (!match) return 0;
+    const seconds = Number(match[1]) * { second: 1, minute: 60, hour: 3600 }[match[2]];
+    return seconds >= 2 && seconds <= 86400 ? seconds : 0;
+  }
+
+  export function nativeIntervalLabel(seconds: number): string {
+    if (seconds % 3600 === 0) return seconds / 3600 + (seconds === 3600 ? " hour" : " hours");
+    if (seconds % 60 === 0) return seconds / 60 + (seconds === 60 ? " minute" : " minutes");
+    return seconds + " seconds";
+  }
+
+  export function isValidNativeCaptureDate(value: string): boolean {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value < "0002-01-01" || value > "9998-12-31") return false;
+    const date = new Date(value + "T00:00:00Z");
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  }
+
   function isValidUuidList(str) {
     var s = str.trim();
     if (!s) return true;

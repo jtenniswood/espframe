@@ -241,6 +241,82 @@ window.espframeNativeReconnect = async function (readSettings) {
   }
 };
 
+window.espframeNativeFirmwareUpload = function (panel, form, image, submit, status, state, refresh) {
+  const path = "/api/firmware";
+  let loading = false;
+  let ready = false;
+
+  panel.querySelector(".inline-disclosure-button").addEventListener("click", async event => {
+    if (event.currentTarget.getAttribute("aria-expanded") !== "true" || loading || ready) return;
+    loading = true;
+    status.textContent = "Checking whether the frame supports firmware uploads…";
+    try {
+      const response = await fetch("/api/playback", { cache: "no-store", signal: AbortSignal.timeout(2500) });
+      if (!response.ok) throw Error("playback_settings_unavailable");
+      const { firmware_update, board_revision } = await response.json();
+      ready = firmware_update === true && /^v[123]$/.test(board_revision);
+      image.disabled = submit.disabled = !ready;
+      status.textContent = ready ? `Choose ${board_revision}-ota.bin for this frame.` :
+        "Install an update-capable factory image over USB first.";
+    } catch (_) {
+      status.textContent = "Could not check upload availability. Reopen this panel to retry.";
+    } finally {
+      loading = false;
+    }
+  });
+
+  const sameImage = (image, target) => image?.offset === target.offset && image.elf_sha256 === target.elf_sha256;
+
+  async function confirmBoot(target) {
+    const deadline = performance.now() + 60_000;
+    while (performance.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 1200));
+      try {
+        const response = await fetch(path, { cache: "no-store", signal: AbortSignal.timeout(2000) });
+        if (!response.ok) continue;
+        const result = await response.json();
+        if (sameImage(result.running, target) && result.boot_verified === true) {
+          return "Firmware updated. The frame passed its startup checks.";
+        }
+        if (result.running && !sameImage(result.running, target) && sameImage(result.rejected, target)) {
+          return "The frame returned to its previous firmware during startup.";
+        }
+      } catch (_) {
+        // The frame is briefly unreachable while it restarts.
+      }
+    }
+    return "Startup could not be confirmed. Reload frame settings when the frame reconnects.";
+  }
+
+  form.onsubmit = async event => {
+    event.preventDefault();
+    const file = image.files[0];
+    if (!ready || !file || submit.disabled) return;
+    if (state.firmware_checking || state.firmware_installing || state.firmware_uploading || state.c6_firmware_installing) {
+      status.textContent = "Wait for the current firmware operation to finish.";
+      return;
+    }
+    state.firmware_uploading = image.disabled = submit.disabled = true;
+    refresh();
+    status.textContent = "Checking and installing firmware…";
+    try {
+      const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file });
+      if (!response.ok) throw Error(await response.text());
+      const { staged, target } = await response.json();
+      if (!staged) throw Error("The frame did not confirm the update.");
+      image.value = "";
+      status.textContent = "Update ready. Waiting for the frame to finish startup…";
+      status.textContent = Number.isInteger(target?.offset) && /^[0-9a-f]{64}$/.test(target.elf_sha256)
+        ? await confirmBoot(target) : "Update ready. Reload frame settings after the frame restarts.";
+    } catch (error) {
+      status.textContent = error.message || "Could not upload the firmware image.";
+    } finally {
+      state.firmware_uploading = image.disabled = submit.disabled = false;
+      refresh();
+    }
+  };
+};
+
 window.espframeNativeWifiFirmware = function (card, state, refresh, showBanner) {
   const path = "/api/firmware/wifi";
   let requestInFlight = false;
@@ -281,7 +357,7 @@ window.espframeNativeWifiFirmware = function (card, state, refresh, showBanner) 
 
   setTimeout(read, 0);
   return async install => {
-    if (requestInFlight || !card.isConnected) return;
+    if (requestInFlight || state.firmware_uploading || !card.isConnected) return;
     requestInFlight = true;
     state.c6_firmware_installing = install;
     state.c6_firmware_checking = !install;
@@ -374,7 +450,7 @@ window.espframeNativeFirmware = function (card, state, refreshUi, compareVersion
   }
 
   async function request(version) {
-    if (!card.isConnected || !supported || requestInFlight) return false;
+    if (!card.isConnected || !supported || requestInFlight || state.firmware_uploading) return false;
     ++requestGeneration;
     requestInFlight = true;
     clearTimeout(timer);

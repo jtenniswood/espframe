@@ -113,17 +113,24 @@
     schedDetails.appendChild(hourSelectSettingField("On Time", "schedule_on_hour"));
     schedDetails.appendChild(hourSelectSettingField("Off Time", "schedule_off_hour"));
 
-    var fWakeTimeout = field("When Woken, Idle Time To Screen Off");
     var scheduleWakeMin = productNumberMin("schedule_wake_timeout", 10);
     var scheduleWakeMax = productNumberMax("schedule_wake_timeout", 3600);
     var scheduleWakeOptions = [10, 30, 60, 120, 300, 600, 1800, 3600].filter(function (v) {
       return v >= scheduleWakeMin && v <= scheduleWakeMax;
     });
     var scheduleWakeCurrent = normalizeScheduleWakeTimeout(S.schedule_wake_timeout);
+    nativeAdminOnly: if (nativeAdmin) {
+      schedDetails.appendChild(nativeDurationSettingField("When Woken, Idle Time To Screen Off",
+        scheduleWakeOptions.map(String), String(scheduleWakeCurrent), Number, formatDurationSeconds,
+        scheduleWakeMin, scheduleWakeMax, function (v) { saveSetting("schedule_wake_timeout", v); }));
+      schedBody.appendChild(schedDetails);
+      return makeCollapsibleCard("Night Schedule", schedBody, true, schedBadge);
+    }
     if (scheduleWakeOptions.indexOf(scheduleWakeCurrent) === -1) {
       scheduleWakeOptions.push(scheduleWakeCurrent);
       scheduleWakeOptions.sort(function (a, b) { return a - b; });
     }
+    var fWakeTimeout = field("When Woken, Idle Time To Screen Off");
     fWakeTimeout.appendChild(
       selectFromOptions(scheduleWakeOptions, scheduleWakeCurrent, function (v) {
         saveSetting("schedule_wake_timeout", v);

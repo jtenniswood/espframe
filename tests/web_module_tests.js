@@ -5,6 +5,7 @@ const path = require("path");
 const root = path.resolve(__dirname, "..");
 const template = fs.readFileSync(path.join(root, "docs/webserver/src/app.template.ts"), "utf8");
 const publicApp = fs.readFileSync(path.join(root, "docs/public/webserver/app.js"), "utf8");
+const nativeAdminApp = fs.readFileSync(path.join(root, "firmware/native/main/web/admin/app.js"), "utf8");
 const publicStyle = fs.readFileSync(path.join(root, "docs/public/webserver/style.css"), "utf8");
 const endpointsSource = fs.readFileSync(path.join(root, "docs/webserver/src/endpoints.ts"), "utf8");
 const runtimeStateSource = fs.readFileSync(path.join(root, "docs/webserver/src/runtime_state.ts"), "utf8");
@@ -58,6 +59,10 @@ for (const [placeholder, filename] of Object.entries(modules)) {
 }
 
 assert.equal(/__ESPFRAME_[A-Z0-9_]+__/.test(publicApp), false, "public app must not contain generator placeholders");
+for (const nativeControl of ["Upload firmware file", "Photo source presets", "Exact duration (seconds)"]) {
+  assert.ok(nativeAdminApp.includes(nativeControl), `native admin must include ${nativeControl}`);
+  assert.ok(!publicApp.includes(nativeControl), `ESPHome app must exclude ${nativeControl}`);
+}
 assert.match(publicApp, /function renderSettings\(\)/, "public app should include the settings renderer");
 assert.match(publicApp, /function importConfig\(\)/, "public app should include backup import behavior");
 assert.match(publicApp, /BACKUP_CONFIG_VERSION\s*=/, "public app should include generated backup version");

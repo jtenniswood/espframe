@@ -134,11 +134,11 @@ def compile_web_source(path: str | Path, *options: str) -> str:
     return compiled.stdout
 
 
-def compile_typescript(source: str) -> str:
+def compile_typescript(source: str, *options: str) -> str:
     with tempfile.NamedTemporaryFile("w", suffix=".ts", encoding="utf-8") as source_file:
         source_file.write(source)
         source_file.flush()
-        return compile_web_source(source_file.name)
+        return compile_web_source(source_file.name, *options)
 
 
 def setting_state_types() -> str:
@@ -246,8 +246,11 @@ def web_app_source(embedded_css: str | None = None) -> str:
     return bundle
 
 
-def web_app_bundle() -> str:
-    return compile_typescript(web_app_source(compile_web_source(WEB_STYLE_PATH, "--embedded-css")))
+def web_app_bundle(*, native_admin: bool = False) -> str:
+    if native_admin:
+        return compile_typescript(web_app_source(""))
+    css = compile_web_source(WEB_STYLE_PATH, "--embedded-css")
+    return compile_typescript(web_app_source(css), "--esphome-admin")
 
 
 def native_web_app_bundle() -> str:

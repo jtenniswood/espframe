@@ -1,0 +1,5375 @@
+// ESPFRAME: generated from typed docs/webserver/src and product/contract; run `npm run generate` to update.
+"use strict";
+(() => {
+  // docs/webserver/src/setting_save.ts
+  var c = Object.defineProperty;
+  var l = (g2, e, i) => e in g2 ? c(g2, e, { enumerable: true, configurable: true, writable: true, value: i }) : g2[e] = i;
+  var s = (g2, e, i) => l(g2, typeof e != "symbol" ? e + "" : e, i);
+  var SettingSaveCoordinator = class {
+    constructor(e, i) {
+      s(this, "read", e);
+      s(this, "write", i);
+      s(this, "sequence", 0);
+      s(this, "writesInFlight", 0);
+      s(this, "confirmed", /* @__PURE__ */ new Map());
+      s(this, "pending", /* @__PURE__ */ new Map());
+      s(this, "queue", null);
+    }
+    receive(e, i) {
+      this.pending.has(e) || (this.confirmed.set(e, i), this.write(e, i));
+    }
+    idleRevision() {
+      return this.writesInFlight ? null : this.sequence;
+    }
+    save(e, i, u) {
+      const r = ++this.sequence;
+      ++this.writesInFlight;
+      const h2 = Object.entries(e);
+      for (const [t, o2] of h2) {
+        let a = this.pending.get(t);
+        a || (a = { confirmed: this.confirmed.has(t) ? this.confirmed.get(t) : this.read(t), latest: r, remaining: 0 }, this.pending.set(t, a)), a.latest = r, a.remaining++, this.write(t, o2);
+      }
+      let n;
+      if (this.queue)
+        n = this.queue.then(i);
+      else
+        try {
+          n = Promise.resolve(i());
+        } catch (t) {
+          n = Promise.reject(t);
+        }
+      return n = n.then(
+        (t) => (this.finish(h2, r, true, u == null ? void 0 : u(t)), t),
+        (t) => {
+          throw this.finish(h2, r, false), t;
+        }
+      ).finally(() => {
+        --this.writesInFlight;
+      }), this.queue = n.catch(() => {
+      }), n;
+    }
+    finish(e, i, u, r) {
+      var h2;
+      for (const [n, t] of e) {
+        const o2 = this.pending.get(n);
+        u && (o2.confirmed = (h2 = r == null ? void 0 : r[n]) != null ? h2 : t, this.confirmed.set(n, o2.confirmed)), o2.latest === i && this.write(n, o2.confirmed), --o2.remaining === 0 && this.pending.delete(n);
+      }
+    }
+  };
+
+  // docs/webserver/src/api_client.ts
+  var f = Object.defineProperty;
+  var p = (u, e, t) => e in u ? f(u, e, { enumerable: true, configurable: true, writable: true, value: t }) : u[e] = t;
+  var s2 = (u, e, t) => p(u, typeof e != "symbol" ? e + "" : e, t);
+  var EspframeApiError = class extends Error {
+    constructor(t, n, i, r, a) {
+      super(n);
+      s2(this, "kind", t);
+      s2(this, "status", i);
+      s2(this, "code", r);
+      s2(this, "field", a);
+      this.name = "EspframeApiError";
+    }
+  };
+  function c2(u) {
+    return typeof u == "object" && u !== null && !Array.isArray(u);
+  }
+  var EspframeApiClient = class {
+    constructor(e, t = 5e3) {
+      s2(this, "capabilitiesPath", e);
+      s2(this, "timeoutMs", t);
+      s2(this, "queue", Promise.resolve());
+      s2(this, "capabilities", null);
+      s2(this, "negotiated");
+      s2(this, "resetEpoch");
+      s2(this, "resetAccepted", false);
+    }
+    waitForWrites() {
+      return this.queue;
+    }
+    enqueue(e) {
+      const t = this.queue.then(e);
+      return this.queue = t.catch(() => {
+      }), t;
+    }
+    error(e, t, n) {
+      const i = c2(n) ? n : {}, r = e === 404 || e === 405 ? "unavailable" : e === 409 ? "conflict" : e === 400 || e === 422 ? "validation" : "server";
+      return new EspframeApiError(
+        r,
+        typeof i.error == "string" ? i.error : t,
+        e,
+        typeof i.error == "string" ? i.error : void 0,
+        typeof i.field == "string" ? i.field : void 0
+      );
+    }
+    async requestWith(e, t, n) {
+      const i = new AbortController(), r = setTimeout(() => i.abort(), this.timeoutMs);
+      try {
+        const a = await fetch(e, { ...t, signal: i.signal });
+        return await n(a);
+      } catch (a) {
+        throw a instanceof EspframeApiError ? a : a && typeof a == "object" && a.name === "AbortError" ? new EspframeApiError("timeout", "request_timeout") : new EspframeApiError("offline", "device_offline");
+      } finally {
+        clearTimeout(r);
+      }
+    }
+    request(e, t = {}) {
+      return this.requestWith(e, t, async (n) => n);
+    }
+    requestJson(e, t, n) {
+      return this.requestWith(e, t, (i) => this.json(i, n));
+    }
+    async json(e, t) {
+      let n = null;
+      try {
+        n = await e.json();
+      } catch (i) {
+        throw i && typeof i == "object" && i.name === "AbortError" ? new EspframeApiError("timeout", "request_timeout") : e.ok ? new EspframeApiError("server", "invalid_server_response", e.status) : this.error(e.status, t);
+      }
+      if (!e.ok) throw this.error(e.status, t, n);
+      return n;
+    }
+    parseCapabilities(e) {
+      return !c2(e) || typeof e.contract_version != "number" || typeof e.api_version != "number" || typeof e.configuration_path != "string" || e.update_mode !== "atomic" || typeof e.configuration_available != "boolean" || typeof e.configuration_read != "boolean" || typeof e.configuration_write != "boolean" || typeof e.legacy_entity_api != "boolean" ? null : e;
+    }
+    negotiate() {
+      return this.negotiated !== void 0 ? Promise.resolve(this.negotiated) : (this.capabilities || (this.capabilities = this.requestJson(this.capabilitiesPath, { cache: "no-store" }, "capabilities_unavailable").then((e) => {
+        const t = this.parseCapabilities(e);
+        return t ? (this.negotiated = t.configuration_available && t.configuration_read && t.configuration_write ? t : null, this.negotiated) : (this.negotiated = null, null);
+      }).catch((e) => {
+        if (e instanceof EspframeApiError && e.kind === "unavailable")
+          return this.negotiated = null, null;
+        throw this.capabilities = null, e;
+      })), this.capabilities);
+    }
+    async getConfigurationSnapshot() {
+      const e = await this.pollConfiguration();
+      if (!e) throw new EspframeApiError("server", "invalid_configuration_snapshot");
+      return this.useConfigurationSnapshot(e.snapshot), e.snapshot;
+    }
+    useConfigurationSnapshot(e) {
+      this.resetEpoch = e.reset_epoch;
+    }
+    async pollConfiguration(e) {
+      const t = await this.negotiate();
+      if (!t) throw new EspframeApiError("unavailable", "configuration_api_unavailable");
+      const n = await this.requestWith(t.configuration_path, {
+        cache: "no-store",
+        headers: e ? { "If-None-Match": e } : void 0
+      }, async (i) => {
+        var r;
+        return e && i.status === 304 ? null : {
+          payload: await this.json(i, "configuration_api_failed"),
+          etag: ((r = i.headers) == null ? void 0 : r.get("ETag")) || void 0
+        };
+      });
+      return n ? { snapshot: this.parseConfiguration(n.payload, t), etag: n.etag } : null;
+    }
+    parseConfiguration(e, t) {
+      if (!c2(e) || e.api_version !== t.api_version || t.reset_path && !Number.isInteger(e.reset_epoch) || !c2(e.values) || !Array.isArray(e.unavailable) || !e.unavailable.every((a) => typeof a == "string"))
+        throw new EspframeApiError("server", "invalid_configuration_snapshot");
+      let n = typeof e.api_key_configured == "boolean" ? e.api_key_configured : void 0;
+      const i = {};
+      for (const [a, o2] of Object.entries(e.values)) {
+        if (a === "api_key") {
+          if (n !== void 0) throw new EspframeApiError("server", "invalid_configuration_snapshot");
+          n = !!o2;
+          continue;
+        }
+        if (typeof o2 != "string" && typeof o2 != "number" && typeof o2 != "boolean")
+          throw new EspframeApiError("server", "invalid_configuration_snapshot");
+        i[a] = o2;
+      }
+      n === void 0 && (n = false);
+      let r;
+      if (e.secrets_configured !== void 0) {
+        if (!c2(e.secrets_configured)) throw new EspframeApiError("server", "invalid_configuration_snapshot");
+        r = {};
+        for (const [a, o2] of Object.entries(e.secrets_configured)) {
+          if (typeof o2 != "boolean") throw new EspframeApiError("server", "invalid_configuration_snapshot");
+          r[a] = o2;
+        }
+      }
+      return {
+        api_version: t.api_version,
+        reset_epoch: Number.isInteger(e.reset_epoch) ? e.reset_epoch : 0,
+        api_key_configured: n,
+        secrets_configured: r,
+        values: i,
+        unavailable: e.unavailable
+      };
+    }
+    async legacyPost(e, t) {
+      return this.requestWith(e, t === void 0 ? { method: "POST" } : {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: t
+      }, async (n) => {
+        if (!n.ok) {
+          let i = null;
+          try {
+            i = await n.json();
+          } catch (r) {
+            if (r && typeof r == "object" && r.name === "AbortError")
+              throw new EspframeApiError("timeout", "request_timeout");
+          }
+          throw this.error(n.status, "legacy_write_failed", i);
+        }
+        return n;
+      });
+    }
+    async legacyWrite(e) {
+      if (e.domain === "switch") {
+        await this.legacyPost(e.url + (e.value ? "/turn_on" : "/turn_off"));
+        return;
+      }
+      const t = new URLSearchParams({ [e.domain === "select" ? "option" : "value"]: String(e.value) }).toString();
+      await this.legacyPost(e.url + "/set", t);
+    }
+    updateSettings(e, t, n = e) {
+      return this.enqueue(async () => {
+        if (this.resetAccepted) throw new EspframeApiError("conflict", "reset_pending", 409, "reset_pending");
+        const i = await this.negotiate();
+        if (!i) {
+          for (const o2 of t) await this.legacyWrite(o2);
+          return null;
+        }
+        this.resetEpoch === void 0 && await this.getConfigurationSnapshot();
+        const r = i.firmware_rotation_policy === true ? e : n, a = new URLSearchParams({ [i.configuration_parameter || "configuration"]: JSON.stringify({ api_version: i.api_version, reset_epoch: this.resetEpoch, values: r }) }).toString();
+        try {
+          const o2 = await this.requestJson(i.configuration_path, {
+            method: "POST",
+            headers: { "Content-Type": i.configuration_encoding || "application/x-www-form-urlencoded" },
+            body: a
+          }, "configuration_update_failed");
+          if (!c2(o2) || o2.status !== "accepted") throw new EspframeApiError("server", "configuration_update_failed");
+          return await new Promise((l3) => setTimeout(l3, 100)), o2;
+        } catch (o2) {
+          if (!i.legacy_entity_api || !(o2 instanceof EspframeApiError) || o2.kind !== "unavailable") throw o2;
+          this.negotiated = null;
+          for (const l3 of t) await this.legacyWrite(l3);
+          return null;
+        }
+      });
+    }
+    reset(e) {
+      return this.enqueue(async () => {
+        if (this.resetAccepted) return;
+        const t = await this.negotiate();
+        if (!t || !t.reset_path)
+          throw new EspframeApiError("unavailable", "reset_unavailable");
+        await this.legacyPost(t.reset_path, new URLSearchParams({ mode: e }).toString()), this.resetAccepted = true;
+      });
+    }
+    post(e, t) {
+      if (this.resetAccepted) return Promise.reject(new EspframeApiError("conflict", "reset_pending", 409, "reset_pending"));
+      const n = t ? "?" + new URLSearchParams(Object.entries(t).map(([i, r]) => [i, String(r)])).toString() : "";
+      return this.enqueue(() => this.legacyPost(e + n));
+    }
+    postText(e, t, n = false) {
+      return this.resetAccepted ? Promise.reject(new EspframeApiError("conflict", "reset_pending", 409, "reset_pending")) : this.enqueue(() => {
+        const i = new URLSearchParams({ value: t }).toString(), r = n && (e + "?" + i).length <= 120 ? "?" + i : "";
+        return this.legacyPost(e + r, i);
+      });
+    }
+    getJson(e) {
+      return this.requestJson(e, { cache: "no-store" }, "legacy_read_failed");
+    }
+  };
+
+  // docs/webserver/src/compat.ts
+  var MAX_PHOTO_ID_FIELD_LENGTH = 255;
+  function p2(t) {
+    return String(t == null ? "" : t).trim();
+  }
+  var d = 4;
+  function o(t) {
+    var r = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(String(t == null ? "" : t));
+    if (!r) return null;
+    for (var n = 0, i = 1; i <= 4; i++) {
+      var e = parseInt(r[i], 10);
+      if (e > 255) return null;
+      n = n * 256 + e;
+    }
+    return n;
+  }
+  function v(t) {
+    return [
+      Math.floor(t / 16777216) % 256,
+      Math.floor(t / 65536) % 256,
+      Math.floor(t / 256) % 256,
+      t % 256
+    ].join(".");
+  }
+  function I(t) {
+    var r = Number(t);
+    return t == null || t === "" || !isFinite(r) || r < 0 ? "" : (r = Math.round(r), r < 120 ? r + "s ago" : r < 7200 ? Math.floor(r / 60) + " min ago" : Math.floor(r / 3600) + " h ago");
+  }
+  function A(t) {
+    return /^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw480]=$/.test(String(t == null ? "" : t).trim());
+  }
+  function L(t) {
+    var r = o(String(t == null ? "" : t).trim());
+    return r !== null && r !== 0 && r !== 4294967295;
+  }
+  function S(t) {
+    var r = o(String(t == null ? "" : t).trim());
+    if (r === null) return false;
+    var n = 4294967295 - r;
+    return (n + 1 & n) === 0;
+  }
+  function y(t) {
+    var r = String(t == null ? "" : t).trim();
+    if (!/^\d{1,5}$/.test(r)) return false;
+    var n = parseInt(r, 10);
+    return n >= 1 && n <= 65535;
+  }
+  function _(t) {
+    var r = String(t == null ? "" : t).trim();
+    return !r || r.length > 253 ? false : /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/.test(r) && r.indexOf("..") === -1;
+  }
+  function x(t) {
+    var r = String(t == null ? "" : t).split(/[\s,;]+/).filter(Boolean);
+    if (!r.length || r.length > d) return "";
+    for (var n = [], i = 0; i < r.length; i++) {
+      var e = r[i].split("/");
+      if (e.length > 2) return "";
+      var u = o(e[0]);
+      if (u === null) return "";
+      var a = 32;
+      if (e.length === 2 && (!/^\d{1,2}$/.test(e[1]) || (a = parseInt(e[1], 10), a > 32)))
+        return "";
+      var c3 = Math.pow(2, 32 - a);
+      n.push(v(Math.floor(u / c3) * c3) + "/" + a);
+    }
+    return n.join(", ");
+  }
+  var O = {
+    "January 1, 2000": "January 1, 2026",
+    "January 1, 2026": "January 1, 2026",
+    "Month Day, Year": "January 1, 2026",
+    "Month Day Ordinal, Year": "January 1, 2026"
+  };
+  function z(t) {
+    return O[t] || "1 January, 2026";
+  }
+  function s3(t) {
+    for (var r = String(t == null ? "" : t); r.length > 0 && r.charAt(r.length - 1) === "/" && !/^[a-z][a-z0-9+.-]*:\/\/$/i.test(r); )
+      r = r.slice(0, -1);
+    return r;
+  }
+  function M(t) {
+    try {
+      var r = new URL(t);
+      return (r.protocol === "http:" || r.protocol === "https:") && !!r.hostname;
+    } catch (n) {
+      return false;
+    }
+  }
+  function h(t) {
+    var r = String(t || "");
+    return r.indexOf("//") === 0 && (r = r.slice(2)), r.split(/[/?#]/)[0] || "";
+  }
+  function m(t) {
+    var r = h(t), n = r.lastIndexOf("@");
+    if (n >= 0 && (r = r.slice(n + 1)), !r) return "";
+    if (r.charAt(0) === "[") {
+      var i = r.indexOf("]");
+      return (i >= 0 ? r.slice(0, i + 1) : r).toLowerCase();
+    }
+    return r.split(":")[0].toLowerCase();
+  }
+  function l2(t) {
+    var r = h(t), n = r.lastIndexOf("@");
+    if (n >= 0 && (r = r.slice(n + 1)), !r) return "";
+    if (r.charAt(0) === "[") {
+      var i = r.indexOf("]");
+      return i >= 0 && r.charAt(i + 1) === ":" ? r.slice(i + 2).match(/^\d*/)[0] : "";
+    }
+    var e = r.indexOf(":");
+    return e >= 0 ? r.slice(e + 1).match(/^\d*/)[0] : "";
+  }
+  function w(t) {
+    return l2(t) !== "";
+  }
+  function D(t) {
+    return t ? t === "localhost" || t.charAt(0) === "[" || /^\d{1,3}(\.\d{1,3}){3}$/.test(t) ? true : t.slice(-6) === ".local" || t.slice(-4) === ".lan" : false;
+  }
+  function E(t) {
+    var r = s3(String(t == null ? "" : t).trim());
+    if (!r) return "";
+    if (r.indexOf("//") === 0)
+      r = "https:" + r;
+    else if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(r)) {
+      var n = m(r), i = l2(r), e = D(n) || w(r);
+      i === "443" && (e = false), r = (e ? "http://" : "https://") + r;
+    }
+    return s3(r.replace(/^([a-z][a-z0-9+.-]*):\/\//i, function(u, a) {
+      return a.toLowerCase() + "://";
+    }));
+  }
+  function g() {
+    return 255;
+  }
+  function T(t) {
+    return String(t != null ? t : "").trim().length > g();
+  }
+  function U(t) {
+    return String(t != null ? t : "").trim().length > g();
+  }
+  var f2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  function normalizeImmichAlbumId(t) {
+    if (f2.test(t)) return t.toLowerCase();
+    try {
+      const r = new URL(t), n = r.pathname.split("/").filter(Boolean), i = n[n.length - 1];
+      if ((r.protocol === "http:" || r.protocol === "https:") && n[n.length - 2] === "albums" && f2.test(i))
+        return i.toLowerCase();
+    } catch (r) {
+    }
+    return t;
+  }
+  function nativeIntervalSeconds(t) {
+    const r = /^(\d+) (second|minute|hour)s?$/.exec(t);
+    if (!r) return 0;
+    const n = Number(r[1]) * { second: 1, minute: 60, hour: 3600 }[r[2]];
+    return n >= 2 && n <= 86400 ? n : 0;
+  }
+  function nativeIntervalLabel(t) {
+    return t % 3600 === 0 ? t / 3600 + (t === 3600 ? " hour" : " hours") : t % 60 === 0 ? t / 60 + (t === 60 ? " minute" : " minutes") : t + " seconds";
+  }
+  function isValidNativeCaptureDate(t) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(t) || t < "0002-01-01" || t > "9998-12-31") return false;
+    const r = /* @__PURE__ */ new Date(t + "T00:00:00Z");
+    return !Number.isNaN(r.getTime()) && r.toISOString().slice(0, 10) === t;
+  }
+  function N(t) {
+    var r = t.trim();
+    return r ? r.split(",").every(function(n) {
+      return f2.test(n.trim());
+    }) : true;
+  }
+  function b(t) {
+    var r = String(t || "").split(",").map(function(n) {
+      return n.trim();
+    }).filter(Boolean);
+    return r.length ? r : [""];
+  }
+  function $(t) {
+    var r = String(t || "").trim();
+    if (!r) return [];
+    try {
+      var n = JSON.parse(r);
+      if (Array.isArray(n)) return n.map(function(i) {
+        return String(i || "");
+      });
+    } catch (i) {
+    }
+    return r.split(",").map(function(i) {
+      return i.trim();
+    });
+  }
+
+  // docs/webserver/src/app.ts
+  var EspframeAppElement = class extends HTMLElement {
+  };
+  if (!customElements.get("espframe-app")) {
+    customElements.define("espframe-app", EspframeAppElement);
+  }
+  function isObject(value) {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+  var TIMEZONES = ["Pacific/Midway (GMT-11)", "Pacific/Pago_Pago (GMT-11)", "Pacific/Honolulu (GMT-10)", "America/Adak (GMT-10)", "America/Anchorage (GMT-9)", "America/Juneau (GMT-9)", "America/Los_Angeles (GMT-8)", "America/Vancouver (GMT-8)", "America/Tijuana (GMT-8)", "America/Denver (GMT-7)", "America/Phoenix (GMT-7)", "America/Edmonton (GMT-7)", "America/Boise (GMT-7)", "America/Chicago (GMT-6)", "America/Mexico_City (GMT-6)", "America/Winnipeg (GMT-6)", "America/Guatemala (GMT-6)", "America/Costa_Rica (GMT-6)", "America/New_York (GMT-5)", "America/Toronto (GMT-5)", "America/Detroit (GMT-5)", "America/Havana (GMT-5)", "America/Bogota (GMT-5)", "America/Lima (GMT-5)", "America/Jamaica (GMT-5)", "America/Panama (GMT-5)", "America/Halifax (GMT-4)", "America/Caracas (GMT-4)", "America/Santiago (GMT-4)", "America/La_Paz (GMT-4)", "America/Manaus (GMT-4)", "America/Barbados (GMT-4)", "America/Puerto_Rico (GMT-4)", "America/Santo_Domingo (GMT-4)", "America/St_Johns (GMT-3:30)", "America/Sao_Paulo (GMT-3)", "America/Argentina/Buenos_Aires (GMT-3)", "America/Montevideo (GMT-3)", "America/Paramaribo (GMT-3)", "Atlantic/South_Georgia (GMT-2)", "Atlantic/Azores (GMT-1)", "Atlantic/Cape_Verde (GMT-1)", "UTC (GMT+0)", "Europe/London (GMT+0)", "Europe/Dublin (GMT+0)", "Europe/Lisbon (GMT+0)", "Africa/Casablanca (GMT+1)", "Africa/Accra (GMT+0)", "Atlantic/Reykjavik (GMT+0)", "Europe/Paris (GMT+1)", "Europe/Berlin (GMT+1)", "Europe/Rome (GMT+1)", "Europe/Madrid (GMT+1)", "Europe/Amsterdam (GMT+1)", "Europe/Brussels (GMT+1)", "Europe/Vienna (GMT+1)", "Europe/Zurich (GMT+1)", "Europe/Stockholm (GMT+1)", "Europe/Oslo (GMT+1)", "Europe/Copenhagen (GMT+1)", "Europe/Warsaw (GMT+1)", "Europe/Prague (GMT+1)", "Europe/Budapest (GMT+1)", "Europe/Belgrade (GMT+1)", "Africa/Lagos (GMT+1)", "Africa/Tunis (GMT+1)", "Africa/Cairo (GMT+2)", "Europe/Athens (GMT+2)", "Europe/Bucharest (GMT+2)", "Europe/Helsinki (GMT+2)", "Europe/Kyiv (GMT+2)", "Europe/Istanbul (GMT+3)", "Africa/Johannesburg (GMT+2)", "Africa/Nairobi (GMT+3)", "Asia/Jerusalem (GMT+2)", "Asia/Amman (GMT+3)", "Asia/Beirut (GMT+2)", "Europe/Moscow (GMT+3)", "Asia/Baghdad (GMT+3)", "Asia/Riyadh (GMT+3)", "Asia/Kuwait (GMT+3)", "Asia/Qatar (GMT+3)", "Africa/Addis_Ababa (GMT+3)", "Asia/Tehran (GMT+3:30)", "Asia/Dubai (GMT+4)", "Asia/Muscat (GMT+4)", "Asia/Baku (GMT+4)", "Asia/Tbilisi (GMT+4)", "Indian/Mauritius (GMT+4)", "Asia/Kabul (GMT+4:30)", "Asia/Karachi (GMT+5)", "Asia/Tashkent (GMT+5)", "Asia/Yekaterinburg (GMT+5)", "Asia/Kolkata (GMT+5:30)", "Asia/Colombo (GMT+5:30)", "Asia/Kathmandu (GMT+5:45)", "Asia/Dhaka (GMT+6)", "Asia/Almaty (GMT+5)", "Asia/Rangoon (GMT+6:30)", "Asia/Bangkok (GMT+7)", "Asia/Jakarta (GMT+7)", "Asia/Ho_Chi_Minh (GMT+7)", "Asia/Singapore (GMT+8)", "Asia/Kuala_Lumpur (GMT+8)", "Asia/Shanghai (GMT+8)", "Asia/Hong_Kong (GMT+8)", "Asia/Taipei (GMT+8)", "Asia/Manila (GMT+8)", "Australia/Perth (GMT+8)", "Asia/Tokyo (GMT+9)", "Asia/Seoul (GMT+9)", "Asia/Pyongyang (GMT+9)", "Australia/Adelaide (GMT+9:30)", "Australia/Darwin (GMT+9:30)", "Australia/Sydney (GMT+10)", "Australia/Melbourne (GMT+10)", "Australia/Brisbane (GMT+10)", "Australia/Hobart (GMT+10)", "Pacific/Guam (GMT+10)", "Pacific/Port_Moresby (GMT+10)", "Asia/Vladivostok (GMT+10)", "Pacific/Noumea (GMT+11)", "Pacific/Norfolk (GMT+11)", "Asia/Magadan (GMT+11)", "Pacific/Auckland (GMT+12)", "Pacific/Fiji (GMT+12)", "Pacific/Chatham (GMT+12:45)", "Pacific/Tongatapu (GMT+13)", "Pacific/Apia (GMT+13)", "Pacific/Kiritimati (GMT+14)"];
+  var TIMEZONE_LABELS = { "Pacific/Midway (GMT-11)": "Pacific/Midway (GMT-11)", "Pacific/Pago_Pago (GMT-11)": "Pacific/Pago_Pago (GMT-11)", "Pacific/Honolulu (GMT-10)": "Pacific/Honolulu (GMT-10)", "America/Adak (GMT-10)": "America/Adak (GMT-10; daylight GMT-9)", "America/Anchorage (GMT-9)": "America/Anchorage (GMT-9; daylight GMT-8)", "America/Juneau (GMT-9)": "America/Juneau (GMT-9; daylight GMT-8)", "America/Los_Angeles (GMT-8)": "America/Los_Angeles (GMT-8; daylight GMT-7)", "America/Vancouver (GMT-8)": "America/Vancouver (GMT-8; active GMT-7)", "America/Tijuana (GMT-8)": "America/Tijuana (GMT-8; daylight GMT-7)", "America/Denver (GMT-7)": "America/Denver (GMT-7; daylight GMT-6)", "America/Phoenix (GMT-7)": "America/Phoenix (GMT-7)", "America/Edmonton (GMT-7)": "America/Edmonton (GMT-7; active GMT-6)", "America/Boise (GMT-7)": "America/Boise (GMT-7; daylight GMT-6)", "America/Chicago (GMT-6)": "America/Chicago (GMT-6; daylight GMT-5)", "America/Mexico_City (GMT-6)": "America/Mexico_City (GMT-6)", "America/Winnipeg (GMT-6)": "America/Winnipeg (GMT-6; daylight GMT-5)", "America/Guatemala (GMT-6)": "America/Guatemala (GMT-6)", "America/Costa_Rica (GMT-6)": "America/Costa_Rica (GMT-6)", "America/New_York (GMT-5)": "America/New_York (GMT-5; daylight GMT-4)", "America/Toronto (GMT-5)": "America/Toronto (GMT-5; daylight GMT-4)", "America/Detroit (GMT-5)": "America/Detroit (GMT-5; daylight GMT-4)", "America/Havana (GMT-5)": "America/Havana (GMT-5; daylight GMT-4)", "America/Bogota (GMT-5)": "America/Bogota (GMT-5)", "America/Lima (GMT-5)": "America/Lima (GMT-5)", "America/Jamaica (GMT-5)": "America/Jamaica (GMT-5)", "America/Panama (GMT-5)": "America/Panama (GMT-5)", "America/Halifax (GMT-4)": "America/Halifax (GMT-4; daylight GMT-3)", "America/Caracas (GMT-4)": "America/Caracas (GMT-4)", "America/Santiago (GMT-4)": "America/Santiago (GMT-4; daylight GMT-3)", "America/La_Paz (GMT-4)": "America/La_Paz (GMT-4)", "America/Manaus (GMT-4)": "America/Manaus (GMT-4)", "America/Barbados (GMT-4)": "America/Barbados (GMT-4)", "America/Puerto_Rico (GMT-4)": "America/Puerto_Rico (GMT-4)", "America/Santo_Domingo (GMT-4)": "America/Santo_Domingo (GMT-4)", "America/St_Johns (GMT-3:30)": "America/St_Johns (GMT-3:30; daylight GMT-2:30)", "America/Sao_Paulo (GMT-3)": "America/Sao_Paulo (GMT-3)", "America/Argentina/Buenos_Aires (GMT-3)": "America/Argentina/Buenos_Aires (GMT-3)", "America/Montevideo (GMT-3)": "America/Montevideo (GMT-3)", "America/Paramaribo (GMT-3)": "America/Paramaribo (GMT-3)", "Atlantic/South_Georgia (GMT-2)": "Atlantic/South_Georgia (GMT-2)", "Atlantic/Azores (GMT-1)": "Atlantic/Azores (GMT-1; daylight GMT+0)", "Atlantic/Cape_Verde (GMT-1)": "Atlantic/Cape_Verde (GMT-1)", "UTC (GMT+0)": "UTC (GMT+0)", "Europe/London (GMT+0)": "Europe/London (GMT+0; daylight GMT+1)", "Europe/Dublin (GMT+0)": "Europe/Dublin (GMT+0; daylight GMT+1)", "Europe/Lisbon (GMT+0)": "Europe/Lisbon (GMT+0; daylight GMT+1)", "Africa/Casablanca (GMT+1)": "Africa/Casablanca (GMT+1)", "Africa/Accra (GMT+0)": "Africa/Accra (GMT+0)", "Atlantic/Reykjavik (GMT+0)": "Atlantic/Reykjavik (GMT+0)", "Europe/Paris (GMT+1)": "Europe/Paris (GMT+1; daylight GMT+2)", "Europe/Berlin (GMT+1)": "Europe/Berlin (GMT+1; daylight GMT+2)", "Europe/Rome (GMT+1)": "Europe/Rome (GMT+1; daylight GMT+2)", "Europe/Madrid (GMT+1)": "Europe/Madrid (GMT+1; daylight GMT+2)", "Europe/Amsterdam (GMT+1)": "Europe/Amsterdam (GMT+1; daylight GMT+2)", "Europe/Brussels (GMT+1)": "Europe/Brussels (GMT+1; daylight GMT+2)", "Europe/Vienna (GMT+1)": "Europe/Vienna (GMT+1; daylight GMT+2)", "Europe/Zurich (GMT+1)": "Europe/Zurich (GMT+1; daylight GMT+2)", "Europe/Stockholm (GMT+1)": "Europe/Stockholm (GMT+1; daylight GMT+2)", "Europe/Oslo (GMT+1)": "Europe/Oslo (GMT+1; daylight GMT+2)", "Europe/Copenhagen (GMT+1)": "Europe/Copenhagen (GMT+1; daylight GMT+2)", "Europe/Warsaw (GMT+1)": "Europe/Warsaw (GMT+1; daylight GMT+2)", "Europe/Prague (GMT+1)": "Europe/Prague (GMT+1; daylight GMT+2)", "Europe/Budapest (GMT+1)": "Europe/Budapest (GMT+1; daylight GMT+2)", "Europe/Belgrade (GMT+1)": "Europe/Belgrade (GMT+1; daylight GMT+2)", "Africa/Lagos (GMT+1)": "Africa/Lagos (GMT+1)", "Africa/Tunis (GMT+1)": "Africa/Tunis (GMT+1)", "Africa/Cairo (GMT+2)": "Africa/Cairo (GMT+2; daylight GMT+3)", "Europe/Athens (GMT+2)": "Europe/Athens (GMT+2; daylight GMT+3)", "Europe/Bucharest (GMT+2)": "Europe/Bucharest (GMT+2; daylight GMT+3)", "Europe/Helsinki (GMT+2)": "Europe/Helsinki (GMT+2; daylight GMT+3)", "Europe/Kyiv (GMT+2)": "Europe/Kyiv (GMT+2; daylight GMT+3)", "Europe/Istanbul (GMT+3)": "Europe/Istanbul (GMT+3)", "Africa/Johannesburg (GMT+2)": "Africa/Johannesburg (GMT+2)", "Africa/Nairobi (GMT+3)": "Africa/Nairobi (GMT+3)", "Asia/Jerusalem (GMT+2)": "Asia/Jerusalem (GMT+2; daylight GMT+3)", "Asia/Amman (GMT+3)": "Asia/Amman (GMT+3)", "Asia/Beirut (GMT+2)": "Asia/Beirut (GMT+2; daylight GMT+3)", "Europe/Moscow (GMT+3)": "Europe/Moscow (GMT+3)", "Asia/Baghdad (GMT+3)": "Asia/Baghdad (GMT+3)", "Asia/Riyadh (GMT+3)": "Asia/Riyadh (GMT+3)", "Asia/Kuwait (GMT+3)": "Asia/Kuwait (GMT+3)", "Asia/Qatar (GMT+3)": "Asia/Qatar (GMT+3)", "Africa/Addis_Ababa (GMT+3)": "Africa/Addis_Ababa (GMT+3)", "Asia/Tehran (GMT+3:30)": "Asia/Tehran (GMT+3:30)", "Asia/Dubai (GMT+4)": "Asia/Dubai (GMT+4)", "Asia/Muscat (GMT+4)": "Asia/Muscat (GMT+4)", "Asia/Baku (GMT+4)": "Asia/Baku (GMT+4)", "Asia/Tbilisi (GMT+4)": "Asia/Tbilisi (GMT+4)", "Indian/Mauritius (GMT+4)": "Indian/Mauritius (GMT+4)", "Asia/Kabul (GMT+4:30)": "Asia/Kabul (GMT+4:30)", "Asia/Karachi (GMT+5)": "Asia/Karachi (GMT+5)", "Asia/Tashkent (GMT+5)": "Asia/Tashkent (GMT+5)", "Asia/Yekaterinburg (GMT+5)": "Asia/Yekaterinburg (GMT+5)", "Asia/Kolkata (GMT+5:30)": "Asia/Kolkata (GMT+5:30)", "Asia/Colombo (GMT+5:30)": "Asia/Colombo (GMT+5:30)", "Asia/Kathmandu (GMT+5:45)": "Asia/Kathmandu (GMT+5:45)", "Asia/Dhaka (GMT+6)": "Asia/Dhaka (GMT+6)", "Asia/Almaty (GMT+5)": "Asia/Almaty (GMT+5)", "Asia/Rangoon (GMT+6:30)": "Asia/Rangoon (GMT+6:30)", "Asia/Bangkok (GMT+7)": "Asia/Bangkok (GMT+7)", "Asia/Jakarta (GMT+7)": "Asia/Jakarta (GMT+7)", "Asia/Ho_Chi_Minh (GMT+7)": "Asia/Ho_Chi_Minh (GMT+7)", "Asia/Singapore (GMT+8)": "Asia/Singapore (GMT+8)", "Asia/Kuala_Lumpur (GMT+8)": "Asia/Kuala_Lumpur (GMT+8)", "Asia/Shanghai (GMT+8)": "Asia/Shanghai (GMT+8)", "Asia/Hong_Kong (GMT+8)": "Asia/Hong_Kong (GMT+8)", "Asia/Taipei (GMT+8)": "Asia/Taipei (GMT+8)", "Asia/Manila (GMT+8)": "Asia/Manila (GMT+8)", "Australia/Perth (GMT+8)": "Australia/Perth (GMT+8)", "Asia/Tokyo (GMT+9)": "Asia/Tokyo (GMT+9)", "Asia/Seoul (GMT+9)": "Asia/Seoul (GMT+9)", "Asia/Pyongyang (GMT+9)": "Asia/Pyongyang (GMT+9)", "Australia/Adelaide (GMT+9:30)": "Australia/Adelaide (GMT+9:30; daylight GMT+10:30)", "Australia/Darwin (GMT+9:30)": "Australia/Darwin (GMT+9:30)", "Australia/Sydney (GMT+10)": "Australia/Sydney (GMT+10; daylight GMT+11)", "Australia/Melbourne (GMT+10)": "Australia/Melbourne (GMT+10; daylight GMT+11)", "Australia/Brisbane (GMT+10)": "Australia/Brisbane (GMT+10)", "Australia/Hobart (GMT+10)": "Australia/Hobart (GMT+10; daylight GMT+11)", "Pacific/Guam (GMT+10)": "Pacific/Guam (GMT+10)", "Pacific/Port_Moresby (GMT+10)": "Pacific/Port_Moresby (GMT+10)", "Asia/Vladivostok (GMT+10)": "Asia/Vladivostok (GMT+10)", "Pacific/Noumea (GMT+11)": "Pacific/Noumea (GMT+11)", "Pacific/Norfolk (GMT+11)": "Pacific/Norfolk (GMT+11; daylight GMT+12)", "Asia/Magadan (GMT+11)": "Asia/Magadan (GMT+11)", "Pacific/Auckland (GMT+12)": "Pacific/Auckland (GMT+12; daylight GMT+13)", "Pacific/Fiji (GMT+12)": "Pacific/Fiji (GMT+12)", "Pacific/Chatham (GMT+12:45)": "Pacific/Chatham (GMT+12:45; daylight GMT+13:45)", "Pacific/Tongatapu (GMT+13)": "Pacific/Tongatapu (GMT+13)", "Pacific/Apia (GMT+13)": "Pacific/Apia (GMT+13)", "Pacific/Kiritimati (GMT+14)": "Pacific/Kiritimati (GMT+14)" };
+  var PRODUCT_SETTINGS = { "photo_source": { "entity": "select/Photos: Source", "domain": "select", "default": "All Photos", "options": ["All Photos", "Favorites", "Album", "Person", "Tag", "Memories", "Custom"] }, "memories_window": { "entity": "select/Photos: Memories Window", "domain": "select", "default": "Within 2 Days", "options": ["Same Day", "Within 1 Day", "Within 2 Days", "Within 3 Days", "Within 7 Days"] }, "memories_fallback": { "entity": "switch/Photos: Memories Fallback", "domain": "switch", "default": true, "options": [] }, "album_order": { "entity": "select/Photos: Album Order", "domain": "select", "default": "Random albums", "options": ["Random albums", "Album list order"] }, "tag_matching": { "entity": "select/Photos: Tag Matching", "domain": "select", "default": "Any selected tag", "options": ["Any selected tag", "All selected tags"] }, "date_filter_mode": { "entity": "select/Photos: Date Filter Mode", "domain": "select", "default": "Fixed Range", "options": ["Fixed Range", "Relative Range"] }, "relative_unit": { "entity": "select/Photos: Relative Unit", "domain": "select", "default": "Years", "options": ["Months", "Years"] }, "photo_orientation": { "entity": "select/Photos: Orientation", "domain": "select", "default": "Any", "options": ["Any", "Portrait Only", "Landscape Only"] }, "display_mode": { "entity": "select/Photos: Display Mode", "domain": "select", "default": "Fill", "options": ["Fill", "Fit"] }, "transition": { "entity": "select/Photos: Transition", "domain": "select", "default": "Cross Fade", "options": ["None", "Cross Fade", "Fade to Black", "Fade to White", "Slide Left", "Slide Right", "Slide Up", "Slide Down", "Random"] }, "transition_speed": { "entity": "select/Photos: Transition Speed", "domain": "select", "default": "Fast", "options": ["Fast", "Normal", "Slow"] }, "interval": { "entity": "select/Photos: Slideshow Interval", "domain": "select", "default": "15 seconds", "options": ["10 seconds", "15 seconds", "20 seconds", "30 seconds", "45 seconds", "1 minute", "2 minutes", "3 minutes", "5 minutes", "10 minutes", "15 minutes", "30 minutes", "1 hour", "2 hours", "4 hours", "8 hours", "16 hours", "24 hours"] }, "conn_timeout": { "entity": "select/Screen: Connection Timeout", "domain": "select", "default": "10 minutes", "options": ["30 seconds", "45 seconds", "1 minute", "2 minutes", "3 minutes", "5 minutes", "10 minutes", "15 minutes", "20 minutes", "30 minutes"] }, "screen_rotation": { "entity": "select/Screen: Rotation", "domain": "select", "default": "0", "options": ["0", "180"], "developerOptions": ["90", "270"] }, "photo_metadata_date_format": { "entity": "select/Device: Metadata Date Format", "domain": "select", "default": "Date Taken", "options": ["Relative Date", "Date Taken"] }, "photo_metadata_date_taken_format": { "entity": "select/Device: Metadata Date Taken Format", "domain": "select", "default": "1 January, 2026", "options": ["1 January, 2026", "January 1, 2026"] }, "clock_format": { "entity": "select/Clock: Format", "domain": "select", "default": "24 Hour", "options": ["24 Hour", "12 Hour"] }, "update_frequency": { "entity": "select/Firmware: Update Frequency", "domain": "select", "default": "Daily", "options": ["Hourly", "Daily", "Weekly", "Monthly"] }, "auto_update": { "entity": "switch/Firmware: Auto Update", "domain": "switch", "default": true, "options": [] }, "c6_auto_update": { "entity": "switch/WiFi Firmware: Auto Update", "domain": "switch", "default": true, "options": [] }, "date_filter_enabled": { "entity": "switch/Photos: Date Filter", "domain": "switch", "default": false, "options": [] }, "date_from": { "entity": "text/Photos: Date From", "domain": "text", "default": "", "options": [], "maxLength": 10 }, "date_to": { "entity": "text/Photos: Date To", "domain": "text", "default": "", "options": [], "maxLength": 10 }, "relative_amount": { "entity": "number/Photos: Relative Amount", "domain": "number", "default": 1, "options": [], "min": 1, "max": 120, "step": 1 }, "schedule_enabled": { "entity": "switch/Screen: Schedule Enabled", "domain": "switch", "default": false, "options": [] }, "schedule_on_hour": { "entity": "number/Screen: Schedule On Hour", "domain": "number", "default": 6, "options": [], "min": 0, "max": 23, "step": 1 }, "schedule_off_hour": { "entity": "number/Screen: Schedule Off Hour", "domain": "number", "default": 23, "options": [], "min": 0, "max": 23, "step": 1 }, "schedule_wake_timeout": { "entity": "number/Screen: Schedule Wake Timeout", "domain": "number", "default": 60, "options": [], "min": 10, "max": 3600, "step": 10 }, "brightness_day": { "entity": "number/Screen: Daytime Brightness", "domain": "number", "default": 100, "options": [], "min": 10, "max": 100, "step": 5 }, "brightness_night": { "entity": "number/Screen: Nighttime Brightness", "domain": "number", "default": 75, "options": [], "min": 10, "max": 100, "step": 5 }, "base_tone_enabled": { "entity": "switch/Screen: Tone Adjustment", "domain": "switch", "default": false, "options": [] }, "base_tone": { "entity": "number/Screen: Display Tone", "domain": "number", "default": 0, "options": [], "min": 0, "max": 100, "step": 5 }, "warm_tones_enabled": { "entity": "switch/Screen: Night Tone Adjustment", "domain": "switch", "default": false, "options": [] }, "warm_tone_intensity": { "entity": "number/Screen: Warm Tone Intensity", "domain": "number", "default": 50, "options": [], "min": 10, "max": 100, "step": 5 }, "warm_tone_override": { "entity": "switch/Screen: Warm Tone Override", "domain": "switch", "default": false, "options": [] }, "portrait_pairing": { "entity": "switch/Photos: Portrait Pairing", "domain": "switch", "default": true, "options": [] }, "portrait_pairing_range": { "entity": "select/Photos: Portrait Pairing Range", "domain": "select", "default": "Same Day", "options": ["Same Day", "Within 1 Day", "Within 2 Days"] }, "portrait_pairs_only": { "entity": "switch/Photos: Paired Portraits Only", "domain": "switch", "default": false, "options": [] }, "photo_metadata_date_enabled": { "entity": "switch/Device: Metadata Date", "domain": "switch", "default": true, "options": [] }, "photo_metadata_location_enabled": { "entity": "switch/Device: Metadata Location", "domain": "switch", "default": true, "options": [] }, "albums_enabled": { "entity": "switch/Photos: Albums Enabled", "domain": "switch", "default": false, "options": [] }, "people_enabled": { "entity": "switch/Photos: People Enabled", "domain": "switch", "default": false, "options": [] }, "tags_enabled": { "entity": "switch/Photos: Tags Enabled", "domain": "switch", "default": false, "options": [] }, "favorites_enabled": { "entity": "switch/Photos: Favorites Enabled", "domain": "switch", "default": false, "options": [] }, "rating_enabled": { "entity": "switch/Photos: Rating Enabled", "domain": "switch", "default": false, "options": [] }, "location_enabled": { "entity": "switch/Photos: Location Enabled", "domain": "switch", "default": false, "options": [] }, "inclusion_matching": { "entity": "select/Photos: Inclusion Groups", "domain": "select", "default": "Match all enabled groups", "options": ["Match all enabled groups", "Match any enabled group"] }, "album_matching": { "entity": "select/Photos: Album Matching", "domain": "select", "default": "Any selected album", "options": ["Any selected album", "All selected albums"] }, "person_matching": { "entity": "select/Photos: Person Matching", "domain": "select", "default": "Any selected person", "options": ["Any selected person", "All selected people"] }, "favorite_mode": { "entity": "select/Photos: Favorites", "domain": "select", "default": "Any", "options": ["Any", "Favorites only", "Exclude favorites"] }, "minimum_rating": { "entity": "select/Photos: Minimum Rating", "domain": "select", "default": "Any", "options": ["Any", "1+", "2+", "3+", "4+", "5+"] }, "filter_country": { "entity": "text/Photos: Country", "domain": "text", "default": "", "options": [], "maxLength": 96 }, "filter_state": { "entity": "text/Photos: State or Province", "domain": "text", "default": "", "options": [], "maxLength": 96 }, "filter_city": { "entity": "text/Photos: City", "domain": "text", "default": "", "options": [], "maxLength": 96 }, "device_language": { "entity": "select/Device: Language", "domain": "select", "default": "en", "options": ["en", "cs", "da", "de", "es", "fi", "fr", "he", "hu", "it", "nb", "nl", "pl", "pt", "pt-br", "ro", "ru", "sk", "sl", "sv", "tr", "uk"] } };
+  var STATIC_ENTITIES = { "firmware_device": { "entity": "text_sensor/Firmware: Device" }, "firmware": { "entity": "text_sensor/Firmware: Version" }, "timezone": { "entity": "select/Clock: Timezone", "optionsKey": "tz_options", "default": "Europe/London (GMT+0)" }, "ntp_server_1": { "entity": "text/Clock: NTP Server 1", "default": "0.pool.ntp.org" }, "ntp_server_2": { "entity": "text/Clock: NTP Server 2", "default": "1.pool.ntp.org" }, "ntp_server_3": { "entity": "text/Clock: NTP Server 3", "default": "2.pool.ntp.org" }, "wireguard_enabled": { "entity": "switch/WireGuard: Enabled", "boolFromState": true, "default": false }, "wireguard_endpoint": { "entity": "text/WireGuard: Endpoint", "default": "" }, "wireguard_port": { "entity": "number/WireGuard: Port", "default": 51820, "number": true }, "wireguard_address": { "entity": "text/WireGuard: Address", "default": "" }, "wireguard_netmask": { "entity": "text/WireGuard: Netmask", "default": "255.255.255.255" }, "wireguard_allowed_ips": { "entity": "text/WireGuard: Allowed IPs", "default": "" }, "wireguard_peer_public_key": { "entity": "text/WireGuard: Peer Public Key", "default": "" }, "wireguard_connected": { "entity": "binary_sensor/WireGuard: Connected" }, "wireguard_tunnel_enabled": { "entity": "binary_sensor/WireGuard: Tunnel Enabled" }, "wireguard_handshake_age": { "entity": "sensor/WireGuard: Handshake Age" }, "album_ids": { "entity": "text/Photos: Album IDs" }, "album_labels": { "entity": "text/Photos: Album Labels" }, "person_ids": { "entity": "text/Photos: Person IDs" }, "person_labels": { "entity": "text/Photos: Person Labels" }, "tag_ids": { "entity": "text/Photos: Tag IDs" }, "tag_labels": { "entity": "text/Photos: Tag Labels" }, "excluded_album_ids": { "entity": "text/Photos: Excluded Album IDs" }, "excluded_album_labels": { "entity": "text/Photos: Excluded Album Labels" }, "excluded_person_ids": { "entity": "text/Photos: Excluded Person IDs" }, "excluded_person_labels": { "entity": "text/Photos: Excluded Person Labels" }, "excluded_tag_ids": { "entity": "text/Photos: Excluded Tag IDs" }, "excluded_tag_labels": { "entity": "text/Photos: Excluded Tag Labels" }, "immich_server_version": { "entity": "text_sensor/Immich: Server Version", "default": "Unknown" }, "immich_capability_status": { "entity": "text_sensor/Immich: Filter Capabilities", "default": "Immich 3.1 compatibility" }, "memories_migration_notice": { "entity": "switch/Photos: Memories Migration Notice", "boolFromState": true, "default": false }, "sunrise": { "entity": "text_sensor/Screen: Sunrise" }, "sunset": { "entity": "text_sensor/Screen: Sunset" }, "developer_features_enabled": { "entity": "switch/Developer: Features", "boolFromState": true }, "show_clock": { "entity": "switch/Clock: Show", "boolFromState": true, "default": true }, "c6_current_firmware": { "entity": "text_sensor/ESP32-C6: Current Firmware", "default": "Unknown" }, "c6_available_firmware": { "entity": "text_sensor/ESP32-C6: Available Firmware", "default": "Unknown" }, "c6_update_status": { "entity": "text_sensor/ESP32-C6: Update Available", "default": "Unknown" } };
+  var MANUAL_ENTITIES = { "immich_url": { "entity": "text/Connection: Server URL" }, "api_key": { "entity": "text/Connection: API Key" }, "wireguard_private_key": { "entity": "text/WireGuard: Private Key" }, "backlight": { "entity": "light/Screen: Backlight" }, "update": { "entity": "update/Firmware: Update" }, "apply_photo_source": { "entity": "button/Apply Photo Source" }, "firmware_check": { "entity": "button/Firmware: Check for Update" }, "firmware_prepare_upload": { "entity": "button/Firmware: Prepare Browser Update" }, "firmware_cancel_upload": { "entity": "button/Firmware: Cancel Browser Update" }, "c6_firmware_check": { "entity": "button/Firmware ESP32-C6: Check for Update" }, "c6_firmware_install": { "entity": "button/Firmware ESP32-C6: Install Update" }, "reboot_screen": { "entity": "button/Device: Reboot Screen" } };
+  var MANUAL_STATE_KEYS = ["immich_url"];
+  var ENTITY_ALIASES = { "schedule_enabled": [{ "entity": "switch/Screen: Schedule", "boolFromState": true }], "schedule_on_hour": [{ "entity": "number/Screen: Schedule On", "default": 6, "number": true }], "schedule_off_hour": [{ "entity": "number/Screen: Schedule Off", "default": 23, "number": true }] };
+  var BACKUP_CONFIG_VERSION = 3;
+  var BACKUP_SCHEMA = [{ "group": "connection", "field": "immich_url", "state_keys": ["immich_url"] }, { "group": "photos", "field": "source", "state_keys": ["photo_source"] }, { "group": "photos", "field": "memories_window", "state_keys": ["memories_window"] }, { "group": "photos", "field": "memories_fallback", "state_keys": ["memories_fallback"] }, { "group": "photos", "field": "albums_enabled", "state_keys": ["albums_enabled"] }, { "group": "photos", "field": "people_enabled", "state_keys": ["people_enabled"] }, { "group": "photos", "field": "tags_enabled", "state_keys": ["tags_enabled"] }, { "group": "photos", "field": "favorites_enabled", "state_keys": ["favorites_enabled"] }, { "group": "photos", "field": "rating_enabled", "state_keys": ["rating_enabled"] }, { "group": "photos", "field": "location_enabled", "state_keys": ["location_enabled"] }, { "group": "photos", "field": "inclusion_matching", "state_keys": ["inclusion_matching"] }, { "group": "photos", "field": "album_matching", "state_keys": ["album_matching"] }, { "group": "photos", "field": "person_matching", "state_keys": ["person_matching"] }, { "group": "photos", "field": "favorite_mode", "state_keys": ["favorite_mode"] }, { "group": "photos", "field": "minimum_rating", "state_keys": ["minimum_rating"] }, { "group": "photos", "field": "country", "state_keys": ["filter_country"] }, { "group": "photos", "field": "state", "state_keys": ["filter_state"] }, { "group": "photos", "field": "city", "state_keys": ["filter_city"] }, { "group": "photos", "field": "album_order", "state_keys": ["album_order"] }, { "group": "photos", "field": "album_ids", "state_keys": ["album_ids"] }, { "group": "photos", "field": "album_labels", "state_keys": ["album_labels"] }, { "group": "photos", "field": "person_ids", "state_keys": ["person_ids"] }, { "group": "photos", "field": "person_labels", "state_keys": ["person_labels"] }, { "group": "photos", "field": "tag_ids", "state_keys": ["tag_ids"] }, { "group": "photos", "field": "tag_labels", "state_keys": ["tag_labels"] }, { "group": "photos", "field": "tag_matching", "state_keys": ["tag_matching"] }, { "group": "photos", "field": "excluded_album_ids", "state_keys": ["excluded_album_ids"] }, { "group": "photos", "field": "excluded_album_labels", "state_keys": ["excluded_album_labels"] }, { "group": "photos", "field": "excluded_person_ids", "state_keys": ["excluded_person_ids"] }, { "group": "photos", "field": "excluded_person_labels", "state_keys": ["excluded_person_labels"] }, { "group": "photos", "field": "excluded_tag_ids", "state_keys": ["excluded_tag_ids"] }, { "group": "photos", "field": "excluded_tag_labels", "state_keys": ["excluded_tag_labels"] }, { "group": "photos", "field": "date_filter_enabled", "state_keys": ["date_filter_enabled"] }, { "group": "photos", "field": "date_filter_mode", "state_keys": ["date_filter_mode"] }, { "group": "photos", "field": "date_from", "state_keys": ["date_from"] }, { "group": "photos", "field": "date_to", "state_keys": ["date_to"] }, { "group": "photos", "field": "relative_amount", "state_keys": ["relative_amount"] }, { "group": "photos", "field": "relative_unit", "state_keys": ["relative_unit"] }, { "group": "photos", "field": "orientation", "state_keys": ["photo_orientation"] }, { "group": "photos", "field": "portrait_pairing", "state_keys": ["portrait_pairing"] }, { "group": "photos", "field": "portrait_pairing_range", "state_keys": ["portrait_pairing_range"] }, { "group": "photos", "field": "portrait_pairs_only", "state_keys": ["portrait_pairs_only"] }, { "group": "photos", "field": "display_mode", "state_keys": ["display_mode"] }, { "group": "photos", "field": "transition", "state_keys": ["transition"] }, { "group": "photos", "field": "transition_speed", "state_keys": ["transition_speed"] }, { "group": "frequency", "field": "interval", "state_keys": ["interval"] }, { "group": "frequency", "field": "conn_timeout", "state_keys": ["conn_timeout"] }, { "group": "firmware_updates", "field": "auto_update", "state_keys": ["auto_update"] }, { "group": "firmware_updates", "field": "update_frequency", "state_keys": ["update_frequency"] }, { "group": "firmware_updates", "field": "wifi_auto_update", "state_keys": ["c6_auto_update"] }, { "group": "clock", "field": "show", "state_keys": ["show_clock"] }, { "group": "clock", "field": "format", "state_keys": ["clock_format"] }, { "group": "clock", "field": "timezone", "state_keys": ["timezone"] }, { "group": "clock", "field": "ntp_servers", "state_keys": ["ntp_server_1", "ntp_server_2", "ntp_server_3"] }, { "group": "screen", "field": "brightness_day", "state_keys": ["brightness_day"] }, { "group": "screen", "field": "brightness_night", "state_keys": ["brightness_night"] }, { "group": "screen", "field": "schedule_enabled", "state_keys": ["schedule_enabled"] }, { "group": "screen", "field": "schedule_on_hour", "state_keys": ["schedule_on_hour"] }, { "group": "screen", "field": "schedule_off_hour", "state_keys": ["schedule_off_hour"] }, { "group": "screen", "field": "schedule_wake_timeout", "state_keys": ["schedule_wake_timeout"] }, { "group": "screen", "field": "base_tone_enabled", "state_keys": ["base_tone_enabled"] }, { "group": "screen", "field": "base_tone", "state_keys": ["base_tone"] }, { "group": "screen", "field": "warm_tones_enabled", "state_keys": ["warm_tones_enabled"] }, { "group": "screen", "field": "warm_tone_intensity", "state_keys": ["warm_tone_intensity"] }, { "group": "screen", "field": "warm_tone_override", "state_keys": ["warm_tone_override"] }, { "group": "screen", "field": "rotation", "state_keys": ["screen_rotation"] }, { "group": "screen", "field": "language", "state_keys": ["device_language"] }];
+  var LIVE_RENDER_STATE_KEYS = ["screen_rotation", "portrait_pairing", "developer_features_enabled", "immich_server_version"];
+  var LIVE_RENDER_STATE_PREFIXES = ["photo_metadata_", "schedule_"];
+  var FIRMWARE_MANIFEST_URLS = { "stable": "https://jtenniswood.github.io/espframe/firmware/manifest.json", "devices": { "immich-frame": { "stable": "https://jtenniswood.github.io/espframe/firmware/manifest.json", "beta": "https://jtenniswood.github.io/espframe/firmware/beta/manifest.json" }, "immich-frame-v2": { "stable": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v2/manifest.json", "beta": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v2/beta/manifest.json" }, "immich-frame-v3": { "stable": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v3/manifest.json", "beta": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v3/beta/manifest.json" } } };
+  var DOCS_BASE_URL = "https://jtenniswood.github.io/espframe";
+  var WEB_UI_TABS = [{ "id": "immich", "label": "Immich" }, { "id": "settings", "label": "Device" }, { "id": "logs", "label": "Logs" }];
+  var WEB_UI_CARDS = [{ "id": "connection", "label": "Connection", "tab": "immich", "section": "", "function": "makeConnectionCard", "settings": ["conn_timeout"], "staticEntities": [], "manualEntities": ["immich_url", "api_key"] }, { "id": "wireguard", "label": "WireGuard VPN", "tab": "immich", "section": "", "function": "makeWireguardCard", "settings": [], "staticEntities": ["wireguard_enabled", "wireguard_endpoint", "wireguard_port", "wireguard_address", "wireguard_netmask", "wireguard_allowed_ips", "wireguard_peer_public_key", "wireguard_connected", "wireguard_tunnel_enabled", "wireguard_handshake_age"], "manualEntities": ["wireguard_private_key"] }, { "id": "frequency", "label": "Frequency", "tab": "immich", "section": "", "function": "makeFrequencyCard", "settings": ["interval"], "staticEntities": [], "manualEntities": [] }, { "id": "portrait_pairing", "label": "Portrait Pairing", "tab": "immich", "section": "", "function": "makePortraitPairingCard", "settings": ["portrait_pairing", "portrait_pairs_only", "portrait_pairing_range"], "staticEntities": [], "manualEntities": [] }, { "id": "memories", "label": "Memories", "tab": "immich", "section": "", "function": "makeMemoriesCard", "settings": ["memories_window", "memories_fallback"], "staticEntities": ["memories_migration_notice"], "manualEntities": [] }, { "id": "photo_source", "label": "Filters", "tab": "immich", "section": "", "function": "makeFiltersCard", "settings": ["photo_source", "albums_enabled", "people_enabled", "tags_enabled", "date_filter_enabled", "date_filter_mode", "date_from", "date_to", "relative_amount", "relative_unit", "favorites_enabled", "rating_enabled", "location_enabled", "inclusion_matching", "album_matching", "person_matching", "tag_matching", "favorite_mode", "minimum_rating", "filter_country", "filter_state", "filter_city", "album_order"], "staticEntities": ["album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels", "excluded_album_ids", "excluded_album_labels", "excluded_person_ids", "excluded_person_labels", "excluded_tag_ids", "excluded_tag_labels", "immich_server_version", "immich_capability_status"], "manualEntities": ["apply_photo_source"] }, { "id": "layout", "label": "Photo Display", "tab": "immich", "section": "", "function": "makeLayoutCard", "settings": ["photo_orientation", "display_mode", "transition", "transition_speed"], "staticEntities": [], "manualEntities": [] }, { "id": "metadata", "label": "Metadata", "tab": "immich", "section": "", "function": "makeMetadataCard", "settings": ["photo_metadata_date_enabled", "photo_metadata_location_enabled", "photo_metadata_date_format", "photo_metadata_date_taken_format"], "staticEntities": [], "manualEntities": [] }, { "id": "screen_brightness", "label": "Screen Brightness", "tab": "settings", "section": "Display", "function": "makeScreenBrightnessCard", "settings": ["brightness_day", "brightness_night"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "screen_tone", "label": "Screen Tone", "tab": "settings", "section": "Display", "function": "makeScreenToneCard", "settings": ["base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"], "staticEntities": [], "manualEntities": [] }, { "id": "rotation", "label": "Rotation", "tab": "settings", "section": "Display", "function": "makeRotationCard", "settings": ["screen_rotation"], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }, { "id": "clock", "label": "Clock", "tab": "settings", "section": "Display", "function": "makeClockCard", "settings": ["clock_format"], "staticEntities": ["show_clock", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3"], "manualEntities": [] }, { "id": "night_schedule", "label": "Night Schedule", "tab": "settings", "section": "Sleep & Schedule", "function": "makeNightScheduleCard", "settings": ["schedule_enabled", "schedule_on_hour", "schedule_off_hour", "schedule_wake_timeout"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "device_language", "label": "Language", "tab": "settings", "section": "Preferences", "function": "makeLanguageCard", "settings": ["device_language"], "staticEntities": [], "manualEntities": [] }, { "id": "frame_name", "label": "Frame Name", "tab": "settings", "section": "Preferences", "function": "makeFrameNameCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "backup", "label": "Backup", "tab": "settings", "section": "System", "function": "makeBackupCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "firmware", "label": "Firmware", "tab": "settings", "section": "System", "function": "makeFirmwareCard", "settings": ["update_frequency", "auto_update", "c6_auto_update"], "staticEntities": ["firmware_device", "firmware", "c6_current_firmware", "c6_available_firmware", "c6_update_status"], "manualEntities": ["update", "firmware_prepare_upload", "firmware_cancel_upload", "firmware_check", "c6_firmware_check", "c6_firmware_install"] }, { "id": "device_reboot", "label": "Device Reboot", "tab": "settings", "section": "System", "function": "makeDeviceRebootCard", "settings": [], "staticEntities": [], "manualEntities": ["reboot_screen"] }, { "id": "factory_reset", "label": "Reset", "tab": "settings", "section": "System", "function": "makeResetCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "developer", "label": "Developer", "tab": "settings", "section": "System", "function": "makeDeveloperCard", "settings": [], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }];
+  var WEB_UI_LOGS_RETAINED_LINES = 1e3;
+  var SUPPORT_URL = "https://www.buymeacoffee.com/jtenniswood";
+  var SUPPORT_BUTTON_IMAGE_DATA_URI = "data:image/webp;base64,UklGRu4MAABXRUJQVlA4WAoAAAAQAAAA2AAAOwAAQUxQSG4AAAABcFtr29K8NboK5285LEPFSuzgrjNFKk/w+o0nIggkbWaNvwAAKHbSM5EYWBFFT8bBE4usTc/HxgIg9j0jewl613MSwOlJdTbbnhW3p9Wp5+Xvf3//+zDtRGxOSGwAymuyS2xkzWsWT+3IwOt6AlZQOCBaDAAAUDYAnQEq2QA8AD5JII5EoqIhlSqteCgEhLYAaicAv27r9pKdq/G/8w/mVq79s+9nKsmq67P0H23fAT1AflX/Oe4B+qH+M9Ir1AfzX/CeoD+N/0j/G/1X3Uv9F/o/YB+tn+u9wD+Zfyz0pPYH/XX2AP5V/YPSn/7n+6+Bv9lP+Z/tfgG/lX9W+///h94B6AHq/9KOvf+z/j55r99jv97Vf1H2NMb/O7+7+hX8c+u/3b8mfzM9mbwB92f8x6gX4h/Iv7V+WP5gchQAD8s/nn+J+5b0cNU3uP/nvcA/jH8q/vf5g+qT4RfjnsAfyH+0f8f/Ce63+8f+D/SflL7X/y/+5/8v/EfAP/Kf6l/uf73+Tnzkexr9yPZgM2JBazSmkrpjSRSnJbdchXHmgCRYbamNpbdhkx6iTplTdQaOZPe569QakRMg7zwffhrS81BDeVkXHaolGV3K1uUFfUfXkxmxiH9akXO0sO2eEcuCRSalI43bnhz4gVlZflOcHUjC/cHK92d7iHqIjIQke72Dh5Nc+KbfHu6ao8RBSRo1xYD7bK5odaFI1VkBSaht+OYczNR83oYXXw+uEd+ZQgAA/v2E2JFf00S7ZZurvf45OdwBGfysJTJe8NAkOsnssv7LL9ll/45GsLCqARXe54sz/OpxCLeTuKis6/Fz8DsS4LqboI8pI3J9gFK1ImoUZ0qWzWwsOTYLXKQ6GteX0al+agc5JXKyLtfhPoFNNBGQV2+nUNu16ejPEuaakkePBfxG+Tzvfg0rkndAXKMOFycgsAtd5uHLV8PyGXLXfUvqrJhKbFZ57yRq0haXzN/fylfN01AAEICoED7wFdKlhdCfclwKCDmiblWz/HW3/LJvdJVQQVofCPpsm9qPfZZo0nqnArYU0twSFBWeOQceeaZkPZbFfmbyjMzc/ZWnji/H/WdNUqQRHfj83sJ4/eDnvjNoJhvv3T8wM1TM2apS9YlqsiyWJXKmXi+J1WyCgTytBUB0G/qZRac97djE6xUjvtyViLonMWi2AZHWx2nXLaDwELK6tU+QS31qsW9wp0A1NBsU7mYsozO0ecWjQsLeUSoIOr3VFPIOglZetzQ9gO4r/Q0xwIGpH+k3IWFA6ekVHAsVUE6ic+gQfBgq+oqy3R2PjAX/ct8TTTHwHDyLvoNH9yPvE780Y3JN0wuXQpOXg8dw8lpbtL2SaKgUqXxN7XbHp2JSZetuGxwuapaaXx7/5VC53n1A2xjKRC9fE+xLY3GU8MwM8CrsRRBV8Dbu7eZlO5Uhsb8CsqYkKIA+SpG3uXdbQ1O6IV4y9ZIaxmLlcHHzzLtWJn811VJTt4MSa95HmnrF+016wyRZB/Hl/6YG0YsdFPN4lSOvFp+c3VtuYwHrSFdUVlpyJrq4UxXIsDXxiN10NBYzj+a8RoIZxVF1Jpad6FMQbg94fLOKQQ1EOM15RFNWLDVoG2eIgZVqERyPOQilrOmrAIbsg0PdroPeARqno+Fmgrl4aZipqitQ+Ce+cz2Omqgx3L/GBwnRYEvTT/fdDGpxBkZRZgvoHFyuf6WopWU8tutFErxLysa3NpPhihIcuyDjmhae8LjCSM3b4t0T4IctUhijI4NlHe+09Ps7sGD2RpKXpK4T9VxTYvTQBzg/54Yo3SCYqr7he69twNdmqjgMjoJVVQ74q0fKeUbJVrCXD5WmmagBfvZhyYB/Xmubwg/BIA+VgGWBk+ccstbvruxsXC3+N9KC8mS8VcZfBHkCrNqL8pOKfJmRboq58vENFNVY4kLlO6pW88kj8Sxe2UXl0TpPCivm20QEaA3/j9OelzE5Jw/3eiXPjkNAFKkyYu7YJK5UkvitdDnEZ1mnGrHTxRhyJX7gjo5Ma8JYW1dyUm4vfnnLRrJfRgV2jQ0HHFFYWsp6hwn/r8TrdcHMes1e3+6wGMYOc/qX2glzqFJfCmhHIpvU3SKl0MB/JRd4Rac6uCnJCKgKsBhp60xvOfpjrLCC5fwEyv2wT61lwXeb3xevvZNYoCgl0uwdCULLFVQSL9RJNpwZv1EBKRo5fCn+PerplieqyX2lZqz8ygzMwp7gJLjA6Dlt7gTl/R/y7C6JccayLs2f9N1Gry0I9GSaTyRvM5Sm5l9ASGUobp6jQGtBFENt1k+nR5d05qxmwGmNUYxBW1//qr/xi/D7gFIqa3bpYO9ukwNiHxBPp5JqgHNGZYfKjKoLz/rb30RDnaX0JANcBlRXP3BcFemCObKBqUWEPt8CKopdWWwmPauXl7UFW1kiGUjyVnT6dH7RppEP63ympv+OBbiNE3jP3zJDVm3SfDgkE4Uh/uOyrB9kB7TufzovmLwKe3t8lKza0mmk1Yt3iEA8IqXx9cuwpNYvUoPfbjztyC8J++dsLVJWwQoeKGCczxzjWefTUe82K5fP9mvoVyMPHuFjQlsSCtvEK9VIH9HqSsvZVUFoadZo1GmO6NGFVkMf26cq0KyS7uAizDRjhMqoxddm7LEG1PTSfqgatQRnNyo6AvMiZx9w8/RnI6nilNYrs3wpvH1ce4P9q9zfC01ss6OetWKEG/yDiqs29lhXzawhBMfhpeYnJxchqQzHS71bSmFooQbvf/JGqaKmO2VZz1JrRCKV2Cp3zJMv2zs/IyxWVSv516btmNHIfiCblWYEmnQkyrEx79w8NMCz/wXN8WFG2hdrY5wWFXsWuXs+cS7MEpiexmYOnmf1I37RcRatrk5kW2FBGVb8tMX4apMTGVzSygYp8LrIrZgpgHJpOf/mDYha6BjUDt8Kdle47P19lN25I13881QSpWo2KRUvijLwNzwQ6ORxgY9yEh4RFDTnQFthD9+A84cNPDNhwmGp/Pzpj2xIuJpDmG86Sf1LjOxkOtbPLPZRPmDrpIEifQxG2Qth9b5IWcqDnoz5xElZf5ucEsLRmeHVpIgY5tR3ztNBmV7vL9rn3gOH7wIFf0kGYtdjBm6VPwkmWYjycvQRunimz7qNVuRNRCNPohxKqX/91fFD8i4hoyMhtHXS7lF0JCUfN5SKfpbGp8IpwqjBqs5WSZgd/jq84ni6QtQnQfzWlL5/pOa5qc7VMHoEtLhfYAVn1Aom8PnTEO3GJOsN2Ls/bLuNKLqtgXJ8mU1ldBaHwVPd8JRDz+u9rFoG2YmXZ4BjAG9KonvVudRnrkgqKTCd31684v9Xls1G5bDw3hvriZpOfoOy1xHNVW44numoi+kG2C8Z8qNPZbk72ourHv8C0PZaMe/+yJ/+Nv41pt62tH29M58aW6wGRIFNgtXwy5ep+7yeVAUd0dzREPlL+tx7oqbdpZxXp1Yc76qu/tiju1Vb8LHCDt3uSa8x6jQwF0L62uodMBTsI/q8gfnZXVhHx+ujlPkeBtM9fwoGvWsG+TqZawVW8Nn4aikGJxWuDc9y+Elc1fDOznKziQzK3WTu7x+D3cRc+/+Bt6N9VORnJKVHAaPbKMH3z9LvQjL4L2KFoj2BH78IUuoi+uBQjhl4xl5Pc6vE4sIHW5SNdAbwlxthBL8s+oJtMK9KQ/KJidaAlkI/CM5+k1OkT9NNaEmHOXR5FHMrDcefRHFP95Q0LyaP4QuCHs9hBrNBDd5GS5IGLvyyrRhpNeFnWp5dur+I4yjfW5J7+rs01na/HoOiEfAa5WVA/RevkHb1RybwVk+1N8Dcum5gJC3v+MK6HZkeC3OKKnkd4cXqPVrHy1ndLZx0xbGmyU2gX5/zsG1RBYJ5B1Rzu5S6z0RqNvEidnVK7ZbLlJTFGFTr+hDvaMXhs/b6R23YlthFiRENO2O/ReExVzVxpjdttQN7LkPVfuObNHn8qNiUenuKQoH+FHxRUdNEGbTcdNC9YMxnkNpCZ6tbtPQmq430q5739kB2pyRMtraAO5K10sNJ86S4z87+/bXIFxmxt/0t23d0SepvIfxj3vQF2dAEXizBaUDn1WSicc1BA3m/4lyuZvX6XAYCkuqIH4CxQQ/FGuZH/01HoVj6Y0B26y4/iBI0Us8wJ/wmYmrHoewk0UHJk/Pbx12sbjiSYcc18zaMuap0ES3gFFqtRuotzHC1SpErkb4LothEAWJjyAKwGZKf9KWtn6BgxROJxLMxoKWjQK2wwKpiNDcfIq7V68wPPygdIBIiRbg8xmYrCYS7fkEAAAAAAAAugNB5avHG5gomemNHUXvqnN9Q/uKP2Lf0F+GSe426YDBfUuCJdfrQPYleJgAA";
+  var CONFIGURATION_CAPABILITIES_PATH = "/espframe/api/v1/capabilities";
+  var highlightApiKeyAfterRestore = false;
+  var nativeAdmin = document.documentElement.hasAttribute("data-native-admin");
+  var nativeSettings = /* @__PURE__ */ new Set();
+  var S2 = {
+    tz_options: TIMEZONES,
+    tz_labels: TIMEZONE_LABELS,
+    brightness: 100,
+    backlight_on: true,
+    immich_url: "",
+    api_key_configured: false,
+    wireguard_available: false,
+    wireguard_private_key_configured: false,
+    firmware: "",
+    installed_version: "",
+    latest_version: "",
+    update_available: false,
+    firmware_version_options: [],
+    firmware_versions_loaded: false,
+    firmware_versions_loading: false,
+    firmware_selected_version: "",
+    firmware_checking: false,
+    firmware_installing: false,
+    firmware_uploading: false,
+    firmware_restart_pending: false,
+    firmware_install_error: "",
+    c6_firmware_checking: false,
+    c6_firmware_installing: false,
+    brightness_current: 0,
+    sunrise: "",
+    sunset: "",
+    album_ids: "",
+    album_labels: "",
+    person_ids: "",
+    person_labels: "",
+    tag_ids: "",
+    tag_labels: "",
+    developer_features_enabled: false
+  };
+  function registerStaticEntityStateDefaults() {
+    if (!STATIC_ENTITIES) return;
+    Object.keys(STATIC_ENTITIES).forEach(function(key) {
+      var spec = STATIC_ENTITIES[key];
+      if (!spec || spec.default === void 0) return;
+      if (S2[key] === void 0) S2[key] = spec.default;
+    });
+  }
+  function registerProductSettingStateDefaults() {
+    if (!PRODUCT_SETTINGS) return;
+    Object.keys(PRODUCT_SETTINGS).forEach(function(key) {
+      var spec = PRODUCT_SETTINGS[key];
+      if (!spec) return;
+      if (S2[key] === void 0) S2[key] = spec.default !== void 0 ? spec.default : "";
+    });
+  }
+  registerStaticEntityStateDefaults();
+  registerProductSettingStateDefaults();
+  function productNumberSettingField(key, field2, fallback) {
+    var spec = PRODUCT_SETTINGS && PRODUCT_SETTINGS[key];
+    var value = spec && spec[field2] !== void 0 ? Number(spec[field2]) : NaN;
+    return isFinite(value) ? value : fallback;
+  }
+  function productNumberMin(key, fallback) {
+    return productNumberSettingField(key, "min", fallback);
+  }
+  function productNumberMax(key, fallback) {
+    return productNumberSettingField(key, "max", fallback);
+  }
+  function productNumberStep(key, fallback) {
+    return productNumberSettingField(key, "step", fallback);
+  }
+  function productTextMaxLength(key, fallback) {
+    var spec = PRODUCT_SETTINGS && PRODUCT_SETTINGS[key];
+    var value = spec && spec.maxLength !== void 0 ? Number(spec.maxLength) : NaN;
+    return isFinite(value) && value > 0 ? value : fallback;
+  }
+  function productSettingOptions(key, includeDeveloper) {
+    var spec = PRODUCT_SETTINGS && PRODUCT_SETTINGS[key];
+    var options = spec && Array.isArray(spec.options) ? spec.options.slice() : [];
+    if (includeDeveloper && spec && Array.isArray(spec.developerOptions)) {
+      spec.developerOptions.forEach(function(option) {
+        if (options.indexOf(option) === -1) options.push(option);
+      });
+    }
+    return options;
+  }
+  var CSS = "";
+  var FAVICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" id="mdi-home-automation" viewBox="0 0 24 24"><path fill="#5c73e7" d="M12,3L2,12H5V20H19V12H22L12,3M12,8.5C14.34,8.5 16.46,9.43 18,10.94L16.8,12.12C15.58,10.91 13.88,10.17 12,10.17C10.12,10.17 8.42,10.91 7.2,12.12L6,10.94C7.54,9.43 9.66,8.5 12,8.5M12,11.83C13.4,11.83 14.67,12.39 15.6,13.3L14.4,14.47C13.79,13.87 12.94,13.5 12,13.5C11.06,13.5 10.21,13.87 9.6,14.47L8.4,13.3C9.33,12.39 10.6,11.83 12,11.83M12,15.17C12.94,15.17 13.7,15.91 13.7,16.83C13.7,17.75 12.94,18.5 12,18.5C11.06,18.5 10.3,17.75 10.3,16.83C10.3,15.91 11.06,15.17 12,15.17Z"/></svg>';
+  if (!nativeAdmin) {
+    style = document.createElement("style");
+    style.textContent = CSS;
+    document.head.appendChild(style);
+  }
+  var style;
+  ensureFavicon();
+  var els = {};
+  var app;
+  function ensureFavicon() {
+    var icon = document.querySelector('link[rel="icon"]') || document.createElement("link");
+    icon.rel = "icon";
+    icon.type = "image/svg+xml";
+    icon.href = "data:image/svg+xml," + encodeURIComponent(FAVICON_SVG);
+    if (!icon.parentNode) document.head.appendChild(icon);
+  }
+  function buildUI() {
+    var root = document.createElement("espframe-app");
+    root.id = "sp-app";
+    var banner = document.createElement("div");
+    banner.className = "banner";
+    banner.style.display = "none";
+    root.appendChild(banner);
+    els.banner = banner;
+    buildHeader(root);
+    buildImmichPage(root);
+    buildSettingsPage(root);
+    buildLogsPage(root);
+    var espApp = document.querySelector("esp-app");
+    if (espApp) {
+      espApp.parentNode.insertBefore(root, espApp);
+    } else {
+      document.body.insertBefore(root, document.body.firstChild);
+    }
+    els.root = root;
+    switchTab("immich");
+    addSupportButton();
+  }
+  function addSupportButton() {
+    if (document.querySelector(".sp-support-btn")) return;
+    var link = document.createElement("a");
+    link.className = "sp-support-btn";
+    link.href = SUPPORT_URL;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.setAttribute("aria-label", "Buy Me A Coffee");
+    var fallback = document.createElement("span");
+    fallback.textContent = "Buy Me A Coffee";
+    link.appendChild(fallback);
+    var image = document.createElement("img");
+    image.src = SUPPORT_BUTTON_IMAGE_DATA_URI;
+    image.alt = "Buy Me A Coffee";
+    image.height = 60;
+    link.appendChild(image);
+    document.body.appendChild(link);
+  }
+  function buildHeader(parent) {
+    var header = document.createElement("div");
+    header.className = "sp-header";
+    var brand = document.createElement("div");
+    brand.className = "sp-brand";
+    var brandLabel = document.createElement("span");
+    brandLabel.className = "sp-brand-label";
+    brandLabel.textContent = "EspFrame";
+    var deviceName = document.createElement("span");
+    deviceName.className = "sp-device-name";
+    deviceName.hidden = true;
+    brand.append(brandLabel, deviceName);
+    header.appendChild(brand);
+    var nav = document.createElement("nav");
+    nav.className = "sp-nav";
+    nav.setAttribute("aria-label", "Primary");
+    webUiTabs().forEach(function(t) {
+      var tab = document.createElement("div");
+      tab.className = "sp-tab";
+      tab.setAttribute("role", "tab");
+      tab.setAttribute("aria-selected", "false");
+      tab.textContent = t.label;
+      tab.addEventListener("click", function() {
+        switchTab(t.id);
+      });
+      nav.appendChild(tab);
+      els["tab_" + t.id] = tab;
+    });
+    var docsLink = document.createElement("a");
+    docsLink.className = "sp-tab sp-tab-docs";
+    docsLink.href = DOCS_BASE_URL + "/";
+    docsLink.target = "_blank";
+    docsLink.rel = "noopener";
+    docsLink.innerHTML = 'Docs <span class="sp-docs-icon" aria-hidden="true">&#8599;</span>';
+    nav.appendChild(docsLink);
+    header.appendChild(nav);
+    parent.appendChild(header);
+  }
+  function webUiTabs() {
+    return Array.isArray(WEB_UI_TABS) && WEB_UI_TABS.length ? WEB_UI_TABS : [{ id: "immich", label: "Immich" }, { id: "settings", label: "Device" }];
+  }
+  var immichApp;
+  function buildImmichPage(parent) {
+    var page = document.createElement("div");
+    page.id = "sp-immich";
+    page.className = "sp-page";
+    var wrap = document.createElement("div");
+    wrap.className = "sp-settings-wrap";
+    page.appendChild(wrap);
+    parent.appendChild(page);
+    els.immichPage = page;
+    immichApp = wrap;
+  }
+  function buildSettingsPage(parent) {
+    var page = document.createElement("div");
+    page.id = "sp-settings";
+    page.className = "sp-page";
+    var wrap = document.createElement("div");
+    wrap.className = "sp-settings-wrap";
+    page.appendChild(wrap);
+    parent.appendChild(page);
+    els.settingsPage = page;
+    app = wrap;
+  }
+  function buildLogsPage(parent) {
+    var page = document.createElement("div");
+    page.id = "sp-logs";
+    page.className = "sp-page";
+    var toolbar = document.createElement("div");
+    toolbar.className = "sp-log-toolbar";
+    var clearBtn = document.createElement("button");
+    clearBtn.className = "sp-log-clear";
+    clearBtn.textContent = "Clear";
+    clearBtn.addEventListener("click", function() {
+      els.logOutput.replaceChildren();
+    });
+    toolbar.appendChild(clearBtn);
+    page.appendChild(toolbar);
+    var output = document.createElement("div");
+    output.className = "sp-log-output";
+    page.appendChild(output);
+    els.logOutput = output;
+    parent.appendChild(page);
+    els.logsPage = page;
+  }
+  function switchTab(tab) {
+    webUiTabs().forEach(function(tabSpec) {
+      var t = tabSpec.id;
+      els["tab_" + t].className = "sp-tab" + (tab === t ? " active" : "");
+      els["tab_" + t].setAttribute("aria-selected", tab === t ? "true" : "false");
+    });
+    els.immichPage.className = "sp-page" + (tab === "immich" ? " active" : "");
+    els.settingsPage.className = "sp-page" + (tab === "settings" ? " active" : "");
+    if (els.logsPage) els.logsPage.className = "sp-page" + (tab === "logs" ? " active" : "");
+    if (nativeAdmin) window["espframeShowLogs"](tab === "logs", appendLog);
+  }
+  function openImmichConnectionForApiKey() {
+    switchTab("immich");
+    var connectionToggle = Array.prototype.find.call(
+      els.immichPage.querySelectorAll(".card-toggle"),
+      function(toggle) {
+        return toggle.textContent.trim() === "Connection";
+      }
+    );
+    if (!connectionToggle) return;
+    if (connectionToggle.getAttribute("aria-expanded") !== "true") connectionToggle.click();
+    var apiKeyField = connectionToggle.closest(".card").querySelector(".api-key-restore-required");
+    if (apiKeyField && typeof apiKeyField.scrollIntoView === "function") {
+      apiKeyField.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
+  var apiClient = new EspframeApiClient(CONFIGURATION_CAPABILITIES_PATH);
+  function eid(domain, name) {
+    return "/" + domain + "/" + encodeURIComponent(name);
+  }
+  function entityStringParts(entity) {
+    entity = typeof entity === "string" ? entity : "";
+    var slash = entity.indexOf("/");
+    if (slash > 0) {
+      return {
+        domain: entity.slice(0, slash),
+        name: entity.slice(slash + 1)
+      };
+    }
+    return null;
+  }
+  function productSettingEntityParts(key) {
+    var spec = PRODUCT_SETTINGS && PRODUCT_SETTINGS[key];
+    return entityStringParts(spec && spec.entity);
+  }
+  function settingEntityParts(key) {
+    var parts = productSettingEntityParts(key);
+    if (!parts && STATIC_ENTITIES && STATIC_ENTITIES[key]) {
+      parts = entityStringParts(STATIC_ENTITIES[key].entity);
+    }
+    if (!parts && MANUAL_ENTITIES && MANUAL_ENTITIES[key]) {
+      parts = entityStringParts(MANUAL_ENTITIES[key].entity);
+    }
+    return parts;
+  }
+  function settingEntityDomain(key) {
+    var parts = settingEntityParts(key);
+    return parts && parts.domain ? parts.domain : "";
+  }
+  var endpoints = {};
+  function getConfigurationSnapshot() {
+    return apiClient.getConfigurationSnapshot();
+  }
+  function applyConfigurationSnapshot(snapshot) {
+    var changed = false;
+    function receive(key, value) {
+      var previous = S2[key];
+      settingSaves.receive(key, value);
+      changed || (changed = S2[key] !== previous);
+    }
+    if (nativeAdmin) nativeSettings = new Set(Object.keys(snapshot.values));
+    receive("api_key_configured", snapshot.api_key_configured);
+    var secrets = snapshot.secrets_configured || {};
+    receive("wireguard_available", typeof secrets.wireguard_private_key === "boolean");
+    receive("wireguard_private_key_configured", secrets.wireguard_private_key === true);
+    Object.keys(snapshot.values).forEach(function(key) {
+      receive(key, snapshot.values[key]);
+    });
+    return changed;
+  }
+  function registerManualEntityEndpoints() {
+    if (!MANUAL_ENTITIES) return;
+    Object.keys(MANUAL_ENTITIES).forEach(function(key) {
+      var parts = entityStringParts(MANUAL_ENTITIES[key] && MANUAL_ENTITIES[key].entity);
+      if (!parts) return;
+      endpoints[key] = eid(parts.domain, parts.name);
+    });
+  }
+  function registerStaticEntityEndpoints() {
+    if (!STATIC_ENTITIES) return;
+    Object.keys(STATIC_ENTITIES).forEach(function(key) {
+      var parts = entityStringParts(STATIC_ENTITIES[key] && STATIC_ENTITIES[key].entity);
+      if (!parts) return;
+      endpoints[key] = eid(parts.domain, parts.name);
+    });
+  }
+  function registerProductSettingEndpoints() {
+    if (!PRODUCT_SETTINGS) return;
+    Object.keys(PRODUCT_SETTINGS).forEach(function(key) {
+      var parts = productSettingEntityParts(key);
+      if (!parts) return;
+      endpoints[key] = eid(parts.domain, parts.name);
+    });
+  }
+  registerManualEntityEndpoints();
+  registerStaticEntityEndpoints();
+  registerProductSettingEndpoints();
+  function post(url, params) {
+    return apiClient.post(url, params).catch(function(err) {
+      console.error("POST " + url + " error:", err);
+      showBanner("Failed to save setting", "error");
+      throw err;
+    });
+  }
+  var MAX_NTP_SERVER_LENGTH = 253;
+  function delayMs(ms) {
+    return new Promise(function(resolve) {
+      setTimeout(resolve, ms);
+    });
+  }
+  function connectionResponseValue(resp) {
+    return resp && (resp.value || resp.state) || "";
+  }
+  function normalizeConnectionUrl(value) {
+    var url = E(value);
+    return nativeAdmin ? window["espframeNativeUrl"](url) : url;
+  }
+  function saveAndVerifyConnectionUrl(value) {
+    if (nativeAdmin) return saveAndVerifyConnection({ immich_url: value });
+    return settingSaves.save({ immich_url: value }, async function() {
+      var path = endpoints.immich_url;
+      await apiClient.postText(path + "/set", value, true).catch(function(err) {
+        console.error("POST " + path + "/set error:", err);
+        showBanner("Failed to save setting", "error");
+        throw err;
+      });
+      await delayMs(1200);
+      if (E(connectionResponseValue(await safeGet(path))) !== value) throw Error("verify_failed");
+    });
+  }
+  function saveAndVerifyApiKey(value) {
+    var apiKey = String(value || "").trim();
+    if (!apiKey) return Promise.reject(Error("missing_api_key"));
+    return saveAndVerifyConnection({ api_key: apiKey });
+  }
+  function saveAndVerifyConnection(changes) {
+    var tracked = {};
+    if (changes.immich_url !== void 0) tracked.immich_url = changes.immich_url;
+    if (changes.api_key) tracked.api_key_configured = true;
+    return settingSaves.save(tracked, async function() {
+      var writes = Object.keys(changes).map(function(key2) {
+        return legacySettingWrite(key2, changes[key2]);
+      });
+      var savedUrl, keyConfigured;
+      try {
+        var response = await apiClient.updateSettings(changes, writes);
+        await delayMs(150);
+        var snapshot = nativeAdmin && (response == null ? void 0 : response.restart_required) ? await window["espframeNativeReconnect"](getConfigurationSnapshot) : await getConfigurationSnapshot();
+        savedUrl = snapshot.values.immich_url;
+        keyConfigured = snapshot.api_key_configured;
+      } catch (error) {
+        if (nativeAdmin || !(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
+        var [url, key] = await Promise.all([
+          changes.immich_url === void 0 ? null : safeGet(endpoints.immich_url),
+          changes.api_key ? safeGet(endpoints.api_key) : null
+        ]);
+        savedUrl = connectionResponseValue(url);
+        keyConfigured = key && (key.api_key_configured || connectionResponseValue(key));
+      }
+      if (changes.immich_url !== void 0 && E(savedUrl) !== changes.immich_url || changes.api_key && !keyConfigured) throw Error("verify_failed");
+    });
+  }
+  var PHOTO_SOURCE_APPLY_SETTING_KEYS = [
+    "photo_source",
+    "album_order",
+    "albums_enabled",
+    "people_enabled",
+    "tags_enabled",
+    "favorites_enabled",
+    "rating_enabled",
+    "location_enabled",
+    "inclusion_matching",
+    "album_matching",
+    "person_matching",
+    "favorite_mode",
+    "minimum_rating",
+    "filter_country",
+    "filter_state",
+    "filter_city",
+    "album_ids",
+    "person_ids",
+    "tag_ids",
+    "excluded_album_ids",
+    "excluded_person_ids",
+    "excluded_tag_ids",
+    "date_filter_enabled",
+    "date_filter_mode",
+    "date_from",
+    "date_to",
+    "relative_amount",
+    "relative_unit"
+  ];
+  function settingUsesPhotoSourceApply(key) {
+    return PHOTO_SOURCE_APPLY_SETTING_KEYS.indexOf(key) !== -1;
+  }
+  var settingSaves = new SettingSaveCoordinator(
+    function(key) {
+      return S2[key];
+    },
+    function(key, value) {
+      S2[key] = value;
+    }
+  );
+  Object.keys(S2).forEach(function(key) {
+    var value = S2[key];
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      settingSaves.receive(key, value);
+    }
+  });
+  function legacySettingWrite(key, savedValue) {
+    var domain = settingEntityDomain(key);
+    return { key, domain, url: endpoints[key], value: savedValue };
+  }
+  function legacyRotationValues(values, requestedRotation = ((_a) => (_a = values.screen_rotation) != null ? _a : S2.screen_rotation)()) {
+    if (values.developer_features_enabled === false && isPortraitScreenRotation(S2.screen_rotation)) {
+      return Object.assign({}, values, { screen_rotation: "0" });
+    }
+    return isPortraitScreenRotation(requestedRotation) && ("screen_rotation" in values || "portrait_pairing" in values) ? Object.assign({}, values, { portrait_pairing: false }) : values;
+  }
+  function saveSettingValues(values, requestedRotation) {
+    var legacyValues = legacyRotationValues(values, requestedRotation);
+    var trackedValues = Object.assign({}, values);
+    var includesApiKey = Object.prototype.hasOwnProperty.call(trackedValues, "api_key");
+    delete trackedValues.api_key;
+    var appliedValues = legacyValues;
+    var policyKeys = ["developer_features_enabled", "screen_rotation", "portrait_pairing"];
+    var affectsRotationPolicy = policyKeys.some(function(key) {
+      return key in values;
+    });
+    return settingSaves.save(trackedValues, async function() {
+      var response = await apiClient.updateSettings(values, Object.keys(legacyValues).map(function(key2) {
+        return legacySettingWrite(key2, legacyValues[key2]);
+      }), legacyValues);
+      if (nativeAdmin && (response == null ? void 0 : response.restart_required)) await window["espframeNativeReconnect"](getConfigurationSnapshot);
+      if (response && affectsRotationPolicy) {
+        try {
+          var snapshot = await apiClient.getConfigurationSnapshot();
+          appliedValues = Object.assign({}, legacyValues);
+          for (var key of policyKeys) {
+            if (key in snapshot.values) appliedValues[key] = snapshot.values[key];
+          }
+        } catch (_2) {
+        }
+      }
+      return response;
+    }, function() {
+      return appliedValues;
+    }).then(function(response) {
+      if (includesApiKey) settingSaves.receive("api_key_configured", true);
+      return response;
+    });
+  }
+  function saveGenericSetting(key, value) {
+    if (key === "api_key") return saveAndVerifyApiKey(value);
+    if (!hasWritableSetting(key)) return Promise.resolve(null);
+    var domain = settingEntityDomain(key);
+    var savedValue = value;
+    if (domain === "switch") savedValue = !!value;
+    if (domain === "number") {
+      var numberValue = Number(value);
+      if (isFinite(numberValue)) savedValue = numberValue;
+    }
+    if (domain === "select" || domain === "text") savedValue = value == null ? "" : String(value);
+    return saveSettingValues({ [key]: savedValue });
+  }
+  function hasWritableSetting(key) {
+    return nativeAdmin ? nativeSettings.has(key) : !!endpoints[key];
+  }
+  function saveNtpServer(key, value) {
+    return saveSettingValues({ [key]: p2(value) });
+  }
+  function saveScheduleWakeTimeoutSetting(key, value) {
+    return saveGenericSetting(key, normalizeScheduleWakeTimeout(value));
+  }
+  function saveScreenRotationSetting(key, value) {
+    var rotation = String(value);
+    if (screenRotationOptionsForUi().indexOf(rotation) === -1) return Promise.resolve(null);
+    return saveSettingValues({ screen_rotation: rotation });
+  }
+  function reportSettingSaveFailure() {
+    if (typeof backupImportInProgress !== "undefined" && backupImportInProgress) return;
+    showBanner("Failed to save setting", "error");
+    renderSettingsAfterEditing();
+  }
+  var SETTING_SAVE_ADAPTERS = {
+    ntp_server_1: saveNtpServer,
+    ntp_server_2: saveNtpServer,
+    ntp_server_3: saveNtpServer,
+    schedule_wake_timeout: saveScheduleWakeTimeoutSetting,
+    screen_rotation: saveScreenRotationSetting
+  };
+  async function applyPhotoSource() {
+    if (!nativeAdmin) await post(endpoints.apply_photo_source + "/press");
+  }
+  function saveSetting(key, value, options) {
+    var opts = options || {};
+    var adapter = SETTING_SAVE_ADAPTERS[key];
+    var result = adapter ? adapter(key, value, opts) : saveGenericSetting(key, value);
+    if (opts.applyPhotoSource && settingUsesPhotoSourceApply(key)) {
+      result = Promise.resolve(result).then(function(saved) {
+        return applyPhotoSource().then(function() {
+          return saved;
+        });
+      });
+    }
+    result.catch(reportSettingSaveFailure);
+    return result;
+  }
+  function makeConnectionUrlField(value) {
+    var f3 = field("Immich Server URL");
+    var urlInput = input("url", value, "http://192.168.0.1:2283");
+    f3.appendChild(urlInput);
+    return { field: f3, input: urlInput };
+  }
+  function makeApiKeyInputGroup(options) {
+    var opts = options || {};
+    var grp = el("div", "input-group");
+    var keyInput = input(opts.type || "text", opts.value || "", opts.placeholder || "Your Immich API key");
+    var button2 = null;
+    grp.appendChild(keyInput);
+    if (opts.toggleVisibility) {
+      button2 = el("button", "btn btn-secondary");
+      button2.textContent = "Show";
+      button2.type = "button";
+      button2.onclick = function() {
+        var isPass = keyInput.type === "password";
+        keyInput.type = isPass ? "text" : "password";
+        button2.textContent = isPass ? "Hide" : "Show";
+      };
+      grp.appendChild(button2);
+    } else if (opts.buttonText) {
+      button2 = el("button", opts.buttonClass || "btn btn-primary");
+      button2.textContent = opts.buttonText;
+      button2.type = "button";
+      if (opts.onButtonClick) {
+        button2.onclick = function() {
+          opts.onButtonClick(keyInput, button2);
+        };
+      }
+      grp.appendChild(button2);
+    }
+    return { group: grp, input: keyInput, button: button2 };
+  }
+  function makeMaskedApiKeyRow(onChange) {
+    var row = el("div", "input-group");
+    var mask = el("div");
+    var cb = el("button", "btn btn-secondary");
+    mask.className = "key-mask";
+    mask.textContent = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
+    cb.textContent = "Change";
+    cb.type = "button";
+    cb.onclick = onChange;
+    row.appendChild(mask);
+    row.appendChild(cb);
+    return row;
+  }
+  function developerPanelEnabledByUrl() {
+    try {
+      var params = new URLSearchParams(window.location.search || "");
+      return params.get("developer") === "experimental" || params.get("dev") === "experimental";
+    } catch (_2) {
+      return false;
+    }
+  }
+  function isPortraitScreenRotation(value) {
+    return value === "90" || value === "270";
+  }
+  function screenRotationOptionsForUi() {
+    var options = productSettingOptions("screen_rotation", S2.developer_features_enabled);
+    return options.length ? options : ["0", "180"];
+  }
+  function effectiveScreenRotationForUi() {
+    var current = String(S2.screen_rotation || "0");
+    return screenRotationOptionsForUi().indexOf(current) !== -1 ? current : "0";
+  }
+  function buildPhotoLabelList(idInputs, labelInputs) {
+    var labels = [];
+    for (var i = 0; i < idInputs.length; i++) {
+      if (idInputs[i].value.trim()) labels.push(labelInputs[i].value.trim());
+    }
+    while (labels.length && !labels[labels.length - 1]) labels.pop();
+    return labels.length ? JSON.stringify(labels) : "";
+  }
+  function safeGet(url) {
+    return apiClient.getJson(url).catch(function() {
+      return null;
+    });
+  }
+  function displayVersion(value, fallback) {
+    var v2 = String(value || "").trim();
+    if (!v2) return fallback || "";
+    if (v2.toLowerCase() === "dev") return "Dev";
+    return v2;
+  }
+  var evtSource = null;
+  var rendered = false;
+  var wizardActive = false;
+  var renderTimer = null;
+  var renderAttemptInFlight = false;
+  var logListenerAttached = false;
+  var pendingPhotoSettings = /* @__PURE__ */ new Set();
+  function schedulePhotoSetting(timer, save, delay) {
+    clearTimeout(timer);
+    pendingPhotoSettings.delete(timer);
+    var next = setTimeout(function() {
+      pendingPhotoSettings.delete(next);
+      save();
+    }, delay);
+    pendingPhotoSettings.add(next);
+    return next;
+  }
+  var ANSI_LEVEL = {
+    "1;31": "sp-log-error",
+    "0;31": "sp-log-error",
+    "0;33": "sp-log-warn",
+    "0;32": "sp-log-info",
+    "0;35": "sp-log-config",
+    "0;36": "sp-log-debug",
+    "0;37": "sp-log-verbose"
+  };
+  var ANSI_RE = /\x1b\[[\d;]*m/g;
+  function appendLog(msg, lvl) {
+    if (!els.logOutput) return;
+    var line = document.createElement("div");
+    line.className = "sp-log-line";
+    var ansiClass = "";
+    var m2 = msg.match(/\x1b\[([\d;]+)m/);
+    if (m2) ansiClass = ANSI_LEVEL[m2[1]] || "";
+    if (ansiClass) {
+      line.classList.add(ansiClass);
+    } else if (lvl === 1) line.classList.add("sp-log-error");
+    else if (lvl === 2) line.classList.add("sp-log-warn");
+    else if (lvl === 3) line.classList.add("sp-log-info");
+    else if (lvl === 4) line.classList.add("sp-log-config");
+    else if (lvl === 5) line.classList.add("sp-log-debug");
+    else if (lvl >= 6) line.classList.add("sp-log-verbose");
+    line.textContent = msg.replace(ANSI_RE, "");
+    var atBottom = els.logOutput.scrollHeight - els.logOutput.scrollTop - els.logOutput.clientHeight < 40;
+    els.logOutput.appendChild(line);
+    var overflow = els.logOutput.childNodes.length - WEB_UI_LOGS_RETAINED_LINES;
+    if (overflow > 0) {
+      for (var i = 0; i < overflow; i++)
+        els.logOutput.removeChild(els.logOutput.firstChild);
+    }
+    if (atBottom) els.logOutput.scrollTop = els.logOutput.scrollHeight;
+  }
+  var ENTITY_STATE_MAP = {};
+  function registerManualStateEntities() {
+    if (!MANUAL_ENTITIES) return;
+    (Array.isArray(MANUAL_STATE_KEYS) ? MANUAL_STATE_KEYS : []).forEach(function(key) {
+      var manualSpec = MANUAL_ENTITIES[key];
+      if (!manualSpec || typeof manualSpec.entity !== "string") return;
+      ENTITY_STATE_MAP[manualSpec.entity] = { key };
+    });
+  }
+  function registerStaticEntities() {
+    if (!STATIC_ENTITIES) return;
+    Object.keys(STATIC_ENTITIES).forEach(function(key) {
+      var staticSpec = STATIC_ENTITIES[key];
+      if (!staticSpec || typeof staticSpec.entity !== "string") return;
+      var stateSpec = { key };
+      if (staticSpec.default !== void 0) stateSpec.default = staticSpec.default;
+      if (staticSpec.optionsKey) stateSpec.optionsKey = staticSpec.optionsKey;
+      if (staticSpec.boolFromState) stateSpec.boolFromState = true;
+      if (staticSpec.number) stateSpec.number = true;
+      ENTITY_STATE_MAP[staticSpec.entity] = stateSpec;
+    });
+  }
+  function registerProductSettingEntities() {
+    if (!PRODUCT_SETTINGS) return;
+    Object.keys(PRODUCT_SETTINGS).forEach(function(key) {
+      var productSpec = PRODUCT_SETTINGS[key];
+      if (!productSpec || typeof productSpec.entity !== "string") return;
+      var stateSpec = { key, default: productSpec.default };
+      if (productSpec.domain === "switch") stateSpec.boolFromState = true;
+      if (productSpec.domain === "number") stateSpec.number = true;
+      ENTITY_STATE_MAP[productSpec.entity] = stateSpec;
+    });
+  }
+  registerManualStateEntities();
+  registerStaticEntities();
+  registerProductSettingEntities();
+  function registerEntityAliases() {
+    if (!ENTITY_ALIASES) return;
+    Object.keys(ENTITY_ALIASES).forEach(function(key) {
+      var aliases = ENTITY_ALIASES[key];
+      if (!Array.isArray(aliases)) return;
+      aliases.forEach(function(aliasSpec) {
+        if (!aliasSpec || typeof aliasSpec.entity !== "string") return;
+        var stateSpec = { key };
+        if (aliasSpec.default !== void 0) stateSpec.default = aliasSpec.default;
+        if (aliasSpec.optionsKey) stateSpec.optionsKey = aliasSpec.optionsKey;
+        if (aliasSpec.boolFromState) stateSpec.boolFromState = true;
+        if (aliasSpec.number) stateSpec.number = true;
+        ENTITY_STATE_MAP[aliasSpec.entity] = stateSpec;
+      });
+    });
+  }
+  registerEntityAliases();
+  function applyEntityToState(d2) {
+    if (!d2 || !d2.id) return;
+    var id = d2.id;
+    if (id === "light/Screen: Backlight") {
+      S2.backlight_on = d2.state === "ON";
+      if (d2.brightness != null) {
+        S2.brightness = Math.round(d2.brightness / 255 * 100);
+        S2.brightness_current = S2.brightness;
+      }
+      return;
+    }
+    if (id === "update/Firmware: Update") {
+      S2.installed_version = d2.current_version || "";
+      S2.latest_version = d2.latest_version || "";
+      S2.update_available = S2.installed_version && S2.latest_version && S2.installed_version !== S2.latest_version;
+      return;
+    }
+    var spec = ENTITY_STATE_MAP[id];
+    if (!spec) return;
+    var v2 = d2.value != null ? d2.value : d2.state;
+    var received;
+    if (spec.boolFromState) {
+      received = v2 === true || v2 === "ON";
+    } else if (spec.number) {
+      received = v2 != null ? Math.round(Number(v2)) : spec.default !== void 0 ? spec.default : 0;
+    } else {
+      received = v2 !== void 0 && v2 !== null ? String(v2) : spec.default !== void 0 ? spec.default : "";
+    }
+    if (spec.key === "timezone") received = normalizeTimezoneOption(received);
+    if (spec.key && spec.key.indexOf("ntp_server_") === 0) received = p2(received);
+    if (spec.optionsKey && d2.option && d2.option.length) S2[spec.optionsKey] = d2.option;
+    if (spec.key === "photo_metadata_date_format" && received !== "Relative Date" && received !== "Date Taken") {
+      settingSaves.receive("photo_metadata_date_taken_format", z(received));
+      received = "Date Taken";
+    }
+    if (spec.key === "photo_metadata_date_taken_format") {
+      received = z(received);
+    }
+    settingSaves.receive(spec.key, received);
+  }
+  function collectState(d2) {
+    applyEntityToState(d2);
+  }
+  var INITIAL_FETCH_KEYS = ["firmware_device", "firmware", "photo_source", "memories_window", "memories_fallback", "album_order", "tag_matching", "date_filter_mode", "relative_unit", "photo_orientation", "display_mode", "transition", "transition_speed", "interval", "conn_timeout", "screen_rotation", "photo_metadata_date_format", "photo_metadata_date_taken_format", "clock_format", "update_frequency", "auto_update", "c6_auto_update", "date_filter_enabled", "date_from", "date_to", "relative_amount", "schedule_enabled", "schedule_on_hour", "schedule_off_hour", "schedule_wake_timeout", "brightness_day", "brightness_night", "base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override", "portrait_pairing", "portrait_pairing_range", "portrait_pairs_only", "photo_metadata_date_enabled", "photo_metadata_location_enabled", "albums_enabled", "people_enabled", "tags_enabled", "favorites_enabled", "rating_enabled", "location_enabled", "inclusion_matching", "album_matching", "person_matching", "favorite_mode", "minimum_rating", "filter_country", "filter_state", "filter_city", "device_language", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3", "wireguard_enabled", "wireguard_endpoint", "wireguard_port", "wireguard_address", "wireguard_netmask", "wireguard_allowed_ips", "wireguard_peer_public_key", "album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels", "excluded_album_ids", "excluded_album_labels", "excluded_person_ids", "excluded_person_labels", "excluded_tag_ids", "excluded_tag_labels", "immich_server_version", "immich_capability_status", "memories_migration_notice", "sunrise", "sunset", "developer_features_enabled", "c6_current_firmware", "c6_available_firmware", "c6_update_status"];
+  function getEntityIdForStateKey(key) {
+    var productSpec = PRODUCT_SETTINGS && PRODUCT_SETTINGS[key];
+    if (productSpec && typeof productSpec.entity === "string") return productSpec.entity;
+    for (var id in ENTITY_STATE_MAP) {
+      if (ENTITY_STATE_MAP[id].key === key) return id;
+    }
+    return null;
+  }
+  var KEY_TO_ENTITY_ID = {};
+  INITIAL_FETCH_KEYS.forEach(function(k) {
+    var id = getEntityIdForStateKey(k);
+    if (id) KEY_TO_ENTITY_ID[k] = id;
+  });
+  function fetchDeviceSettingsState() {
+    return getConfigurationSnapshot().then(function(snapshot) {
+      applyConfigurationSnapshot(snapshot);
+    }).catch(function(error) {
+      if (nativeAdmin || !(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
+      return fetchLegacyDeviceSettingsState();
+    });
+  }
+  function fetchLegacyDeviceSettingsState() {
+    var legacyKeys = ["immich_url", "api_key"].concat(INITIAL_FETCH_KEYS);
+    var urls = legacyKeys.map(function(k) {
+      if (!endpoints[k]) {
+        console.error("Missing endpoint for startup setting:", k);
+        return Promise.resolve(null);
+      }
+      return safeGet(endpoints[k]);
+    });
+    return Promise.all(urls).then(function(res) {
+      for (var i = 0; i < res.length; i++) {
+        var data = res[i];
+        if (!data) continue;
+        if (legacyKeys[i] === "api_key") {
+          var configured = typeof data.api_key_configured === "boolean" ? data.api_key_configured : !!String(data.value || "");
+          settingSaves.receive("api_key_configured", configured);
+          continue;
+        }
+        applyEntityToState({
+          id: getEntityIdForStateKey(legacyKeys[i]),
+          value: data.value,
+          state: data.state,
+          option: data.option
+        });
+      }
+    });
+  }
+  function withStartupTimeout(promise, timeoutMs) {
+    var timeoutId;
+    var timeout = new Promise(function(_2, reject) {
+      timeoutId = setTimeout(function() {
+        reject(new Error("startup_settings_timeout"));
+      }, timeoutMs);
+    });
+    return Promise.race([promise, timeout]).then(function(value) {
+      clearTimeout(timeoutId);
+      return value;
+    }, function(error) {
+      clearTimeout(timeoutId);
+      throw error;
+    });
+  }
+  function isEditingSetting() {
+    var active = document.activeElement;
+    return !!(active && els.root && els.root.contains(active) && active.matches("input,select,textarea,button"));
+  }
+  var deferredRenderControl = null;
+  function resumeSettingsRenderAfterBlur() {
+    deferredRenderControl = null;
+    if (renderTimer) return;
+    renderTimer = setTimeout(function() {
+      renderTimer = null;
+      renderSettingsAfterEditing();
+    }, 0);
+  }
+  function renderSettingsAfterEditing() {
+    if (wizardActive) return;
+    var active = isEditingSetting() ? document.activeElement : null;
+    if (deferredRenderControl && deferredRenderControl !== active) {
+      deferredRenderControl.removeEventListener("blur", resumeSettingsRenderAfterBlur);
+      deferredRenderControl = null;
+    }
+    if (!active) return renderSettings();
+    if (deferredRenderControl === active) return;
+    deferredRenderControl = active;
+    active.addEventListener("blur", resumeSettingsRenderAfterBlur, { once: true });
+  }
+  function scheduleTryRender(delayMs2) {
+    if (rendered || renderAttemptInFlight || renderTimer) return;
+    renderTimer = setTimeout(function() {
+      renderTimer = null;
+      tryRender();
+    }, delayMs2);
+  }
+  function showSetup() {
+    renderWizard();
+  }
+  function showConfiguredSettings() {
+    rendered = true;
+    renderAttemptInFlight = false;
+    renderSettings();
+  }
+  function nativeSettingsRevision() {
+    if (!rendered || wizardActive || frameIdentityBusy || backupImportInProgress || pendingPhotoSettings.size || S2.firmware_installing || S2.firmware_uploading || S2.c6_firmware_installing)
+      return null;
+    return settingSaves.idleRevision();
+  }
+  function startNativeSettingsSync() {
+    window["espframeSyncSettings"](
+      els.root,
+      nativeSettingsRevision,
+      apiClient,
+      () => frameIdentity,
+      () => withStartupTimeout(requestFrameIdentity(), 3e3),
+      function(snapshot, identity) {
+        var changed = applyConfigurationSnapshot(snapshot);
+        if (identity) {
+          frameIdentity = identity;
+          updateFrameTitle();
+        }
+        if (changed || identity) return S2.immich_url ? renderSettings : showSetup;
+      }
+    );
+  }
+  var startupHydrationPromise = null;
+  function getStartupHydration() {
+    if (startupHydrationPromise) return startupHydrationPromise;
+    var hydration = fetchDeviceSettingsState();
+    startupHydrationPromise = hydration;
+    hydration.then(function() {
+      if (startupHydrationPromise === hydration) startupHydrationPromise = null;
+      renderAttemptInFlight = false;
+      if (!rendered) {
+        if (S2.immich_url) {
+          showConfiguredSettings();
+        } else {
+          rendered = true;
+          showSetup();
+        }
+      } else if (S2.immich_url) {
+        renderSettingsAfterEditing();
+      }
+    }, function() {
+      if (startupHydrationPromise === hydration) startupHydrationPromise = null;
+      renderAttemptInFlight = false;
+      if (!rendered && !S2.immich_url) scheduleTryRender(1e3);
+    });
+    return hydration;
+  }
+  function tryRender() {
+    if (rendered || renderAttemptInFlight) return;
+    if (renderTimer) {
+      clearTimeout(renderTimer);
+      renderTimer = null;
+    }
+    renderAttemptInFlight = true;
+    var hydration = getStartupHydration();
+    withStartupTimeout(hydration, 4e3).then(function() {
+      renderAttemptInFlight = false;
+      if (rendered) return;
+      if (S2.immich_url) {
+        showConfiguredSettings();
+      } else {
+        rendered = true;
+        showSetup();
+      }
+    }).catch(function() {
+      renderAttemptInFlight = false;
+      if (S2.immich_url) showConfiguredSettings();
+      else scheduleTryRender(1e3);
+    });
+  }
+  function initSSE() {
+    try {
+      evtSource = new EventSource("/events");
+      evtSource.addEventListener("state", function(e) {
+        try {
+          var d2 = JSON.parse(e.data);
+          if (d2 && d2.name_id) d2.id = d2.name_id;
+          var spec = d2 && ENTITY_STATE_MAP[d2.id];
+          var previousValue = spec ? S2[spec.key] : void 0;
+          var previousOptions = spec && spec.optionsKey ? JSON.stringify(S2[spec.optionsKey]) : "";
+          var previousDateTakenFormat = spec && spec.key === "photo_metadata_date_format" ? S2.photo_metadata_date_taken_format : void 0;
+          collectState(d2);
+          var changed = !spec || previousValue !== S2[spec.key] || spec.optionsKey && previousOptions !== JSON.stringify(S2[spec.optionsKey]) || spec.key === "photo_metadata_date_format" && previousDateTakenFormat !== S2.photo_metadata_date_taken_format;
+          if (rendered && changed) handleLiveEvent(d2);
+        } catch (_2) {
+        }
+        if (!rendered) {
+          scheduleTryRender(250);
+        }
+      });
+      if (!logListenerAttached) {
+        logListenerAttached = true;
+        evtSource.addEventListener("log", function(e) {
+          var d2;
+          try {
+            d2 = JSON.parse(e.data);
+          } catch (_2) {
+            d2 = { msg: e.data };
+          }
+          appendLog(d2.msg || e.data, d2.lvl);
+        });
+      }
+      evtSource.onerror = function() {
+        if (!rendered) {
+          scheduleTryRender(1e3);
+        }
+      };
+      evtSource.onopen = function() {
+        handleFirmwareReconnect();
+      };
+    } catch (_2) {
+      tryRender();
+    }
+    scheduleTryRender(250);
+    setTimeout(function() {
+      if (!rendered) tryRender();
+    }, 5e3);
+  }
+  function renderWizard() {
+    wizardActive = true;
+    var step = 1;
+    immichApp.replaceChildren();
+    app.replaceChildren();
+    renderStartupDevicePage();
+    var wrap = el("div", "fade-in");
+    wrap.innerHTML = `<p class="subtitle">Let's connect your photo frame</p>`;
+    var steps = el("div", "wizard-steps");
+    var s1 = el("div", "step active");
+    var s22 = el("div", "step");
+    steps.appendChild(s1);
+    steps.appendChild(s22);
+    wrap.appendChild(steps);
+    var body = el("div");
+    wrap.appendChild(body);
+    immichApp.appendChild(wrap);
+    function showStep() {
+      body.replaceChildren();
+      if (step === 1) {
+        s1.className = "step active";
+        s22.className = "step";
+        body.appendChild(renderStep1());
+      } else {
+        s1.className = "step done";
+        s22.className = "step active";
+        body.appendChild(renderStep2());
+      }
+      connectFieldLabels(body);
+    }
+    function renderStep1() {
+      var card = el("div", "card fade-in");
+      card.innerHTML = "<h3>Connection</h3>";
+      var urlField = makeConnectionUrlField(S2.immich_url);
+      var urlInput = urlField.input;
+      card.appendChild(urlField.field);
+      var f22 = field("API Key");
+      var keyControl = makeApiKeyInputGroup({
+        type: "password",
+        value: "",
+        placeholder: "Your Immich API key",
+        toggleVisibility: true
+      });
+      var keyInput = keyControl.input;
+      f22.appendChild(keyControl.group);
+      card.appendChild(f22);
+      var nav = el("div", "wizard-nav");
+      var nextBtn = el("button", "btn btn-primary");
+      nextBtn.textContent = "Connect";
+      nextBtn.onclick = function() {
+        var u = normalizeConnectionUrl(urlInput.value);
+        var k = keyInput.value.trim();
+        if (!u || !k) return;
+        nextBtn.disabled = true;
+        nextBtn.textContent = "Saving\u2026";
+        saveAndVerifyConnection({ immich_url: u, api_key: k }).then(function() {
+          urlInput.value = u;
+          step = 2;
+          showStep();
+        }).catch(function() {
+          nextBtn.disabled = false;
+          nextBtn.textContent = "Connect";
+          showBanner("Failed to save connection. Please try again.", "error");
+        });
+      };
+      nav.appendChild(nextBtn);
+      card.appendChild(nav);
+      return card;
+    }
+    function renderStep2() {
+      var card = el("div", "card fade-in");
+      card.innerHTML = "<h3>Clock & timezone</h3>";
+      var f1 = field("Clock Format");
+      f1.appendChild(
+        selectFromOptions(productSettingOptions("clock_format"), S2.clock_format, function(v2) {
+          saveSetting("clock_format", v2);
+        })
+      );
+      card.appendChild(f1);
+      var f22 = field("Timezone");
+      f22.appendChild(
+        timezoneSelect(S2.tz_options, S2.timezone, function(v2) {
+          saveSetting("timezone", v2);
+        })
+      );
+      card.appendChild(f22);
+      card.appendChild(ntpServersField());
+      var nav = el("div", "wizard-nav");
+      var backBtn = el("button", "btn btn-secondary");
+      backBtn.textContent = "Back";
+      backBtn.onclick = function() {
+        step = 1;
+        showStep();
+      };
+      var doneBtn = el("button", "btn btn-primary");
+      doneBtn.textContent = "Done";
+      doneBtn.onclick = function() {
+        renderSettings();
+      };
+      nav.appendChild(backBtn);
+      nav.appendChild(doneBtn);
+      card.appendChild(nav);
+      return card;
+    }
+    showStep();
+  }
+  function renderStartupDevicePage() {
+    var wrap = el("div", "fade-in");
+    wrap.appendChild(makeImportSettingsCard());
+    app.appendChild(wrap);
+  }
+  var syncMemoryFilterUi = function() {
+  };
+  function makeMemoriesInfoBanner() {
+    var banner = el("div", "setting-info-banner");
+    banner.setAttribute("role", "note");
+    var icon = el("span", "setting-info-banner-icon");
+    icon.textContent = "i";
+    icon.setAttribute("aria-hidden", "true");
+    var message = el("span");
+    message.textContent = "Using Memories disables any configured filters";
+    banner.appendChild(icon);
+    banner.appendChild(message);
+    return banner;
+  }
+  function hasConfiguredPhotoFilters() {
+    return [
+      "date_filter_enabled",
+      "albums_enabled",
+      "people_enabled",
+      "tags_enabled",
+      "favorites_enabled",
+      "rating_enabled",
+      "location_enabled"
+    ].some(function(key) {
+      return !!S2[key];
+    });
+  }
+  function makeMemoriesCard() {
+    var body = el("div");
+    var memoriesActive = S2.photo_source === "Memories";
+    var infoBanner = makeMemoriesInfoBanner();
+    var memoriesBadge = makeBadge(memoriesActive);
+    var memoriesSecondaryFields = [];
+    function setMemoriesSecondaryVisibility(visible) {
+      infoBanner.style.display = visible ? "" : "none";
+      memoriesSecondaryFields.forEach(function(secondaryField) {
+        secondaryField.style.display = visible ? "" : "none";
+      });
+    }
+    var memoriesToggle = toggleSettingRow({
+      label: "Show Memories Only",
+      value: memoriesActive,
+      getValue: function() {
+        return memoriesActive;
+      },
+      setValue: function(value) {
+        memoriesActive = value;
+      },
+      onChange: function(value) {
+        if (value) {
+          S2.photo_source = "Memories";
+        } else {
+          S2.photo_source = hasConfiguredPhotoFilters() ? "Custom" : "All Photos";
+        }
+        setBadgeActive(memoriesBadge, value);
+        setMemoriesSecondaryVisibility(value);
+        syncMemoryFilterUi();
+        saveSetting("photo_source", S2.photo_source, { applyPhotoSource: true });
+      }
+    });
+    body.appendChild(infoBanner);
+    body.appendChild(memoriesToggle.field);
+    if (S2.memories_migration_notice) {
+      var notice = el("div", "banner warning");
+      notice.textContent = "Memories is available again as an exclusive On This Day source. Choose it from this panel to enable it. ";
+      var dismiss = button("Dismiss", "btn btn-secondary", function() {
+        post(endpoints.memories_migration_notice + "/turn_off").then(function() {
+          S2.memories_migration_notice = false;
+          notice.style.display = "none";
+        });
+      });
+      notice.appendChild(dismiss);
+      body.appendChild(notice);
+    }
+    var memoriesWindowField = field("Memories Window");
+    memoriesWindowField.appendChild(selectFromOptions(
+      productSettingOptions("memories_window"),
+      S2.memories_window,
+      function(value) {
+        S2.memories_window = value;
+        saveSetting("memories_window", value, { applyPhotoSource: true });
+      },
+      function(value) {
+        if (value === "Within 1 Day") return "\xB11 Day";
+        if (value === "Within 2 Days") return "\xB12 Days";
+        if (value === "Within 3 Days") return "\xB13 Days";
+        if (value === "Within 7 Days") return "\xB17 Days";
+        return value;
+      }
+    ));
+    body.appendChild(memoriesWindowField);
+    memoriesSecondaryFields.push(memoriesWindowField);
+    var memoriesFallbackRow = toggleSettingRow({
+      label: "Fallback to All Photos",
+      value: !!S2.memories_fallback,
+      getValue: function() {
+        return !!S2.memories_fallback;
+      },
+      setValue: function(value) {
+        S2.memories_fallback = value;
+      },
+      onChange: function(value) {
+        S2.memories_fallback = value;
+        saveSetting("memories_fallback", value, { applyPhotoSource: true });
+      }
+    });
+    body.appendChild(memoriesFallbackRow.field);
+    memoriesSecondaryFields.push(memoriesFallbackRow.field);
+    setMemoriesSecondaryVisibility(memoriesActive);
+    return makeCollapsibleCard("Memories", body, true, memoriesBadge);
+  }
+  function makeConnectionCard() {
+    var connBody = el("div");
+    var connStatus = el("div", "status mb-12");
+    connStatus.id = "conn-status";
+    function showSaved(msg) {
+      setStatus(connStatus, msg || "Saved", "green", 3e3);
+    }
+    function showConnectionError(msg) {
+      setStatus(connStatus, msg, "red");
+    }
+    var urlField = makeConnectionUrlField(S2.immich_url);
+    var urlInput = urlField.input;
+    urlInput.onchange = function() {
+      var normalized = normalizeConnectionUrl(urlInput.value);
+      saveAndVerifyConnectionUrl(normalized).then(function() {
+        if (S2.immich_url === normalized) urlInput.value = normalized;
+        showSaved("URL saved");
+      }).catch(function() {
+        showConnectionError("Failed to save URL");
+      });
+    };
+    connBody.appendChild(urlField.field);
+    var f22 = field("API Key");
+    if (highlightApiKeyAfterRestore) f22.classList.add("api-key-restore-required");
+    var keyConfigured = S2.api_key_configured;
+    var keyWrap = el("div");
+    function showKeyMasked() {
+      keyWrap.replaceChildren();
+      keyWrap.appendChild(makeMaskedApiKeyRow(function() {
+        keyWrap.replaceChildren();
+        keyWrap.appendChild(makeKeyInput());
+        connectFieldLabels(f22);
+      }));
+    }
+    function makeKeyInput() {
+      var keyControl = makeApiKeyInputGroup({
+        type: "text",
+        value: "",
+        placeholder: "Paste your Immich API key",
+        buttonText: "Save",
+        buttonClass: "btn btn-primary",
+        onButtonClick: function(keyInput, saveBtn) {
+          var v2 = keyInput.value.trim();
+          if (!v2) return;
+          saveBtn.disabled = true;
+          saveBtn.textContent = "Saving\u2026";
+          saveAndVerifyApiKey(v2).then(function() {
+            var wasHighlighted = highlightApiKeyAfterRestore;
+            highlightApiKeyAfterRestore = false;
+            f22.classList.remove("api-key-restore-required");
+            if (wasHighlighted) showBanner("Immich API key saved.", "success");
+            showSaved("API key saved");
+            showKeyMasked();
+          }).catch(function() {
+            saveBtn.disabled = false;
+            saveBtn.textContent = "Save";
+            showConnectionError("Failed to save API key");
+          });
+        }
+      });
+      return keyControl.group;
+    }
+    if (keyConfigured) {
+      showKeyMasked();
+    } else {
+      keyWrap.appendChild(makeKeyInput());
+    }
+    f22.appendChild(keyWrap);
+    connBody.appendChild(f22);
+    connBody.appendChild(productSelectSettingField("Connection Timeout", "conn_timeout"));
+    connBody.appendChild(connStatus);
+    return makeCollapsibleCard("Connection", connBody, true);
+  }
+  function saveAndVerifyWireguardPrivateKey(value) {
+    var privateKey = String(value || "").trim();
+    if (!A(privateKey)) return Promise.reject(Error("invalid_wireguard_key"));
+    return settingSaves.save({ wireguard_private_key_configured: true }, function() {
+      return apiClient.updateSettings(
+        { wireguard_private_key: privateKey },
+        [legacySettingWrite("wireguard_private_key", privateKey)]
+      ).then(function() {
+        return delayMs(150);
+      }).then(function() {
+        return getConfigurationSnapshot();
+      }).then(function(snapshot) {
+        if (!snapshot.secrets_configured || !snapshot.secrets_configured.wireguard_private_key) {
+          throw Error("verify_failed");
+        }
+      });
+    });
+  }
+  function removeWireguardPrivateKey() {
+    return settingSaves.save({ wireguard_private_key_configured: false }, function() {
+      return apiClient.updateSettings(
+        { wireguard_private_key: "" },
+        [legacySettingWrite("wireguard_private_key", "")]
+      ).then(function() {
+        return delayMs(150);
+      }).then(function() {
+        return getConfigurationSnapshot();
+      }).then(function(snapshot) {
+        if (!snapshot.secrets_configured || snapshot.secrets_configured.wireguard_private_key) {
+          throw Error("verify_failed");
+        }
+      });
+    });
+  }
+  function wireguardSensorOn(value) {
+    return value === true || value === "true" || value === "ON";
+  }
+  function updateWireguardStatus(statusEl, badgeEl) {
+    if (!statusEl) return;
+    if (S2.wireguard_connected === void 0 || S2.wireguard_connected === "") {
+      statusEl.style.display = "none";
+      setBadgeActive(badgeEl, false);
+      return;
+    }
+    statusEl.style.display = "";
+    var running = wireguardSensorOn(S2.wireguard_tunnel_enabled);
+    var connected = running && wireguardSensorOn(S2.wireguard_connected);
+    var age = running ? I(S2.wireguard_handshake_age) : "";
+    var message = !running ? "Tunnel is off" : connected ? "Connected" : "Not connected";
+    if (age) message += " \xB7 last handshake " + age;
+    if (!!S2.wireguard_enabled !== running) message += " \xB7 restart to apply the saved setting";
+    setStatus(statusEl, message, connected ? "green" : running ? "red" : "orange");
+    setBadgeActive(badgeEl, connected);
+  }
+  function updateWireguardStatusFromPage() {
+    updateWireguardStatus(document.getElementById("wireguard-status"), document.getElementById("wireguard-badge"));
+  }
+  function makeWireguardCard() {
+    if (!S2.wireguard_available) return null;
+    var body = el("div");
+    var tunnelStatus = el("div", "status mb-12");
+    tunnelStatus.id = "wireguard-status";
+    var tunnelBadge = makeBadge(false, "Connected");
+    tunnelBadge.id = "wireguard-badge";
+    updateWireguardStatus(tunnelStatus, tunnelBadge);
+    body.appendChild(tunnelStatus);
+    var status = el("div", "status mb-12");
+    var restartNotice = el("div", "reset-backup-notice mb-12");
+    restartNotice.style.display = "none";
+    var restartText = el("span");
+    restartText.textContent = "WireGuard changes apply after the frame restarts.";
+    var restartButton = button("Restart now", "btn btn-secondary btn-sm", function() {
+      restartButton.disabled = true;
+      restartButton.textContent = "Restarting...";
+      rebootFrame().catch(function() {
+      }).finally(function() {
+        setTimeout(function() {
+          restartButton.disabled = false;
+          restartButton.textContent = "Restart now";
+        }, 3e3);
+      });
+    });
+    restartNotice.appendChild(restartText);
+    restartNotice.appendChild(restartButton);
+    function saved(message) {
+      setStatus(status, message, "green", 3e3);
+      restartNotice.style.display = "";
+    }
+    function failed(message) {
+      setStatus(status, message, "red");
+    }
+    var detailsBody = el("div");
+    var enabled = toggleSettingRow({
+      label: "Connect through WireGuard",
+      value: !!S2.wireguard_enabled,
+      getValue: function() {
+        return !!S2.wireguard_enabled;
+      },
+      setValue: function(value) {
+        S2.wireguard_enabled = value;
+      },
+      details: detailsBody,
+      onChange: function() {
+        saveSetting("wireguard_enabled", !!S2.wireguard_enabled).then(function() {
+          saved("Saved");
+        }, function() {
+        });
+      }
+    });
+    detailsBody.style.display = S2.wireguard_enabled ? "" : "none";
+    body.appendChild(enabled.field);
+    function trimmed(value) {
+      return String(value == null ? "" : value).trim();
+    }
+    function textField(label, key, placeholder, hint, maxLength, isValid, invalidMessage, canonical) {
+      var f3 = field(label);
+      var inputEl = input("text", S2[key], placeholder, maxLength);
+      var error = makeFieldError();
+      inputEl.onchange = function() {
+        var raw = trimmed(inputEl.value);
+        if (raw && !isValid(raw)) {
+          error.textContent = invalidMessage;
+          return;
+        }
+        var value = raw && canonical ? canonical(raw) : raw;
+        error.textContent = "";
+        inputEl.value = value;
+        saveSetting(key, value).then(function() {
+          saved("Saved");
+        }, function() {
+        });
+      };
+      f3.appendChild(inputEl);
+      f3.appendChild(error);
+      if (hint) {
+        var hintEl = el("div", "field-hint");
+        hintEl.textContent = hint;
+        f3.appendChild(hintEl);
+      }
+      return f3;
+    }
+    detailsBody.appendChild(textField(
+      "Server Address",
+      "wireguard_endpoint",
+      "vpn.example.com",
+      "Public IP address or hostname of your WireGuard server, such as your router.",
+      253,
+      _,
+      "Enter a hostname or IPv4 address without http:// or a port."
+    ));
+    var portField = field("Server Port");
+    var portInput = input("text", S2.wireguard_port, "51820", 5);
+    portInput.inputMode = "numeric";
+    var portError = makeFieldError();
+    portInput.onchange = function() {
+      var value = trimmed(portInput.value);
+      if (!y(value)) {
+        portError.textContent = "Enter a port from 1 to 65535.";
+        return;
+      }
+      portError.textContent = "";
+      saveSetting("wireguard_port", Number(value)).then(function() {
+        saved("Saved");
+      }, function() {
+      });
+    };
+    portField.appendChild(portInput);
+    portField.appendChild(portError);
+    detailsBody.appendChild(portField);
+    detailsBody.appendChild(textField(
+      "Frame Address",
+      "wireguard_address",
+      "192.168.88.200",
+      "The address this frame has inside the VPN. It must match the peer you create on the server. Choose an unused address in the same network as your Immich server.",
+      15,
+      L,
+      "Enter an IPv4 address such as 192.168.88.200."
+    ));
+    detailsBody.appendChild(textField(
+      "Network Mask",
+      "wireguard_netmask",
+      "255.255.255.0",
+      "Only traffic inside this network is sent through the VPN. Use the mask of the network Immich is on.",
+      15,
+      S,
+      "Enter a netmask such as 255.255.255.0."
+    ));
+    detailsBody.appendChild(textField(
+      "Allowed IPs",
+      "wireguard_allowed_ips",
+      "192.168.88.0/24",
+      "Networks reachable through the VPN, separated by commas (up to 4).",
+      100,
+      function(value) {
+        return !!x(value);
+      },
+      "Enter up to 4 networks such as 192.168.88.0/24.",
+      x
+    ));
+    detailsBody.appendChild(textField(
+      "Server Public Key",
+      "wireguard_peer_public_key",
+      "",
+      "The public key of the WireGuard interface on your server.",
+      44,
+      A,
+      "Enter a 44-character WireGuard key."
+    ));
+    var keyField = field("Frame Private Key");
+    var keyWrap = el("div");
+    var keyError = makeFieldError();
+    function showKeyMasked() {
+      keyWrap.replaceChildren();
+      var row = makeMaskedApiKeyRow(function() {
+        keyWrap.replaceChildren();
+        keyWrap.appendChild(makeKeyInput());
+        connectFieldLabels(keyField);
+      });
+      row.appendChild(button("Remove", "btn btn-secondary", function() {
+        removeWireguardPrivateKey().then(function() {
+          saved("Private key removed");
+          showKeyInput();
+        }, function() {
+          failed("Failed to remove private key");
+        });
+      }));
+      keyWrap.appendChild(row);
+    }
+    function showKeyInput() {
+      keyWrap.replaceChildren();
+      keyWrap.appendChild(makeKeyInput());
+      connectFieldLabels(keyField);
+    }
+    function makeKeyInput() {
+      return makeApiKeyInputGroup({
+        type: "password",
+        value: "",
+        placeholder: "Paste the frame's private key",
+        buttonText: "Save",
+        buttonClass: "btn btn-primary",
+        onButtonClick: function(keyInput, saveBtn) {
+          var value = trimmed(keyInput.value);
+          if (!A(value)) {
+            keyError.textContent = "Enter a 44-character WireGuard key.";
+            return;
+          }
+          keyError.textContent = "";
+          saveBtn.disabled = true;
+          saveBtn.textContent = "Saving\u2026";
+          saveAndVerifyWireguardPrivateKey(value).then(function() {
+            saved("Private key saved");
+            showKeyMasked();
+          }, function() {
+            saveBtn.disabled = false;
+            saveBtn.textContent = "Save";
+            failed("Failed to save private key");
+          });
+        }
+      }).group;
+    }
+    if (S2.wireguard_private_key_configured) showKeyMasked();
+    else showKeyInput();
+    keyField.appendChild(keyWrap);
+    keyField.appendChild(keyError);
+    var keyHint = el("div", "field-hint");
+    keyHint.textContent = "Stored on the frame and never shown again. It is not included in settings backups.";
+    keyField.appendChild(keyHint);
+    detailsBody.appendChild(keyField);
+    body.appendChild(detailsBody);
+    body.appendChild(status);
+    body.appendChild(restartNotice);
+    var card = makeCollapsibleCard("WireGuard VPN", body, true, tunnelBadge);
+    if (nativeAdmin) {
+      window["espframeWatchWireguard"](card, function(state) {
+        S2.wireguard_connected = state.connected;
+        S2.wireguard_tunnel_enabled = state.running;
+        S2.wireguard_handshake_age = state.handshake_age;
+        updateWireguardStatus(tunnelStatus, tunnelBadge);
+      });
+    }
+    return card;
+  }
+  function makeFrequencyCard() {
+    var dispBody = el("div");
+    nativeAdminOnly: if (nativeAdmin) {
+      dispBody.appendChild(nativeDurationSettingField(
+        "Slideshow Interval",
+        productSettingOptions("interval"),
+        S2.interval,
+        nativeIntervalSeconds,
+        String,
+        2,
+        86400,
+        function(seconds) {
+          saveSetting("interval", nativeIntervalLabel(seconds));
+        }
+      ));
+      return makeCollapsibleCard("Frequency", dispBody, true);
+    }
+    dispBody.appendChild(productSelectSettingField("Slideshow Interval", "interval"));
+    return makeCollapsibleCard("Frequency", dispBody, true);
+  }
+  function makeNativePhotoSourcePanel() {
+    var labels = { all: "All photos", favorites: "Favourites", album: "Album", memories: "On This Day", custom: "Custom filters" };
+    var form = el("form");
+    var sourceField = field("Photo source");
+    var source = selectFromOptions(
+      Object.keys(labels),
+      S2.photo_source_mode,
+      syncAlbum,
+      function(value) {
+        return labels[value];
+      }
+    );
+    sourceField.appendChild(source);
+    var albumField = field("Immich album link or ID");
+    var album = input("text", S2.album_id, "Paste album link or UUID", 512);
+    var albumHint = el("div", "setting-hint");
+    albumHint.textContent = "The Immich API key needs album.read permission.";
+    albumField.append(album, albumHint);
+    var apply = button("Save photo source", "btn btn-secondary btn-sm");
+    apply.type = "submit";
+    var status = el("div", "status");
+    status.setAttribute("role", "status");
+    form.append(sourceField, albumField, apply, status);
+    function syncAlbum() {
+      albumField.hidden = source.value !== "album";
+      album.disabled = albumField.hidden;
+      album.required = !albumField.hidden;
+      album.setCustomValidity("");
+    }
+    album.oninput = function() {
+      album.setCustomValidity("");
+    };
+    syncAlbum();
+    form.onsubmit = async function(event) {
+      event.preventDefault();
+      if (apply.disabled) return;
+      var values = { photo_source_mode: source.value };
+      if (source.value === "album") {
+        var albumId = normalizeImmichAlbumId(album.value.trim());
+        if (!albumId || !N(albumId) || albumId.includes(",")) {
+          album.setCustomValidity("Enter one Immich album link or ID.");
+          album.reportValidity();
+          return;
+        }
+        values.album_id = albumId;
+      }
+      source.disabled = album.disabled = apply.disabled = true;
+      setStatus(status, "");
+      try {
+        await saveSettingValues(values);
+        showBanner("Photo source saved.", "success");
+      } catch (_2) {
+        setStatus(status, "Could not save the photo source.", "red");
+      } finally {
+        source.disabled = apply.disabled = false;
+        syncAlbum();
+      }
+    };
+    return makeInlineDisclosure("Photo source presets", form, false);
+  }
+  function makeFiltersCard() {
+    var body = el("div");
+    var memoriesActive = S2.photo_source === "Memories";
+    var filterCard;
+    function filtersActive() {
+      return !memoriesActive && hasConfiguredPhotoFilters();
+    }
+    var filterBadge = makeBadge(filtersActive());
+    function updateFilterBadge() {
+      filterBadge.textContent = memoriesActive ? "Disabled" : "On";
+      filterBadge.className = "on-badge" + (filtersActive() || memoriesActive ? " active" : "");
+    }
+    var [major, minor] = String(S2.immich_server_version || "").split(".").map(Number);
+    var supportsStructured = S2.immich_filter_support === "structured" || isFinite(major) && isFinite(minor) && (major > 3 || major === 3 && minor >= 2);
+    var compatibilityUpdates = [];
+    function updateCompatibility() {
+      compatibilityUpdates.forEach(function(update) {
+        update();
+      });
+    }
+    function applySetting(key, value) {
+      updateFilterBadge();
+      updateCompatibility();
+      return saveSetting(key, value, { applyPhotoSource: true });
+    }
+    function updateMemoryFilterLock() {
+      var toggles = body.querySelectorAll('[role="switch"]');
+      Array.prototype.forEach.call(toggles, function(toggleEl) {
+        var toggle = toggleEl;
+        if (memoriesActive && !toggle.__memoryLocked) {
+          toggle.__memoryOriginalOnclick = toggle.onclick;
+          toggle.__memoryOriginalOnkeydown = toggle.onkeydown;
+          toggle.__memoryOriginalAriaDisabled = toggle.getAttribute("aria-disabled");
+          toggle.__memoryOriginalTabindex = toggle.getAttribute("tabindex");
+          toggle.__memoryOriginalOpacity = toggle.style.opacity;
+          toggle.__memoryOriginalCursor = toggle.style.cursor;
+          toggle.__memoryLocked = true;
+        }
+        if (memoriesActive) {
+          toggle.setAttribute("aria-disabled", "true");
+          toggle.setAttribute("tabindex", "-1");
+          toggle.style.opacity = ".35";
+          toggle.style.cursor = "not-allowed";
+          toggle.onclick = function() {
+          };
+          toggle.onkeydown = function(event) {
+            event.preventDefault();
+          };
+        } else if (toggle.__memoryLocked) {
+          if (toggle.__memoryOriginalAriaDisabled == null) toggle.removeAttribute("aria-disabled");
+          else toggle.setAttribute("aria-disabled", toggle.__memoryOriginalAriaDisabled);
+          if (toggle.__memoryOriginalTabindex == null) toggle.removeAttribute("tabindex");
+          else toggle.setAttribute("tabindex", toggle.__memoryOriginalTabindex);
+          toggle.style.opacity = toggle.__memoryOriginalOpacity || "";
+          toggle.style.cursor = toggle.__memoryOriginalCursor || "";
+          toggle.onclick = toggle.__memoryOriginalOnclick;
+          toggle.onkeydown = toggle.__memoryOriginalOnkeydown;
+          delete toggle.__memoryLocked;
+        }
+      });
+      var controls = body.querySelectorAll("select, input, button");
+      Array.prototype.forEach.call(controls, function(controlEl) {
+        var control = controlEl;
+        if (control.closest(".banner")) return;
+        if (memoriesActive && !control.__memoryLocked) {
+          control.__memoryOriginalDisabled = control.disabled;
+          control.__memoryLocked = true;
+        }
+        if (memoriesActive) control.disabled = true;
+        else if (control.__memoryLocked) {
+          control.disabled = !!control.__memoryOriginalDisabled;
+          delete control.__memoryLocked;
+        }
+      });
+      if (filtersInfoBanner) filtersInfoBanner.style.display = memoriesActive ? "" : "none";
+      if (filterCard) filterCard.classList.toggle("memory-filter-disabled", memoriesActive);
+      updateFilterBadge();
+    }
+    var filtersInfoBanner = makeMemoriesInfoBanner();
+    filtersInfoBanner.style.display = memoriesActive ? "" : "none";
+    body.appendChild(filtersInfoBanner);
+    appendDateFilterControls(body, updateFilterBadge);
+    function addSelect(label, key, disabled, reason, recoveryValue) {
+      var f3 = field(label);
+      var control = selectFromOptions(productSettingOptions(key), S2[key], function(value) {
+        S2[key] = value;
+        applySetting(key, value);
+      });
+      if (disabled && recoveryValue != null) {
+        Array.prototype.forEach.call(control.options, function(optionEl) {
+          optionEl.disabled = String(optionEl.value) !== String(recoveryValue);
+        });
+      }
+      f3.appendChild(control);
+      if (disabled && reason) {
+        var hint = el("div", "setting-hint");
+        hint.textContent = reason;
+        f3.appendChild(hint);
+      }
+      body.appendChild(f3);
+      return f3;
+    }
+    function saveList(editor, idKey, labelKey) {
+      var ids = editor.getIdsValue();
+      var labels = editor.getLabelsValue();
+      editor.error.textContent = "";
+      if (T(ids) || U(labels)) {
+        editor.error.textContent = "List exceeds the 255-character device limit.";
+        return;
+      }
+      if (ids && !N(ids)) {
+        editor.error.textContent = "Invalid UUID format";
+        return;
+      }
+      saveSettingValues({ [idKey]: ids, [labelKey]: labels }).then(applyPhotoSource).catch(reportSettingSaveFailure);
+      updateCompatibility();
+    }
+    function addExclusions(parent, label, idKey, labelKey, noun) {
+      var nested = document.createElement("details");
+      nested.className = "filter-nested filter-exclusions";
+      nested.open = !!String(S2[idKey] || "").trim();
+      var summary = document.createElement("summary");
+      summary.textContent = label;
+      nested.appendChild(summary);
+      var timer = null;
+      var editor = photoIdListField({
+        label: "",
+        idKey,
+        labelKey,
+        idPlaceholder: "Paste excluded " + noun + " UUID",
+        labelPlaceholder: "Optional label",
+        addText: "Exclude " + noun,
+        removeTitle: "Remove exclusion",
+        moveUpTitle: "Move up",
+        moveDownTitle: "Move down",
+        disableEditing: !supportsStructured,
+        allowClearLast: !supportsStructured,
+        idChanges: {},
+        labelChanges: {},
+        clearChanges: {},
+        reorderChanges: {},
+        onChange: function(_changes, delayMs2) {
+          clearTimeout(timer);
+          timer = setTimeout(function() {
+            saveList(editor, idKey, labelKey);
+          }, delayMs2 == null ? 600 : delayMs2);
+        }
+      });
+      nested.appendChild(editor.field);
+      if (!supportsStructured) {
+        var hint = el("div", "setting-hint compatibility-disabled");
+        hint.textContent = "Requires Immich server version 3.2 or newer. Saved exclusions can be removed.";
+        nested.appendChild(hint);
+      }
+      parent.appendChild(nested);
+    }
+    function addGroup(label, enabledKey, idKey, labelKey, noun, options) {
+      var details = el("div", "filter-group-details filter-lists");
+      var row = toggleSettingRow({
+        label: "Filter by " + label,
+        value: !!S2[enabledKey],
+        getValue: function() {
+          return !!S2[enabledKey];
+        },
+        setValue: function(value) {
+          S2[enabledKey] = value;
+        },
+        details,
+        onChange: function(value) {
+          applySetting(enabledKey, value);
+        }
+      });
+      var toggleClick = row.toggle.onclick;
+      var compatibilityHint = el("div", "setting-hint compatibility-disabled");
+      compatibilityHint.textContent = "Saved exclusions require Immich 3.2 or newer. Remove them below before enabling this group.";
+      row.field.appendChild(compatibilityHint);
+      function updateGroupCompatibility() {
+        var hasUnsupportedExclusions = !supportsStructured && !!String(S2[options.excludedIdKey] || "").trim();
+        var blocked = hasUnsupportedExclusions && !S2[enabledKey];
+        row.toggle.onclick = blocked ? function() {
+        } : toggleClick;
+        row.toggle.setAttribute("aria-disabled", blocked ? "true" : "false");
+        row.toggle.setAttribute("tabindex", blocked ? "-1" : "0");
+        row.toggle.style.opacity = blocked ? ".35" : "";
+        compatibilityHint.style.display = blocked ? "" : "none";
+        details.style.display = S2[enabledKey] || hasUnsupportedExclusions ? "" : "none";
+      }
+      compatibilityUpdates.push(updateGroupCompatibility);
+      body.appendChild(row.field);
+      var inclusionParent = details;
+      if (options && options.includedPanel) {
+        var included = document.createElement("details");
+        included.className = "filter-nested filter-inclusions";
+        included.open = false;
+        var includedSummary = document.createElement("summary");
+        includedSummary.textContent = "Included " + label;
+        included.appendChild(includedSummary);
+        details.appendChild(included);
+        inclusionParent = included;
+      }
+      if (!options || options.showInclusionHint !== false) {
+        var hint = el("div", "setting-hint");
+        hint.textContent = "Any selected " + noun + " is included.";
+        inclusionParent.appendChild(hint);
+      }
+      var timer = null;
+      var editor = photoIdListField({
+        label: "Selected " + label,
+        idKey,
+        labelKey,
+        idPlaceholder: "Paste " + noun + " UUID from Immich",
+        labelPlaceholder: "Optional label",
+        addText: "Add " + noun,
+        removeTitle: "Remove " + noun,
+        moveUpTitle: "Move up",
+        moveDownTitle: "Move down",
+        idChanges: {},
+        labelChanges: {},
+        clearChanges: {},
+        reorderChanges: {},
+        onChange: function(_changes, delayMs2) {
+          clearTimeout(timer);
+          timer = setTimeout(function() {
+            saveList(editor, idKey, labelKey);
+          }, delayMs2 == null ? 600 : delayMs2);
+        }
+      });
+      inclusionParent.appendChild(editor.field);
+      var matchingKey = noun + "_matching";
+      if (String(S2[matchingKey] || "").indexOf("All selected") === 0) {
+        inclusionParent.appendChild(addSelect(
+          "Matching " + label,
+          matchingKey,
+          !supportsStructured,
+          "Choose any selected item to clear the retained all-selected rule.",
+          "Any selected " + noun
+        ));
+      } else nativeAdminOnly: if (nativeAdmin && supportsStructured) {
+        inclusionParent.appendChild(addSelect("Matching " + label, matchingKey, false, ""));
+      }
+      addExclusions(details, "Excluded " + label, options.excludedIdKey, options.excludedLabelKey, noun);
+      if (options && options.order) {
+        var order = productSelectSettingField("Album Order", "album_order");
+        order.classList.add("filter-panel");
+        details.appendChild(order);
+      }
+      updateGroupCompatibility();
+      body.appendChild(details);
+    }
+    addGroup("Albums", "albums_enabled", "album_ids", "album_labels", "album", {
+      order: true,
+      excludedIdKey: "excluded_album_ids",
+      excludedLabelKey: "excluded_album_labels",
+      includedPanel: true,
+      showInclusionHint: false
+    });
+    addGroup("People", "people_enabled", "person_ids", "person_labels", "person", {
+      excludedIdKey: "excluded_person_ids",
+      excludedLabelKey: "excluded_person_labels",
+      includedPanel: true,
+      showInclusionHint: false
+    });
+    addGroup("Tags", "tags_enabled", "tag_ids", "tag_labels", "tag", {
+      excludedIdKey: "excluded_tag_ids",
+      excludedLabelKey: "excluded_tag_labels",
+      includedPanel: true,
+      showInclusionHint: false
+    });
+    if (!supportsStructured) {
+      var inclusionRecovery = addSelect("Inclusion Groups", "inclusion_matching", false, "");
+      var inclusionHint = el("div", "setting-hint compatibility-disabled");
+      inclusionHint.textContent = "Matching all enabled groups with multiple any-selected people or tags requires Immich 3.2 or newer. Choose Match any enabled group, keep only one group enabled, or reduce the people and tag lists to one item.";
+      inclusionRecovery.appendChild(inclusionHint);
+    } else nativeAdminOnly: if (nativeAdmin) {
+      addSelect("Inclusion Groups", "inclusion_matching", false, "");
+    }
+    function addValueGroup(label, enabledKey, settingKey, defaultValue, disabled, reason) {
+      var details = el("div", "filter-group-details");
+      var valueField = addSelect(label, settingKey, disabled, reason, "Any");
+      var valueControl = valueField.querySelector("select");
+      var row = toggleSettingRow({
+        label: "Filter by " + label,
+        value: !!S2[enabledKey],
+        disabled: disabled && !S2[enabledKey],
+        disabledTitle: reason,
+        getValue: function() {
+          return !!S2[enabledKey];
+        },
+        setValue: function(value) {
+          S2[enabledKey] = value;
+        },
+        details,
+        onChange: function(value) {
+          if (value && (S2[settingKey] == null || S2[settingKey] === "Any")) {
+            S2[settingKey] = defaultValue;
+            valueControl.value = defaultValue;
+            saveSetting(settingKey, defaultValue);
+          }
+          applySetting(enabledKey, value);
+          if (disabled && !value) {
+            row.toggle.onclick = function() {
+            };
+            row.toggle.setAttribute("aria-disabled", "true");
+            row.toggle.setAttribute("tabindex", "-1");
+            row.toggle.style.opacity = ".35";
+          }
+        }
+      });
+      body.appendChild(row.field);
+      details.appendChild(valueField);
+      details.style.display = S2[enabledKey] ? "" : "none";
+      body.appendChild(details);
+    }
+    addValueGroup("Favorites", "favorites_enabled", "favorite_mode", "Favorites only", false, "");
+    addValueGroup(
+      "Rating",
+      "rating_enabled",
+      "minimum_rating",
+      "1+",
+      !supportsStructured,
+      "Requires Immich server version 3.2 or newer. Choose Any to clear."
+    );
+    var locationDetails = el("div", "filter-group-details");
+    var locationRow = toggleSettingRow({
+      label: "Filter by Location",
+      value: !!S2.location_enabled,
+      getValue: function() {
+        return !!S2.location_enabled;
+      },
+      setValue: function(value) {
+        S2.location_enabled = value;
+      },
+      details: locationDetails,
+      onChange: function(value) {
+        applySetting("location_enabled", value);
+      }
+    });
+    body.appendChild(locationRow.field);
+    [["Country", "filter_country"], ["State / Province", "filter_state"], ["City", "filter_city"]].forEach(function(spec) {
+      var f3 = field(spec[0]);
+      var inputEl = input("text", S2[spec[1]] || "", "Exact Immich value", productTextMaxLength(spec[1], 96));
+      var hint = el("div", "setting-hint");
+      var timer = null;
+      inputEl.oninput = function() {
+        var nextValue = inputEl.value.trim();
+        inputEl.setCustomValidity("");
+        clearTimeout(timer);
+        timer = setTimeout(function() {
+          S2[spec[1]] = nextValue;
+          applySetting(spec[1], nextValue);
+        }, 600);
+      };
+      f3.appendChild(inputEl);
+      f3.appendChild(hint);
+      locationDetails.appendChild(f3);
+    });
+    locationDetails.style.display = S2.location_enabled ? "" : "none";
+    body.appendChild(locationDetails);
+    var content = body;
+    nativeAdminOnly: if (nativeAdmin && hasWritableSetting("photo_source_mode") && hasWritableSetting("album_id")) {
+      content = el("div");
+      content.append(makeNativePhotoSourcePanel(), body);
+    }
+    filterCard = makeCollapsibleCard("Filters", content, true, filterBadge);
+    syncMemoryFilterUi = function() {
+      memoriesActive = S2.photo_source === "Memories";
+      updateMemoryFilterLock();
+    };
+    syncMemoryFilterUi();
+    return filterCard;
+  }
+  function appendDateFilterControls(parent, onEnabledChange) {
+    var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+    function isValidDate(s4) {
+      nativeAdminOnly: if (nativeAdmin) return isValidNativeCaptureDate(s4);
+      if (!DATE_RE.test(s4)) return false;
+      var parts = s4.split("-");
+      var d2 = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      return d2.getFullYear() === Number(parts[0]) && d2.getMonth() === Number(parts[1]) - 1 && d2.getDate() === Number(parts[2]);
+    }
+    var filterBody = el("div", "filter-group-details");
+    var filterApplyTimer = null;
+    var filterDetails = el("div");
+    var filterToggle = toggleSettingRow({
+      label: "Filter by Date",
+      value: S2.date_filter_enabled,
+      getValue: function() {
+        return S2.date_filter_enabled;
+      },
+      setValue: function(value) {
+        S2.date_filter_enabled = value;
+      },
+      details: filterBody,
+      onChange: function() {
+        if (onEnabledChange) onEnabledChange();
+        scheduleFilterApply();
+      }
+    });
+    parent.appendChild(filterToggle.field);
+    var fFilterMode = field("Mode");
+    var modeVal = S2.date_filter_mode;
+    var modeSegment = segmentedControl(productSettingOptions("date_filter_mode"), modeVal, function(v2) {
+      modeVal = v2;
+      updateFilterModeDisplay(v2);
+      scheduleFilterApply();
+    }, function(v2) {
+      return v2 === "Relative Range" ? "Relative" : "Fixed";
+    });
+    fFilterMode.appendChild(modeSegment);
+    filterDetails.appendChild(fFilterMode);
+    var fixedWrap = el("div");
+    var fDateFrom = field("From");
+    var dateFromInput = document.createElement("input");
+    dateFromInput.type = "date";
+    dateFromInput.value = S2.date_from || "";
+    dateFromInput.placeholder = "YYYY-MM-DD";
+    dateFromInput.maxLength = productTextMaxLength("date_from", 10);
+    var dateFromError = el("div", "field-error");
+    fDateFrom.appendChild(dateFromInput);
+    fDateFrom.appendChild(dateFromError);
+    fixedWrap.appendChild(fDateFrom);
+    var fDateTo = field("Until");
+    var dateToInput = document.createElement("input");
+    dateToInput.type = "date";
+    dateToInput.value = S2.date_to || "";
+    dateToInput.placeholder = "YYYY-MM-DD";
+    dateToInput.maxLength = productTextMaxLength("date_to", 10);
+    nativeAdminOnly: if (nativeAdmin) {
+      dateFromInput.min = dateToInput.min = "0002-01-01";
+      dateFromInput.max = dateToInput.max = "9998-12-31";
+    }
+    var dateToError = el("div", "field-error");
+    fDateTo.appendChild(dateToInput);
+    fDateTo.appendChild(dateToError);
+    fixedWrap.appendChild(fDateTo);
+    filterDetails.appendChild(fixedWrap);
+    var relativeWrap = el("div", "filter-relative-row");
+    var fRelativeAmount = field("Last");
+    var relativeAmountInput = document.createElement("input");
+    var relativeAmountMin = productNumberMin("relative_amount", 1);
+    var relativeAmountMax = productNumberMax("relative_amount", 120);
+    var relativeAmountStep = productNumberStep("relative_amount", 1);
+    relativeAmountInput.type = "number";
+    relativeAmountInput.min = String(relativeAmountMin);
+    relativeAmountInput.max = String(relativeAmountMax);
+    relativeAmountInput.step = String(relativeAmountStep);
+    relativeAmountInput.value = String(S2.relative_amount || 1);
+    var relativeAmountError = el("div", "field-error");
+    fRelativeAmount.appendChild(relativeAmountInput);
+    fRelativeAmount.appendChild(relativeAmountError);
+    relativeWrap.appendChild(fRelativeAmount);
+    var fRelativeUnit = field("Unit");
+    var relativeUnitSelect = selectFromOptions(productSettingOptions("relative_unit"), S2.relative_unit, function() {
+      scheduleFilterApply();
+    });
+    fRelativeUnit.appendChild(relativeUnitSelect);
+    relativeWrap.appendChild(fRelativeUnit);
+    filterDetails.appendChild(relativeWrap);
+    function updateFilterModeDisplay(mode) {
+      fixedWrap.style.display = mode === "Relative Range" ? "none" : "";
+      relativeWrap.style.display = mode === "Relative Range" ? "" : "none";
+    }
+    updateFilterModeDisplay(S2.date_filter_mode);
+    var filterError = el("div", "field-error");
+    filterDetails.appendChild(filterError);
+    dateFromInput.onchange = scheduleFilterApply;
+    dateToInput.onchange = scheduleFilterApply;
+    relativeAmountInput.onchange = scheduleFilterApply;
+    function readFilterValues() {
+      dateFromError.textContent = "";
+      dateToError.textContent = "";
+      relativeAmountError.textContent = "";
+      filterError.textContent = "";
+      var fromVal = dateFromInput.value.trim();
+      var toVal = dateToInput.value.trim();
+      var amountVal = Math.round(Number(relativeAmountInput.value));
+      var unitVal = relativeUnitSelect.value;
+      if (S2.date_filter_enabled && modeVal === "Fixed Range" && fromVal && !isValidDate(fromVal)) {
+        dateFromError.textContent = "Invalid date \u2014 use YYYY-MM-DD";
+        return null;
+      }
+      if (S2.date_filter_enabled && modeVal === "Fixed Range" && toVal && !isValidDate(toVal)) {
+        dateToError.textContent = "Invalid date \u2014 use YYYY-MM-DD";
+        return null;
+      }
+      if (S2.date_filter_enabled && modeVal === "Fixed Range" && fromVal && toVal && fromVal > toVal) {
+        filterError.textContent = "From must not be after Until";
+        return null;
+      }
+      if (S2.date_filter_enabled && modeVal === "Relative Range" && (!amountVal || amountVal < relativeAmountMin || amountVal > relativeAmountMax)) {
+        relativeAmountError.textContent = "Enter a whole number from " + relativeAmountMin + " to " + relativeAmountMax;
+        return null;
+      }
+      return { from: fromVal, to: toVal, amount: amountVal || relativeAmountMin, unit: unitVal };
+    }
+    function applyFilterSettings() {
+      var vals = readFilterValues();
+      if (!vals) return;
+      saveSettingValues({
+        date_filter_enabled: S2.date_filter_enabled,
+        date_filter_mode: modeVal,
+        date_from: vals.from,
+        date_to: vals.to,
+        relative_amount: vals.amount,
+        relative_unit: vals.unit
+      }).then(applyPhotoSource).catch(reportSettingSaveFailure);
+    }
+    function scheduleFilterApply() {
+      filterApplyTimer = schedulePhotoSetting(filterApplyTimer, applyFilterSettings, 300);
+    }
+    filterBody.appendChild(filterDetails);
+    filterBody.style.display = S2.date_filter_enabled ? "" : "none";
+    parent.appendChild(filterBody);
+  }
+  function makePortraitPairingCard() {
+    var pairingBody = el("div");
+    var portraitRotationActive = isPortraitScreenRotation(effectiveScreenRotationForUi());
+    var pairingEnabled = S2.portrait_pairing && !portraitRotationActive;
+    var pairingOptionsBody = el("div", "portrait-pairing-options");
+    var pairingBadge = makeBadge(pairingEnabled);
+    var pairingToggle = toggleSettingRow({
+      label: "Portrait Pairing",
+      value: pairingEnabled,
+      getValue: function() {
+        return S2.portrait_pairing;
+      },
+      setValue: function(value) {
+        S2.portrait_pairing = value;
+      },
+      disabled: portraitRotationActive,
+      disabledTitle: "Portrait pairing is disabled while the screen is in portrait rotation",
+      onChange: function() {
+        pairingOptionsBody.style.display = S2.portrait_pairing && !portraitRotationActive ? "" : "none";
+        setBadgeActive(pairingBadge, S2.portrait_pairing && !portraitRotationActive);
+        saveSetting("portrait_pairing", S2.portrait_pairing);
+      }
+    });
+    var pairingOptionsDisabledTitle = portraitRotationActive ? "Portrait pairing is disabled while the screen is in portrait rotation" : "Turn on Portrait Pairing to use this option";
+    pairingOptionsBody.appendChild(toggleSettingRow({
+      label: "Show Paired Portraits Only",
+      value: S2.portrait_pairs_only,
+      getValue: function() {
+        return S2.portrait_pairs_only;
+      },
+      setValue: function(value) {
+        S2.portrait_pairs_only = value;
+      },
+      disabled: portraitRotationActive,
+      disabledTitle: pairingOptionsDisabledTitle,
+      onChange: function() {
+        saveSetting("portrait_pairs_only", S2.portrait_pairs_only);
+      }
+    }).field);
+    var fPairingRange = field("Pairing Range");
+    var pairingRangeSelect = selectFromOptions(
+      productSettingOptions("portrait_pairing_range"),
+      S2.portrait_pairing_range,
+      function(v2) {
+        saveSetting("portrait_pairing_range", v2);
+      },
+      function(v2) {
+        if (v2 === "Within 1 Day") return "\xB11 Day";
+        if (v2 === "Within 2 Days") return "\xB12 Days";
+        return v2;
+      }
+    );
+    pairingRangeSelect.disabled = portraitRotationActive;
+    if (portraitRotationActive) pairingRangeSelect.title = pairingOptionsDisabledTitle;
+    fPairingRange.appendChild(pairingRangeSelect);
+    pairingOptionsBody.appendChild(fPairingRange);
+    if (nativeSettings.has("portrait_pair_framing")) {
+      pairingOptionsBody.appendChild(window["espframePairFraming"](
+        field,
+        selectFromOptions,
+        S2.portrait_pair_framing,
+        function(value) {
+          saveSetting("portrait_pair_framing", value);
+        }
+      ));
+    }
+    pairingBody.appendChild(pairingToggle.field);
+    pairingOptionsBody.style.display = pairingEnabled ? "" : "none";
+    pairingBody.appendChild(pairingOptionsBody);
+    var pairingCard = makeCollapsibleCard("Portrait Pairing", pairingBody, true, pairingBadge);
+    return pairingCard;
+  }
+  function makeLayoutCard() {
+    var photoBody = el("div");
+    var fPhotoOrientation = field("Display Photos");
+    fPhotoOrientation.appendChild(
+      selectFromOptions(productSettingOptions("photo_orientation"), S2.photo_orientation, function(v2) {
+        saveSetting("photo_orientation", v2);
+      })
+    );
+    photoBody.appendChild(fPhotoOrientation);
+    var fDisplayMode = field("Display Mode");
+    fDisplayMode.appendChild(
+      selectFromOptions(productSettingOptions("display_mode"), S2.display_mode, function(v2) {
+        saveSetting("display_mode", v2);
+      }, function(v2) {
+        return v2 === "Fill" ? "Crop to fit" : "Show full image";
+      })
+    );
+    photoBody.appendChild(fDisplayMode);
+    var fTransition = field("Transition");
+    fTransition.appendChild(
+      selectFromOptions(productSettingOptions("transition"), S2.transition, function(v2) {
+        saveSetting("transition", v2);
+      })
+    );
+    photoBody.appendChild(fTransition);
+    var fTransitionSpeed = field("Transition Speed");
+    fTransitionSpeed.appendChild(
+      selectFromOptions(productSettingOptions("transition_speed"), S2.transition_speed, function(v2) {
+        saveSetting("transition_speed", v2);
+      }, function(v2) {
+        if (v2 === "Fast") return "Fast (0.5s)";
+        if (v2 === "Slow") return "Slow (1.5s)";
+        return v2 === "Normal" ? "Normal (1s)" : v2;
+      })
+    );
+    photoBody.appendChild(fTransitionSpeed);
+    return makeCollapsibleCard("Photo Display", photoBody, true);
+  }
+  function makeMetadataCard() {
+    function metadataIsActive() {
+      return S2.photo_metadata_date_enabled || S2.photo_metadata_location_enabled;
+    }
+    var metadataBadge = makeBadge(metadataIsActive());
+    var metadataBody = el("div");
+    var metadataDateDetails = el("div");
+    var fMetadataDateTakenFormat = null;
+    function refreshMetadataDetails() {
+      metadataDateDetails.style.display = S2.photo_metadata_date_enabled ? "" : "none";
+      if (fMetadataDateTakenFormat) {
+        fMetadataDateTakenFormat.style.display = S2.photo_metadata_date_enabled && S2.photo_metadata_date_format === "Date Taken" ? "" : "none";
+      }
+      metadataBadge.className = "on-badge" + (metadataIsActive() ? " active" : "");
+    }
+    var fMetadataDate = toggleSettingRow({
+      label: "Date",
+      value: S2.photo_metadata_date_enabled,
+      getValue: function() {
+        return S2.photo_metadata_date_enabled;
+      },
+      setValue: function(value) {
+        S2.photo_metadata_date_enabled = value;
+      },
+      onChange: function() {
+        refreshMetadataDetails();
+        saveSetting("photo_metadata_date_enabled", S2.photo_metadata_date_enabled);
+      }
+    }).field;
+    var fMetadataDateFormat = field("Date Format");
+    fMetadataDateFormat.appendChild(
+      selectFromOptions(productSettingOptions("photo_metadata_date_format"), S2.photo_metadata_date_format, function(v2) {
+        saveSetting("photo_metadata_date_format", v2);
+        refreshMetadataDetails();
+      })
+    );
+    metadataDateDetails.appendChild(fMetadataDateFormat);
+    fMetadataDateTakenFormat = field("Date Taken Format");
+    fMetadataDateTakenFormat.appendChild(
+      selectFromOptions(productSettingOptions("photo_metadata_date_taken_format"), S2.photo_metadata_date_taken_format, function(v2) {
+        saveSetting("photo_metadata_date_taken_format", v2);
+      })
+    );
+    metadataDateDetails.appendChild(fMetadataDateTakenFormat);
+    var fMetadataLocation = toggleSettingRow({
+      label: "Location",
+      value: S2.photo_metadata_location_enabled,
+      getValue: function() {
+        return S2.photo_metadata_location_enabled;
+      },
+      setValue: function(value) {
+        S2.photo_metadata_location_enabled = value;
+      },
+      onChange: function() {
+        refreshMetadataDetails();
+        saveSetting("photo_metadata_location_enabled", S2.photo_metadata_location_enabled);
+      }
+    }).field;
+    metadataBody.appendChild(fMetadataLocation);
+    metadataBody.appendChild(fMetadataDate);
+    metadataBody.appendChild(metadataDateDetails);
+    refreshMetadataDetails();
+    return makeCollapsibleCard("Metadata", metadataBody, true, metadataBadge);
+  }
+  function makeScreenBrightnessCard() {
+    var dnDetails = el("div");
+    dnDetails.appendChild(rangeSettingField("Daytime Brightness", "brightness_day", {
+      minFallback: 10,
+      maxFallback: 100,
+      stepFallback: 5,
+      valueSuffix: "%"
+    }).field);
+    dnDetails.appendChild(rangeSettingField("Nighttime Brightness", "brightness_night", {
+      minFallback: 10,
+      maxFallback: 100,
+      stepFallback: 5,
+      valueSuffix: "%"
+    }).field);
+    var fSunInfo = el("div", "field sun-info");
+    fSunInfo.id = "sun-info";
+    function updateSunInfo() {
+      updateSunInfoElement(fSunInfo);
+    }
+    updateSunInfo();
+    dnDetails.appendChild(fSunInfo);
+    return makeCollapsibleCard("Screen Brightness", dnDetails, true);
+  }
+  function makeScreenToneCard() {
+    var toneBadge = makeBadge(S2.base_tone_enabled || S2.warm_tones_enabled);
+    var warmBody = el("div");
+    var baseDetails = el("div");
+    baseDetails.style.display = S2.base_tone_enabled ? "" : "none";
+    var fBaseToneToggle = toggleSettingRow({
+      label: "Screen Tone Adjustment",
+      value: S2.base_tone_enabled,
+      getValue: function() {
+        return S2.base_tone_enabled;
+      },
+      setValue: function(value) {
+        S2.base_tone_enabled = value;
+      },
+      details: baseDetails,
+      badge: toneBadge,
+      badgeActive: function() {
+        return S2.base_tone_enabled || S2.warm_tones_enabled;
+      },
+      onChange: function() {
+        saveSetting("base_tone_enabled", S2.base_tone_enabled);
+      }
+    }).field;
+    fBaseToneToggle.style.marginBottom = "8px";
+    warmBody.appendChild(fBaseToneToggle);
+    baseDetails.appendChild(rangeSettingField("", "base_tone", {
+      minFallback: 0,
+      maxFallback: 100,
+      stepFallback: 5,
+      leftLabel: "Cooler",
+      rightLabel: "Warmer"
+    }).field);
+    baseDetails.style.marginBottom = "28px";
+    warmBody.appendChild(baseDetails);
+    var nightDetails = el("div");
+    nightDetails.style.display = S2.warm_tones_enabled ? "" : "none";
+    var fWarmToggle = toggleSettingRow({
+      label: "Night Tone Adjustment",
+      value: S2.warm_tones_enabled,
+      getValue: function() {
+        return S2.warm_tones_enabled;
+      },
+      setValue: function(value) {
+        S2.warm_tones_enabled = value;
+      },
+      details: nightDetails,
+      badge: toneBadge,
+      badgeActive: function() {
+        return S2.base_tone_enabled || S2.warm_tones_enabled;
+      },
+      onChange: function() {
+        saveSetting("warm_tones_enabled", S2.warm_tones_enabled);
+      }
+    }).field;
+    fWarmToggle.style.marginBottom = "8px";
+    warmBody.appendChild(fWarmToggle);
+    nightDetails.appendChild(rangeSettingField("", "warm_tone_intensity", {
+      minFallback: 10,
+      maxFallback: 100,
+      stepFallback: 5,
+      leftLabel: "Cooler",
+      rightLabel: "Warmer"
+    }).field);
+    nightDetails.appendChild(toggleSettingRow({
+      label: "Turn on until sunrise",
+      value: S2.warm_tone_override,
+      getValue: function() {
+        return S2.warm_tone_override;
+      },
+      setValue: function(value) {
+        S2.warm_tone_override = value;
+      },
+      onChange: function() {
+        saveSetting("warm_tone_override", S2.warm_tone_override);
+      }
+    }).field);
+    warmBody.appendChild(nightDetails);
+    return makeCollapsibleCard("Screen Tone", warmBody, true, toneBadge);
+  }
+  function makeNightScheduleCard() {
+    var schedBadge = makeBadge(S2.schedule_enabled);
+    var schedBody = el("div");
+    var schedDetails = el("div");
+    schedDetails.style.display = S2.schedule_enabled ? "" : "none";
+    schedBody.appendChild(toggleSettingRow({
+      label: "Schedule Screen Off",
+      value: S2.schedule_enabled,
+      getValue: function() {
+        return S2.schedule_enabled;
+      },
+      setValue: function(value) {
+        S2.schedule_enabled = value;
+      },
+      details: schedDetails,
+      badge: schedBadge,
+      onChange: function() {
+        saveSetting("schedule_enabled", S2.schedule_enabled);
+      }
+    }).field);
+    schedDetails.appendChild(hourSelectSettingField("On Time", "schedule_on_hour"));
+    schedDetails.appendChild(hourSelectSettingField("Off Time", "schedule_off_hour"));
+    var scheduleWakeMin = productNumberMin("schedule_wake_timeout", 10);
+    var scheduleWakeMax = productNumberMax("schedule_wake_timeout", 3600);
+    var scheduleWakeOptions = [10, 30, 60, 120, 300, 600, 1800, 3600].filter(function(v2) {
+      return v2 >= scheduleWakeMin && v2 <= scheduleWakeMax;
+    });
+    var scheduleWakeCurrent = normalizeScheduleWakeTimeout(S2.schedule_wake_timeout);
+    nativeAdminOnly: if (nativeAdmin) {
+      schedDetails.appendChild(nativeDurationSettingField(
+        "When Woken, Idle Time To Screen Off",
+        scheduleWakeOptions.map(String),
+        String(scheduleWakeCurrent),
+        Number,
+        formatDurationSeconds,
+        scheduleWakeMin,
+        scheduleWakeMax,
+        function(v2) {
+          saveSetting("schedule_wake_timeout", v2);
+        }
+      ));
+      schedBody.appendChild(schedDetails);
+      return makeCollapsibleCard("Night Schedule", schedBody, true, schedBadge);
+    }
+    if (scheduleWakeOptions.indexOf(scheduleWakeCurrent) === -1) {
+      scheduleWakeOptions.push(scheduleWakeCurrent);
+      scheduleWakeOptions.sort(function(a, b2) {
+        return a - b2;
+      });
+    }
+    var fWakeTimeout = field("When Woken, Idle Time To Screen Off");
+    fWakeTimeout.appendChild(
+      selectFromOptions(scheduleWakeOptions, scheduleWakeCurrent, function(v2) {
+        saveSetting("schedule_wake_timeout", v2);
+      }, formatDurationSeconds)
+    );
+    schedDetails.appendChild(fWakeTimeout);
+    schedBody.appendChild(schedDetails);
+    return makeCollapsibleCard("Night Schedule", schedBody, true, schedBadge);
+  }
+  function makeRotationCard() {
+    var rotationBody = el("div");
+    var fRotation = field("Rotation");
+    var rotationOptions = screenRotationOptionsForUi();
+    fRotation.appendChild(
+      selectFromOptions(rotationOptions, effectiveScreenRotationForUi(), function(v2) {
+        saveSetting("screen_rotation", v2);
+        renderSettings();
+      }, function(v2) {
+        return v2 + " degrees";
+      })
+    );
+    rotationBody.appendChild(fRotation);
+    return makeCollapsibleCard("Rotation", rotationBody, true);
+  }
+  function makeLanguageCard() {
+    var body = el("div");
+    body.appendChild(productSelectSettingField("Language", "device_language", {
+      optionDisplayFn: function(v2) {
+        return {
+          en: "English",
+          cs: "\u010Ce\u0161tina (Czech)",
+          da: "Dansk (Danish)",
+          de: "Deutsch (German)",
+          es: "Espa\xF1ol (Spanish)",
+          fi: "Suomi (Finnish)",
+          fr: "Fran\xE7ais (French)",
+          he: "\u05E2\u05D1\u05E8\u05D9\u05EA (Hebrew)",
+          hu: "Magyar (Hungarian)",
+          it: "Italiano (Italian)",
+          nb: "Norsk bokm\xE5l (Norwegian Bokm\xE5l)",
+          nl: "Nederlands (Dutch)",
+          pl: "Polski (Polish)",
+          pt: "Portugu\xEAs (Portuguese)",
+          "pt-br": "Portugu\xEAs (Brasil) (Brazilian Portuguese)",
+          ro: "Rom\xE2n\u0103 (Romanian)",
+          ru: "\u0420\u0443\u0441\u0441\u043A\u0438\u0439 (Russian)",
+          sk: "Sloven\u010Dina (Slovak)",
+          sl: "Sloven\u0161\u010Dina (Slovenian)",
+          sv: "Svenska (Swedish)",
+          tr: "T\xFCrk\xE7e (Turkish)",
+          uk: "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430 (Ukrainian)"
+        }[v2] || v2;
+      }
+    }));
+    return makeCollapsibleCard("Language", body, true);
+  }
+  function makeClockCard() {
+    var clockBadge = makeBadge(S2.show_clock);
+    var clkBody = el("div");
+    clkBody.appendChild(toggleSettingRow({
+      label: "Show Clock",
+      value: S2.show_clock,
+      getValue: function() {
+        return S2.show_clock;
+      },
+      setValue: function(value) {
+        S2.show_clock = value;
+      },
+      badge: clockBadge,
+      onChange: function() {
+        saveSetting("show_clock", S2.show_clock);
+      }
+    }).field);
+    var f6 = field("Format");
+    f6.appendChild(
+      selectFromOptions(productSettingOptions("clock_format"), S2.clock_format, function(v2) {
+        saveSetting("clock_format", v2);
+      })
+    );
+    clkBody.appendChild(f6);
+    var f7 = field("Timezone");
+    f7.appendChild(
+      timezoneSelect(S2.tz_options, S2.timezone, function(v2) {
+        saveSetting("timezone", v2);
+      })
+    );
+    clkBody.appendChild(f7);
+    clkBody.appendChild(makeInlineDisclosure("Advanced", ntpServersField(), false));
+    return makeCollapsibleCard("Clock", clkBody, true, clockBadge);
+  }
+  var nativeFirmware;
+  function parseFirmwareVersion(value) {
+    var match = /^v([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/i.exec(String(value || "").trim());
+    if (!match) return null;
+    return {
+      core: [Number(match[1]), Number(match[2]), Number(match[3])],
+      prerelease: match[4] ? match[4].split(".") : []
+    };
+  }
+  function isSpecificFirmwareVersion(value) {
+    return !!parseFirmwareVersion(value);
+  }
+  function compareFirmwareVersions(left, right) {
+    var a = parseFirmwareVersion(left);
+    var b2 = parseFirmwareVersion(right);
+    if (!a || !b2) return null;
+    for (var i = 0; i < a.core.length; i++) {
+      if (a.core[i] !== b2.core[i]) return a.core[i] > b2.core[i] ? 1 : -1;
+    }
+    if (!a.prerelease.length || !b2.prerelease.length) {
+      if (a.prerelease.length === b2.prerelease.length) return 0;
+      return a.prerelease.length ? -1 : 1;
+    }
+    var length = Math.max(a.prerelease.length, b2.prerelease.length);
+    for (var index = 0; index < length; index++) {
+      if (a.prerelease[index] === void 0) return -1;
+      if (b2.prerelease[index] === void 0) return 1;
+      if (a.prerelease[index] === b2.prerelease[index]) continue;
+      var aNumeric = /^[0-9]+$/.test(a.prerelease[index]);
+      var bNumeric = /^[0-9]+$/.test(b2.prerelease[index]);
+      if (aNumeric && bNumeric) return Number(a.prerelease[index]) > Number(b2.prerelease[index]) ? 1 : -1;
+      if (aNumeric !== bNumeric) return aNumeric ? -1 : 1;
+      return a.prerelease[index] > b2.prerelease[index] ? 1 : -1;
+    }
+    return 0;
+  }
+  function firmwareVersionsSame(a, b2) {
+    return String(a || "").trim().toLowerCase() === String(b2 || "").trim().toLowerCase();
+  }
+  function installedFirmwareVersion() {
+    return String(S2.firmware || S2.installed_version || "").trim();
+  }
+  function firmwareDeviceSlug() {
+    return String(S2.firmware_device || "").trim();
+  }
+  function firmwarePublicManifestUrl() {
+    var slug = firmwareDeviceSlug();
+    var devices = FIRMWARE_MANIFEST_URLS && FIRMWARE_MANIFEST_URLS.devices;
+    if (slug && devices && devices[slug] && devices[slug].stable) return devices[slug].stable;
+    if (!devices || Object.keys(devices).length <= 1) return FIRMWARE_MANIFEST_URLS.stable || "";
+    return "";
+  }
+  function firmwarePublicVersionsUrl() {
+    var manifestUrl = firmwarePublicManifestUrl();
+    return manifestUrl ? new URL("versions.json", manifestUrl).href : "";
+  }
+  function firmwarePublicAssetUrl(path, baseUrl) {
+    try {
+      var base = new URL(baseUrl);
+      var resolved = new URL(String(path || ""), base);
+      var baseDirectory = base.pathname.slice(0, base.pathname.lastIndexOf("/") + 1);
+      if (resolved.origin !== base.origin || resolved.pathname.indexOf(baseDirectory) !== 0) return "";
+      return resolved.href;
+    } catch (_2) {
+      return "";
+    }
+  }
+  function firmwareInfoFromVersionEntry(entry) {
+    if (!entry || typeof entry !== "object") return null;
+    var version = String(entry.version || "").trim();
+    var ota = entry.ota && typeof entry.ota === "object" ? entry.ota : {};
+    var otaPath = String(ota.path || "").trim();
+    var slug = firmwareDeviceSlug();
+    var expectedFilename = slug + ".ota.bin";
+    if (!slug) return null;
+    if (!/^v[0-9]+(\.[0-9]+){2}$/i.test(version) || !otaPath || otaPath.split("/").pop() !== expectedFilename) return null;
+    var otaUrl = firmwarePublicAssetUrl(otaPath, firmwarePublicVersionsUrl());
+    if (!otaUrl) return null;
+    return {
+      version,
+      release_url: String(entry.release_url || ota.release_url || "").trim(),
+      ota_url: otaUrl,
+      ota_filename: expectedFilename,
+      ota_md5: String(ota.md5 || "").trim()
+    };
+  }
+  function firmwareInfosFromVersionsIndex(data) {
+    if (!data || typeof data !== "object" || data.device !== firmwareDeviceSlug() || !Array.isArray(data.versions)) return [];
+    var seen = {};
+    var infos = [];
+    data.versions.some(function(entry) {
+      var info = firmwareInfoFromVersionEntry(entry);
+      var key = info && info.version.toLowerCase();
+      if (!info || seen[key]) return false;
+      seen[key] = true;
+      infos.push(info);
+      return infos.length >= 5;
+    });
+    return infos;
+  }
+  function previousFirmwareInfos() {
+    var installed = installedFirmwareVersion();
+    var latest = S2.firmware_version_options && S2.firmware_version_options.length ? S2.firmware_version_options[0].version : S2.latest_version;
+    var latestIsUpdate = compareFirmwareVersions(latest, installed) > 0;
+    return (S2.firmware_version_options || []).filter(function(info) {
+      if (firmwareVersionsSame(info.version, installed)) return false;
+      return !latestIsUpdate || !firmwareVersionsSame(info.version, latest);
+    });
+  }
+  function selectedPreviousFirmwareInfo() {
+    var infos = previousFirmwareInfos();
+    for (var i = 0; i < infos.length; i++) {
+      if (firmwareVersionsSame(infos[i].version, S2.firmware_selected_version)) return infos[i];
+    }
+    return infos.length ? infos[0] : null;
+  }
+  function latestFirmwareInfo() {
+    return S2.firmware_version_options && S2.firmware_version_options.length ? S2.firmware_version_options[0] : null;
+  }
+  function firmwareUpdateKnownAvailable() {
+    var installed = installedFirmwareVersion();
+    var latest = String(S2.latest_version || "").trim();
+    var comparison = compareFirmwareVersions(latest, installed);
+    return comparison === null ? !!S2.update_available : comparison > 0;
+  }
+  function c6FirmwareUpdateKnownAvailable() {
+    var current = String(S2.c6_current_firmware || "").trim();
+    var latest = String(S2.c6_available_firmware || "").trim();
+    if (nativeAdmin) return compareFirmwareVersions("v" + latest, "v" + current) > 0;
+    return /\d/.test(current) && /\d/.test(latest) && !firmwareVersionsSame(current, latest);
+  }
+  function refreshPreviousFirmwareUi() {
+    if (!els.fwPreviousPanel || !els.fwVersionSelect) return;
+    var infos = previousFirmwareInfos();
+    var currentOptions = Array.from(els.fwVersionSelect.options).map(function(option) {
+      return option.value;
+    });
+    var nextOptions = infos.map(function(info) {
+      return info.version;
+    });
+    if (currentOptions.join("|") !== nextOptions.join("|")) {
+      els.fwVersionSelect.replaceChildren();
+      infos.forEach(function(info) {
+        var option = document.createElement("option");
+        option.value = info.version;
+        option.textContent = info.version;
+        els.fwVersionSelect.appendChild(option);
+      });
+    }
+    var selected = selectedPreviousFirmwareInfo();
+    S2.firmware_selected_version = selected ? selected.version : "";
+    els.fwVersionSelect.value = S2.firmware_selected_version;
+    els.fwPreviousPanel.style.display = S2.firmware_versions_loaded && infos.length ? "" : "none";
+    var busy = !!(S2.firmware_checking || S2.firmware_installing || S2.firmware_uploading) || nativeAdmin && !(nativeFirmware == null ? void 0 : nativeFirmware.isAvailable());
+    els.fwVersionSelect.disabled = busy;
+    if (els.fwPreviousInstallBtn) {
+      els.fwPreviousInstallBtn.disabled = busy || !selected;
+      if (S2.firmware_uploading) els.fwPreviousInstallBtn.textContent = "Uploading\u2026";
+      else if (S2.firmware_installing) els.fwPreviousInstallBtn.textContent = "Installing\u2026";
+      else els.fwPreviousInstallBtn.textContent = "Install";
+    }
+  }
+  function refreshFirmwareUi() {
+    if (els.fwCurrentVersion) els.fwCurrentVersion.textContent = displayVersion(installedFirmwareVersion(), "Dev");
+    if (els.fwLatestVersion) {
+      els.fwLatestVersion.textContent = isSpecificFirmwareVersion(S2.latest_version) ? S2.latest_version : S2.firmware_checking ? "Checking\u2026" : "Not checked";
+    }
+    var available = firmwareUpdateKnownAvailable();
+    setDisclosureBadgeActive(els.firmwareUpdatesBadge, available);
+    setDisclosureBadgeActive(els.autoUpdateBadge, !!S2.auto_update);
+    setBadgeActive(els.firmwareCardBadge, available || c6FirmwareUpdateKnownAvailable());
+    if (els.fwAutoToggle) els.fwAutoToggle.className = S2.auto_update ? "toggle on" : "toggle";
+    if (els.fwFrequencyField) els.fwFrequencyField.style.display = S2.auto_update ? "" : "none";
+    if (els.fwStatus) {
+      els.fwStatus.className = "fw-status" + (S2.firmware_install_error ? " error" : "");
+      els.fwStatus.textContent = S2.firmware_install_error || "";
+    }
+    if (els.fwActionBtn) {
+      var busy = !!(S2.firmware_checking || S2.firmware_installing || S2.firmware_uploading);
+      els.fwActionBtn.disabled = busy || nativeAdmin && !(nativeFirmware == null ? void 0 : nativeFirmware.isAvailable());
+      if (S2.firmware_uploading) els.fwActionBtn.textContent = "Uploading\u2026";
+      else if (S2.firmware_installing) els.fwActionBtn.textContent = "Installing\u2026";
+      else if (S2.firmware_checking) els.fwActionBtn.textContent = "Checking\u2026";
+      else els.fwActionBtn.textContent = available ? "Install Update" : "Check for Update";
+    }
+    refreshPreviousFirmwareUi();
+  }
+  function refreshC6FirmwareUi() {
+    if (els.c6FirmwareCurrent) els.c6FirmwareCurrent.textContent = displayVersion(S2.c6_current_firmware, "Unknown");
+    if (els.c6FirmwareLatest) els.c6FirmwareLatest.textContent = displayVersion(S2.c6_available_firmware, "Unknown");
+    var available = c6FirmwareUpdateKnownAvailable();
+    setDisclosureBadgeActive(els.c6FirmwareBadge, available);
+    setBadgeActive(els.firmwareCardBadge, firmwareUpdateKnownAvailable() || available);
+    if (els.c6AutoToggle) els.c6AutoToggle.className = S2.c6_auto_update ? "toggle on" : "toggle";
+    if (els.c6FirmwareStatus) {
+      var status = String(S2.c6_update_status || "");
+      if (S2.c6_firmware_installing) els.c6FirmwareStatus.textContent = "Installing\u2026";
+      else if (S2.c6_firmware_checking) els.c6FirmwareStatus.textContent = "Checking\u2026";
+      else els.c6FirmwareStatus.textContent = (!available || /^Could not/.test(status)) && status && status !== "Unknown" ? status : "";
+    }
+    if (els.c6FirmwareActionBtn) {
+      var busy = !!(S2.c6_firmware_checking || S2.c6_firmware_installing);
+      els.c6FirmwareActionBtn.disabled = busy;
+      if (S2.c6_firmware_installing) els.c6FirmwareActionBtn.textContent = "Installing\u2026";
+      else if (S2.c6_firmware_checking) els.c6FirmwareActionBtn.textContent = "Checking\u2026";
+      else els.c6FirmwareActionBtn.textContent = available ? "Update WiFi Firmware" : "Check for Update";
+    }
+  }
+  function fetchPublicFirmwareVersions() {
+    if (S2.firmware_versions_loading) return Promise.resolve(S2.firmware_version_options || []);
+    var versionsUrl = firmwarePublicVersionsUrl();
+    if (!versionsUrl) return Promise.resolve([]);
+    S2.firmware_versions_loading = true;
+    return fetch(versionsUrl, { cache: "no-store" }).then(function(response) {
+      if (!response.ok) throw new Error("version_index_unavailable");
+      return response.json();
+    }).then(function(data) {
+      var infos = firmwareInfosFromVersionsIndex(data);
+      S2.firmware_version_options = infos;
+      S2.firmware_versions_loaded = true;
+      if (infos.length) S2.latest_version = infos[0].version;
+      refreshFirmwareUi();
+      return infos;
+    }).catch(function() {
+      S2.firmware_version_options = [];
+      S2.firmware_versions_loaded = true;
+      refreshFirmwareUi();
+      return [];
+    }).finally(function() {
+      S2.firmware_versions_loading = false;
+    });
+  }
+  function applyFirmwareUpdateResponse(data) {
+    if (!data) return false;
+    if (data.current_version) S2.installed_version = String(data.current_version);
+    if (data.latest_version || data.value) S2.latest_version = String(data.latest_version || data.value);
+    var comparison = compareFirmwareVersions(S2.latest_version, installedFirmwareVersion());
+    S2.update_available = comparison === null ? data.state === "UPDATE AVAILABLE" : comparison > 0;
+    refreshFirmwareUi();
+    return S2.update_available;
+  }
+  function firmwareUpdateResponseResolved(data) {
+    if (!data) return false;
+    var state = String(data.state || "").trim().toUpperCase();
+    return state === "UPDATE AVAILABLE" || state === "NO UPDATE" || state === "INSTALLING" || !!String(data.latest_version || data.value || "").trim();
+  }
+  function waitForFirmwareUpdateResponse(attemptsRemaining) {
+    return delayMs(2e3).then(function() {
+      return safeGet(endpoints.update);
+    }).catch(function() {
+      return null;
+    }).then(function(data) {
+      if (firmwareUpdateResponseResolved(data) || attemptsRemaining <= 1) return data;
+      return waitForFirmwareUpdateResponse(attemptsRemaining - 1);
+    });
+  }
+  function markFirmwareRestartPending() {
+    S2.firmware_uploading = false;
+    S2.firmware_installing = true;
+    S2.firmware_restart_pending = true;
+    showBanner("Firmware uploaded. Waiting for the display to restart\u2026", "success");
+    refreshFirmwareUi();
+  }
+  function failFirmwareInstall(message) {
+    S2.firmware_uploading = false;
+    S2.firmware_installing = false;
+    S2.firmware_install_error = message || "Firmware update failed.";
+    showBanner(S2.firmware_install_error, "error");
+    refreshFirmwareUi();
+  }
+  function installPublicFirmware(info) {
+    if (nativeAdmin && info) return nativeFirmware.request(info.version);
+    if (!info || !info.ota_url || S2.firmware_uploading || S2.firmware_installing) return Promise.resolve(false);
+    S2.firmware_install_error = "";
+    S2.firmware_uploading = true;
+    refreshFirmwareUi();
+    var uploadStarted = false;
+    var uploadResponseReceived = false;
+    return fetch(info.ota_url, { cache: "no-store" }).then(function(response) {
+      if (!response.ok) throw new Error("Could not download firmware file (" + response.status + ").");
+      return response.blob();
+    }).then(function(blob) {
+      return post(endpoints.firmware_prepare_upload + "/press").then(function() {
+        return blob;
+      });
+    }).then(function(blob) {
+      var form = new FormData();
+      form.append("file", blob, info.ota_filename);
+      uploadStarted = true;
+      return fetch("/update", { method: "POST", body: form });
+    }).then(function(response) {
+      uploadResponseReceived = true;
+      return response.text().catch(function() {
+        return "";
+      }).then(function(responseText) {
+        if (!response.ok) throw new Error("Device rejected firmware upload (" + response.status + ").");
+        if (/update failed/i.test(responseText)) throw new Error("The display reported that the firmware upload failed.");
+        markFirmwareRestartPending();
+        return true;
+      });
+    }).catch(function(error) {
+      if (uploadStarted && !uploadResponseReceived) {
+        markFirmwareRestartPending();
+        return true;
+      }
+      var message = error && error.message ? error.message : "Could not upload firmware update.";
+      if (!uploadResponseReceived) {
+        failFirmwareInstall(message);
+        return false;
+      }
+      return post(endpoints.firmware_cancel_upload + "/press").catch(function() {
+        message += " The display's update recovery state could not be cleared; restart it before trying again.";
+      }).then(function() {
+        failFirmwareInstall(message);
+        return false;
+      });
+    });
+  }
+  function startFirmwareInstall() {
+    if (!firmwareUpdateKnownAvailable()) return;
+    if (nativeAdmin) return installPublicFirmware(latestFirmwareInfo());
+    S2.firmware_install_error = "";
+    S2.firmware_installing = true;
+    refreshFirmwareUi();
+    post(endpoints.update + "/install").then(function() {
+      S2.firmware_restart_pending = true;
+    }).catch(function() {
+      var info = latestFirmwareInfo();
+      S2.firmware_installing = false;
+      if (info) return installPublicFirmware(info);
+      failFirmwareInstall("Could not start the firmware update.");
+    });
+  }
+  function checkFirmwareUpdate(installAfterCheck) {
+    if (S2.firmware_checking || S2.firmware_installing) return;
+    if (nativeAdmin) return nativeFirmware.request("");
+    S2.firmware_install_error = "";
+    S2.firmware_checking = true;
+    refreshFirmwareUi();
+    var deviceCheck = post(endpoints.firmware_check + "/press").then(function() {
+      return waitForFirmwareUpdateResponse(12);
+    }).catch(function() {
+      return null;
+    });
+    var publicCheck = fetchPublicFirmwareVersions();
+    Promise.all([deviceCheck, publicCheck]).then(function(results) {
+      var data = firmwareUpdateResponseResolved(results[0]) ? results[0] : null;
+      var publicVersions = results[1];
+      if (!data && !publicVersions.length) {
+        throw new Error("firmware_check_unavailable");
+      }
+      var available = data ? applyFirmwareUpdateResponse(data) : firmwareUpdateKnownAvailable();
+      S2.firmware_checking = false;
+      if (installAfterCheck && available) startFirmwareInstall();
+      else refreshFirmwareUi();
+    }).catch(function() {
+      S2.firmware_checking = false;
+      failFirmwareInstall("Could not check for a firmware update.");
+    });
+  }
+  function refreshC6FirmwareState() {
+    return Promise.all([
+      safeGet(endpoints.c6_current_firmware),
+      safeGet(endpoints.c6_available_firmware),
+      safeGet(endpoints.c6_update_status)
+    ]).then(function(responses) {
+      if (responses[0]) S2.c6_current_firmware = responses[0].value || responses[0].state || S2.c6_current_firmware;
+      if (responses[1]) S2.c6_available_firmware = responses[1].value || responses[1].state || S2.c6_available_firmware;
+      if (responses[2]) S2.c6_update_status = responses[2].value || responses[2].state || S2.c6_update_status;
+      refreshC6FirmwareUi();
+    });
+  }
+  function handleFirmwareReconnect() {
+    if (!S2.firmware_restart_pending) return;
+    S2.firmware_restart_pending = false;
+    S2.firmware_installing = false;
+    S2.firmware_uploading = false;
+    S2.firmware_install_error = "";
+    fetchDeviceSettingsState().then(function() {
+      showBanner("Firmware update complete.", "success");
+      if (!isEditingSetting()) renderSettings();
+    }).catch(function() {
+      refreshFirmwareUi();
+    });
+  }
+  function makeFirmwareCard() {
+    var showAppFirmware = !nativeAdmin || hasWritableSetting("auto_update") && hasWritableSetting("update_frequency");
+    var showWifiFirmware = !nativeAdmin || hasWritableSetting("c6_auto_update");
+    if (!showAppFirmware && !showWifiFirmware) return null;
+    var requestWifiFirmware = null;
+    var fwBody = el("div", "fw-body");
+    var subpanels = el("div", "fw-subpanels");
+    var updateBody = el("div");
+    var currentRow = el("div", "fw-row");
+    currentRow.appendChild(textLabel("Current version", ""));
+    var currentValue = el("span", "fw-label");
+    currentRow.appendChild(currentValue);
+    updateBody.appendChild(currentRow);
+    els.fwCurrentVersion = currentValue;
+    var latestRow = el("div", "fw-row");
+    latestRow.appendChild(textLabel("Available version", ""));
+    var latestValue = el("span", "fw-label");
+    latestRow.appendChild(latestValue);
+    updateBody.appendChild(latestRow);
+    els.fwLatestVersion = latestValue;
+    var updateActions = el("div", "fw-actions");
+    var updateButton = button("Check for Update", "btn btn-secondary btn-sm", function() {
+      if (firmwareUpdateKnownAvailable()) {
+        if (S2.update_available) startFirmwareInstall();
+        else checkFirmwareUpdate(true);
+      } else {
+        checkFirmwareUpdate(false);
+      }
+    });
+    updateActions.appendChild(updateButton);
+    updateBody.appendChild(updateActions);
+    els.fwActionBtn = updateButton;
+    var updateStatus = el("div", "fw-status");
+    updateBody.appendChild(updateStatus);
+    els.fwStatus = updateStatus;
+    var updateBadge = makeDisclosureBadge("Update available", "Firmware update available");
+    els.firmwareUpdatesBadge = updateBadge;
+    if (showAppFirmware) subpanels.appendChild(makeInlineDisclosure("Firmware updates", updateBody, false, updateBadge));
+    var autoBody = el("div");
+    var autoBadge = makeDisclosureBadge("On", "Automatic firmware updates on");
+    var autoToggle = toggleSettingRow({
+      label: "Auto Update",
+      value: !!S2.auto_update,
+      getValue: function() {
+        return !!S2.auto_update;
+      },
+      setValue: function(value) {
+        S2.auto_update = value;
+      },
+      onChange: function() {
+        saveSetting("auto_update", S2.auto_update);
+        refreshFirmwareUi();
+      }
+    });
+    autoBody.appendChild(autoToggle.field);
+    els.fwAutoToggle = autoToggle.toggle;
+    var frequencyField = field("Update Frequency");
+    frequencyField.appendChild(selectFromOptions(productSettingOptions("update_frequency"), S2.update_frequency, function(value) {
+      S2.update_frequency = value;
+      saveSetting("update_frequency", value);
+    }));
+    autoBody.appendChild(frequencyField);
+    els.fwFrequencyField = frequencyField;
+    els.autoUpdateBadge = autoBadge;
+    if (showAppFirmware) subpanels.appendChild(makeInlineDisclosure("Auto updates", autoBody, false, autoBadge));
+    var wifiBody = el("div");
+    var c6CurrentRow = el("div", "fw-row");
+    c6CurrentRow.appendChild(textLabel("Current", ""));
+    var c6CurrentValue = el("span", "fw-label");
+    c6CurrentRow.appendChild(c6CurrentValue);
+    wifiBody.appendChild(c6CurrentRow);
+    els.c6FirmwareCurrent = c6CurrentValue;
+    var c6LatestRow = el("div", "fw-row");
+    c6LatestRow.appendChild(textLabel("Available", ""));
+    var c6LatestValue = el("span", "fw-label");
+    c6LatestRow.appendChild(c6LatestValue);
+    wifiBody.appendChild(c6LatestRow);
+    els.c6FirmwareLatest = c6LatestValue;
+    var c6AutoToggle = toggleSettingRow({
+      label: "Auto Update",
+      value: !!S2.c6_auto_update,
+      getValue: function() {
+        return !!S2.c6_auto_update;
+      },
+      setValue: function(value) {
+        S2.c6_auto_update = value;
+      },
+      onChange: function() {
+        saveSetting("c6_auto_update", S2.c6_auto_update);
+        refreshC6FirmwareUi();
+      }
+    });
+    wifiBody.appendChild(c6AutoToggle.field);
+    els.c6AutoToggle = c6AutoToggle.toggle;
+    var c6Actions = el("div", "fw-actions");
+    var c6Button = button("Check for Update", "btn btn-secondary btn-sm", function() {
+      if (S2.c6_firmware_checking || S2.c6_firmware_installing) return;
+      if (nativeAdmin) {
+        if (requestWifiFirmware) requestWifiFirmware(c6FirmwareUpdateKnownAvailable());
+        return;
+      }
+      if (c6FirmwareUpdateKnownAvailable()) {
+        S2.c6_firmware_installing = true;
+        refreshC6FirmwareUi();
+        post(endpoints.c6_firmware_install + "/press").then(function() {
+          return delayMs(5e3);
+        }).then(refreshC6FirmwareState).catch(function() {
+          S2.c6_update_status = "Could not install the WiFi firmware update.";
+          showBanner(S2.c6_update_status, "error");
+        }).finally(function() {
+          S2.c6_firmware_installing = false;
+          refreshC6FirmwareUi();
+        });
+      } else {
+        S2.c6_firmware_checking = true;
+        refreshC6FirmwareUi();
+        post(endpoints.c6_firmware_check + "/press").then(function() {
+          return delayMs(4e3);
+        }).then(refreshC6FirmwareState).catch(function() {
+          S2.c6_update_status = "Could not check WiFi firmware.";
+          showBanner(S2.c6_update_status, "error");
+        }).finally(function() {
+          S2.c6_firmware_checking = false;
+          refreshC6FirmwareUi();
+        });
+      }
+    });
+    c6Actions.appendChild(c6Button);
+    wifiBody.appendChild(c6Actions);
+    els.c6FirmwareActionBtn = c6Button;
+    var c6Status = el("div", "fw-status");
+    wifiBody.appendChild(c6Status);
+    els.c6FirmwareStatus = c6Status;
+    var c6Badge = makeDisclosureBadge("Update available", "WiFi firmware update available");
+    els.c6FirmwareBadge = c6Badge;
+    if (showWifiFirmware) subpanels.appendChild(makeInlineDisclosure("WiFi firmware", wifiBody, false, c6Badge));
+    var previousBody = el("div");
+    var versionField = field("Version");
+    var versionSelect = document.createElement("select");
+    versionSelect.onchange = function() {
+      S2.firmware_selected_version = versionSelect.value;
+      refreshPreviousFirmwareUi();
+    };
+    versionField.appendChild(versionSelect);
+    previousBody.appendChild(versionField);
+    els.fwVersionSelect = versionSelect;
+    var previousActions = el("div", "fw-previous-actions");
+    var previousInstall = button("Install", "btn btn-secondary btn-sm", function() {
+      var info = selectedPreviousFirmwareInfo();
+      if (!info) return;
+      if (!window.confirm("Install older firmware " + info.version + "? The display will restart during installation.")) return;
+      installPublicFirmware(info);
+    });
+    previousActions.appendChild(previousInstall);
+    previousBody.appendChild(previousActions);
+    els.fwPreviousInstallBtn = previousInstall;
+    var previousPanel = makeInlineDisclosure("Previous firmware", previousBody, false);
+    els.fwPreviousPanel = previousPanel;
+    if (showAppFirmware) subpanels.appendChild(previousPanel);
+    nativeAdminOnly: if (nativeAdmin) {
+      var uploadForm = el("form");
+      var imageField = field("Native firmware image");
+      var image = el("input");
+      image.type = "file";
+      image.accept = ".bin,application/octet-stream";
+      image.required = true;
+      image.disabled = true;
+      imageField.appendChild(image);
+      var upload = button("Install update and restart", "btn btn-secondary btn-sm");
+      upload.type = "submit";
+      upload.disabled = true;
+      var uploadStatus = el("p", "fw-status");
+      uploadStatus.setAttribute("role", "status");
+      uploadForm.append(imageField, upload, uploadStatus);
+      var uploadPanel = makeInlineDisclosure("Upload firmware file", uploadForm, false);
+      window["espframeNativeFirmwareUpload"](uploadPanel, uploadForm, image, upload, uploadStatus, S2, refreshFirmwareUi);
+      subpanels.appendChild(uploadPanel);
+    }
+    fwBody.appendChild(subpanels);
+    var cardBadge = makeBadge(false, "Update available", "Firmware update available");
+    els.firmwareCardBadge = cardBadge;
+    var firmwareCard = makeCollapsibleCard("Firmware", fwBody, true, cardBadge);
+    if (nativeAdmin) {
+      if (showAppFirmware)
+        nativeFirmware = window["espframeNativeFirmware"](firmwareCard, S2, refreshFirmwareUi, compareFirmwareVersions, showBanner);
+      if (showWifiFirmware) {
+        requestWifiFirmware = window["espframeNativeWifiFirmware"](firmwareCard, S2, refreshC6FirmwareUi, showBanner);
+        refreshC6FirmwareUi();
+      }
+    } else {
+      refreshC6FirmwareUi();
+      fetchPublicFirmwareVersions();
+    }
+    refreshFirmwareUi();
+    return firmwareCard;
+  }
+  function rebootFrame() {
+    return post(nativeAdmin ? "/espframe/api/v1/reboot" : endpoints.reboot_screen + "/press");
+  }
+  function makeDeviceRebootCard() {
+    var rebootBody = el("div", "fw-body");
+    var rebootLabel = textLabel("", "Device Reboot");
+    var rebootBtn = button("Reboot Screen", "btn btn-secondary btn-sm", function() {
+      rebootBtn.disabled = true;
+      rebootBtn.textContent = "Rebooting...";
+      rebootFrame().catch(function() {
+      }).finally(function() {
+        setTimeout(function() {
+          rebootBtn.disabled = false;
+          rebootBtn.textContent = "Reboot Screen";
+        }, 3e3);
+      });
+    });
+    rebootBody.appendChild(actionRow(rebootLabel, rebootBtn));
+    return makeCollapsibleCard("Device Reboot", rebootBody, true);
+  }
+  function makeResetCard() {
+    var body = el("div", "fw-body");
+    var backupNotice = el("div", "reset-backup-notice");
+    var infoIcon = el("span", "reset-notice-icon");
+    infoIcon.setAttribute("aria-hidden", "true");
+    infoIcon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>';
+    var backupMessage = el("span", "reset-notice-text");
+    backupMessage.textContent = "Backup your device before resetting";
+    var backupButton = button("Save backup", "btn btn-primary reset-backup-button", exportConfig);
+    backupNotice.append(infoIcon, backupMessage, backupButton);
+    body.appendChild(backupNotice);
+    function showResetConfirmation(mode) {
+      var factory = mode === "factory";
+      return new Promise(function(resolve) {
+        var dialog = document.createElement("dialog");
+        dialog.className = "reset-confirm-dialog";
+        var title = document.createElement("h2");
+        title.id = "reset-confirm-title";
+        title.textContent = factory ? "Complete reset" : "Partial reset";
+        dialog.setAttribute("aria-labelledby", title.id);
+        var description = document.createElement("p");
+        description.textContent = factory ? "Remove all existing configuration and return this display to first-time setup." : "Reset cards and preferences. Your Wi-Fi and Home Assistant configuration will be retained.";
+        dialog.append(title, description);
+        var resetInput;
+        if (factory) {
+          var warning = el("div", "reset-dialog-warning");
+          var warningIcon = el("span", "reset-dialog-warning-icon");
+          warningIcon.setAttribute("aria-hidden", "true");
+          warningIcon.textContent = "!";
+          var warningText = el("span");
+          warningText.textContent = "Saved Wi-Fi credentials and the Home Assistant API key will be erased. Wi-Fi compiled into the firmware will stay disabled. Use Wi-Fi setup to save your network again.";
+          warning.append(warningIcon, warningText);
+          var backupReminder = el("p", "reset-dialog-backup-reminder");
+          backupReminder.textContent = "Save a backup first. This reset cannot be undone.";
+          var resetLabel = document.createElement("label");
+          resetLabel.className = "reset-confirm-label";
+          resetLabel.textContent = "Type RESET to confirm";
+          resetInput = document.createElement("input");
+          resetInput.className = "reset-confirm-input";
+          resetInput.type = "text";
+          resetInput.autocomplete = "off";
+          resetInput.spellcheck = false;
+          resetInput.setAttribute("aria-label", "Type RESET to confirm factory reset");
+          resetLabel.appendChild(resetInput);
+          dialog.append(warning, backupReminder, resetLabel);
+        }
+        var actions = el("div", "reset-confirm-actions");
+        var cancelButton = button("Cancel", "btn btn-secondary", function() {
+          finish(false);
+        });
+        var confirmButton = button(factory ? "Complete reset" : "Partial reset", factory ? "btn btn-danger" : "btn btn-primary", function() {
+          finish(true);
+        });
+        if (factory) {
+          confirmButton.disabled = true;
+          resetInput.addEventListener("input", function() {
+            confirmButton.disabled = resetInput.value !== "RESET";
+          });
+        }
+        actions.append(cancelButton, confirmButton);
+        dialog.appendChild(actions);
+        var completed = false;
+        function finish(accepted) {
+          if (completed) return;
+          completed = true;
+          dialog.close();
+          dialog.remove();
+          resolve(accepted);
+        }
+        dialog.addEventListener("cancel", function(event) {
+          event.preventDefault();
+          finish(false);
+        });
+        dialog.addEventListener("close", function() {
+          if (!completed) finish(false);
+        });
+        document.body.appendChild(dialog);
+        dialog.showModal();
+        if (factory) resetInput.focus();
+      });
+    }
+    function addResetAction(title, descriptionText, mode) {
+      var panel = el("section", "reset-action-panel" + (mode === "factory" ? " reset-action-danger" : ""));
+      var heading = document.createElement("h4");
+      heading.textContent = title;
+      var description = el("p", "reset-action-description");
+      description.textContent = descriptionText;
+      var action = button(title, mode === "factory" ? "btn btn-danger reset-action-button" : "btn btn-secondary reset-action-button");
+      action.onclick = async function() {
+        if (typeof backupImportInProgress !== "undefined" && backupImportInProgress) {
+          showBanner("Let the backup import finish before resetting.", "error");
+          return;
+        }
+        if (!await showResetConfirmation(mode)) return;
+        action.disabled = true;
+        action.textContent = "Restarting\u2026";
+        try {
+          await apiClient.waitForWrites();
+          await apiClient.reset(mode);
+          if (nativeAdmin) window["espframeNativeAfterReset"](mode, frameIdentity == null ? void 0 : frameIdentity.ip_address, showBanner);
+          else showBanner("Reset accepted. The frame is restarting into first-time Wi-Fi setup.", "info");
+        } catch (_2) {
+          action.disabled = false;
+          action.textContent = title;
+          showBanner("Reset could not be started. Check the device connection and try again.", "error");
+        }
+      };
+      panel.append(heading, description, action);
+      resetActions.appendChild(panel);
+    }
+    var resetActions = el("div", "reset-actions-grid");
+    body.appendChild(resetActions);
+    addResetAction("Partial reset", "Reset cards and preferences. Retains your configuration for Wifi and Home Assistant.", "customization");
+    addResetAction("Complete reset", "Remove all existing configuration and reset back to first time setup.", "factory");
+    return makeCollapsibleCard("Factory Reset", body, true);
+  }
+  function makeDeveloperCard() {
+    if (!developerPanelEnabledByUrl()) return null;
+    var devBadge = makeBadge(S2.developer_features_enabled);
+    var devBody = el("div");
+    devBody.appendChild(toggleSettingRow({
+      label: "Enable in-development features",
+      value: S2.developer_features_enabled,
+      getValue: function() {
+        return S2.developer_features_enabled;
+      },
+      setValue: function(value) {
+        S2.developer_features_enabled = value;
+      },
+      badge: devBadge,
+      onChange: function() {
+        saveSetting("developer_features_enabled", S2.developer_features_enabled);
+        renderSettings();
+      }
+    }).field);
+    return makeCollapsibleCard("Developer", devBody, true, devBadge);
+  }
+  function appendCards(parent, cards) {
+    cards.forEach(function(card) {
+      if (card) parent.appendChild(card);
+    });
+  }
+  function settingsCardRenderers() {
+    return {
+      makeConnectionCard,
+      makeWireguardCard,
+      makeFrequencyCard,
+      makeMemoriesCard,
+      makeFiltersCard,
+      makePortraitPairingCard,
+      makeLayoutCard,
+      makeMetadataCard,
+      makeScreenBrightnessCard,
+      makeScreenToneCard,
+      makeNightScheduleCard,
+      makeRotationCard,
+      makeLanguageCard,
+      makeClockCard,
+      makeFirmwareCard,
+      makeDeviceRebootCard,
+      makeResetCard,
+      makeDeveloperCard,
+      makeFrameNameCard,
+      makeBackupCard
+    };
+  }
+  function renderSettingsCardsForTab(tabId) {
+    return renderSettingsCardEntriesForTab(tabId).map(function(entry) {
+      return entry.element;
+    });
+  }
+  function renderSettingsCardEntriesForTab(tabId) {
+    var renderers = settingsCardRenderers();
+    if (!Array.isArray(WEB_UI_CARDS) || !WEB_UI_CARDS.length) return [];
+    return WEB_UI_CARDS.filter(function(card) {
+      var _a, _b;
+      return card && card.tab === tabId && (!nativeAdmin || ((_b = (_a = window["espframeNativeCards"]) == null ? void 0 : _a[card.function]) == null ? void 0 : _b.every(function(key) {
+        return nativeSettings.has(key);
+      })));
+    }).map(function(card) {
+      var renderer = renderers[card.function];
+      return renderer ? { section: card.section || "", element: renderer() } : null;
+    }).filter(function(entry) {
+      return entry && entry.element;
+    });
+  }
+  function appendSettingsSections(parent, entries) {
+    var sections = {};
+    entries.forEach(function(entry) {
+      if (!entry || !entry.element) return;
+      var sectionName = String(entry.section || "").trim();
+      if (!sectionName) {
+        parent.appendChild(entry.element);
+        return;
+      }
+      if (!sections[sectionName]) {
+        var section = el("section", "settings-section");
+        var heading = document.createElement("h2");
+        heading.className = "settings-section-title";
+        heading.id = "settings-section-" + sectionName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+        heading.textContent = sectionName;
+        section.setAttribute("aria-labelledby", heading.id);
+        section.appendChild(heading);
+        sections[sectionName] = section;
+        parent.appendChild(section);
+      }
+      sections[sectionName].appendChild(entry.element);
+    });
+  }
+  function renderSettings() {
+    wizardActive = false;
+    app.replaceChildren();
+    immichApp.replaceChildren();
+    var immichWrap = el("div");
+    var wrap = el("div");
+    var immichCards = renderSettingsCardsForTab("immich");
+    var settingsCardEntries = renderSettingsCardEntriesForTab("settings");
+    if (!immichCards.length && !nativeAdmin) immichCards = [
+      makeConnectionCard(),
+      makeWireguardCard(),
+      makeFrequencyCard(),
+      makePortraitPairingCard(),
+      makeMemoriesCard(),
+      makeFiltersCard(),
+      makeLayoutCard(),
+      makeMetadataCard()
+    ];
+    appendCards(immichWrap, immichCards);
+    immichApp.appendChild(immichWrap);
+    if (!settingsCardEntries.length && !nativeAdmin) settingsCardEntries = [
+      { section: "Display", element: makeScreenBrightnessCard() },
+      { section: "Display", element: makeScreenToneCard() },
+      { section: "Display", element: makeRotationCard() },
+      { section: "Display", element: makeClockCard() },
+      { section: "Sleep & Schedule", element: makeNightScheduleCard() },
+      { section: "Preferences", element: makeLanguageCard() },
+      { section: "Preferences", element: makeFrameNameCard() },
+      { section: "System", element: makeBackupCard() },
+      { section: "System", element: makeFirmwareCard() },
+      { section: "System", element: makeDeviceRebootCard() },
+      { section: "System", element: makeResetCard() },
+      { section: "System", element: makeDeveloperCard() }
+    ];
+    appendSettingsSections(wrap, settingsCardEntries);
+    app.appendChild(wrap);
+    connectFieldLabels(app);
+    connectFieldLabels(immichApp);
+  }
+  function handleLiveEvent(d2) {
+    if (!d2 || !d2.id) return;
+    var id = d2.id;
+    var stateSpec = ENTITY_STATE_MAP[id];
+    if (id === "update/Firmware: Update") {
+      refreshFirmwareUi();
+    } else if (stateSpec && stateSpec.key === "firmware_device") {
+      S2.firmware_versions_loaded = false;
+      S2.firmware_version_options = [];
+      fetchPublicFirmwareVersions();
+    } else if (id === "text_sensor/Firmware: Version") {
+      refreshFirmwareUi();
+    } else if (stateSpec && (stateSpec.key === "c6_current_firmware" || stateSpec.key === "c6_available_firmware" || stateSpec.key === "c6_update_status" || stateSpec.key === "c6_auto_update")) {
+      refreshC6FirmwareUi();
+    } else if (id === "light/Screen: Backlight") {
+      S2.backlight_on = d2.state === "ON";
+      if (d2.brightness != null) {
+        S2.brightness = Math.round(d2.brightness / 255 * 100);
+        S2.brightness_current = S2.brightness;
+      }
+    } else if (id === "switch/Clock: Show") {
+      settingSaves.receive("show_clock", d2.state === "ON" || d2.value === true);
+    } else if (id === "text_sensor/Screen: Sunrise") {
+      S2.sunrise = d2.value || d2.state || "";
+      updateSunInfoElement(document.getElementById("sun-info"));
+    } else if (id === "text_sensor/Screen: Sunset") {
+      S2.sunset = d2.value || d2.state || "";
+      updateSunInfoElement(document.getElementById("sun-info"));
+    } else if (stateSpec && (stateSpec.key === "wireguard_connected" || stateSpec.key === "wireguard_tunnel_enabled" || stateSpec.key === "wireguard_handshake_age")) {
+      applyEntityToState(d2);
+      updateWireguardStatusFromPage();
+    } else if (stateSpec && LIVE_RENDER_STATE_KEYS.indexOf(stateSpec.key) !== -1) {
+      applyEntityToState(d2);
+      renderSettingsAfterEditing();
+    } else if (stateSpec && LIVE_RENDER_STATE_PREFIXES.some(function(prefix) {
+      return stateSpec.key.indexOf(prefix) === 0;
+    })) {
+      renderSettingsAfterEditing();
+    }
+  }
+  function updateSunInfoElement(el2) {
+    if (!el2) return;
+    if (!S2.sunrise && !S2.sunset) {
+      el2.style.display = "none";
+      return;
+    }
+    el2.style.display = "";
+    var t = "";
+    if (S2.sunrise) t += "Sunrise: " + esc(S2.sunrise);
+    if (S2.sunrise && S2.sunset) t += " \xA0/\xA0 ";
+    if (S2.sunset) t += "Sunset: " + esc(S2.sunset);
+    el2.innerHTML = t;
+  }
+  function formatHour(h2) {
+    h2 = Math.round(h2);
+    if (h2 === 0) return "12:00 AM";
+    if (h2 < 12) return h2 + ":00 AM";
+    if (h2 === 12) return "12:00 PM";
+    return h2 - 12 + ":00 PM";
+  }
+  function normalizeScheduleWakeTimeout(value) {
+    var seconds = Math.round(Number(value));
+    var fallback = PRODUCT_SETTINGS && PRODUCT_SETTINGS.schedule_wake_timeout && PRODUCT_SETTINGS.schedule_wake_timeout.default !== void 0 ? PRODUCT_SETTINGS.schedule_wake_timeout.default : 60;
+    var min = productNumberMin("schedule_wake_timeout", 10);
+    var max = productNumberMax("schedule_wake_timeout", 3600);
+    if (!seconds) seconds = Number(fallback);
+    if (seconds < min) seconds = min;
+    if (seconds > max) seconds = max;
+    return seconds;
+  }
+  function formatDurationSeconds(seconds) {
+    seconds = normalizeScheduleWakeTimeout(seconds);
+    if (seconds < 60) return seconds + " seconds";
+    if (seconds % 60 === 0) {
+      var minutes = seconds / 60;
+      return minutes + (minutes === 1 ? " minute" : " minutes");
+    }
+    return seconds + " seconds";
+  }
+  function selectFromOptions(options, current, onChange, optionDisplayFn) {
+    var display = optionDisplayFn || function(o2) {
+      return o2;
+    };
+    var sel = document.createElement("select");
+    sel.className = "select";
+    options.forEach(function(o2) {
+      var opt = document.createElement("option");
+      opt.value = o2;
+      opt.textContent = display(o2);
+      if (o2 === current) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.onchange = function() {
+      onChange(sel.value);
+    };
+    return sel;
+  }
+  function productSelectSettingField(labelText, key, options) {
+    var opts = options || {};
+    var f3 = field(labelText);
+    var current = opts.current !== void 0 ? opts.current : S2[key];
+    f3.appendChild(
+      selectFromOptions(productSettingOptions(key, opts.includeDeveloper), current, function(v2) {
+        saveSetting(key, v2);
+        if (opts.onChange) opts.onChange(v2);
+      }, opts.optionDisplayFn)
+    );
+    return f3;
+  }
+  function nativeDurationSettingField(label, options, current, toSeconds, format, min, max, save) {
+    var preset = field(label);
+    var exact = field("Exact duration (seconds)");
+    var seconds = el("input");
+    seconds.type = "number";
+    seconds.min = String(min);
+    seconds.max = String(max);
+    seconds.step = "1";
+    seconds.required = true;
+    seconds.value = String(toSeconds(current));
+    seconds.onchange = function() {
+      if (seconds.reportValidity()) save(seconds.valueAsNumber);
+    };
+    exact.appendChild(seconds);
+    exact.hidden = options.indexOf(current) !== -1;
+    preset.appendChild(selectFromOptions(options.concat("Custom"), exact.hidden ? current : "Custom", function(value) {
+      exact.hidden = value !== "Custom";
+      if (exact.hidden) {
+        var selected = toSeconds(value);
+        seconds.value = String(selected);
+        save(selected);
+      } else {
+        seconds.focus();
+      }
+    }, function(value) {
+      return value === "Custom" ? value : format(value);
+    }));
+    var wrapper = el("div");
+    wrapper.append(preset, exact);
+    return wrapper;
+  }
+  function segmentedControl(options, current, onChange, optionDisplayFn) {
+    var display = optionDisplayFn || function(o2) {
+      return o2;
+    };
+    var seg = el("div", "segment");
+    function setActive(value) {
+      Array.prototype.forEach.call(seg.children, function(button2) {
+        var active = button2.dataset.value === value;
+        button2.className = active ? "active" : "";
+        button2.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+    }
+    options.forEach(function(o2) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.dataset.value = o2;
+      btn.textContent = display(o2);
+      btn.setAttribute("aria-pressed", o2 === current ? "true" : "false");
+      btn.onclick = function() {
+        setActive(o2);
+        onChange(o2);
+      };
+      seg.appendChild(btn);
+    });
+    setActive(current);
+    return seg;
+  }
+  function timezoneSelect(options, current, onChange) {
+    current = normalizeTimezoneOption(current);
+    return selectFromOptions(options, current, function(v2) {
+      onChange(normalizeTimezoneOption(v2));
+    }, function(o2) {
+      return timezoneDisplayLabel(o2);
+    });
+  }
+  function normalizeTimezoneOption(value) {
+    if (value === "Asia/Almaty (GMT+6)") return "Asia/Almaty (GMT+5)";
+    return value;
+  }
+  function timezoneDisplayLabel(option) {
+    var label = S2.tz_labels && S2.tz_labels[option] || option;
+    return label.replace(/_/g, " ");
+  }
+  function el(tag, cls) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    return e;
+  }
+  function makeBadge(isActive, text, label) {
+    var badge = el("span", "on-badge" + (isActive ? " active" : ""));
+    badge.textContent = text || "On";
+    if (label) badge.setAttribute("aria-label", label);
+    return badge;
+  }
+  function setBadgeActive(badge, isActive) {
+    if (!badge) return;
+    badge.className = "on-badge" + (isActive ? " active" : "");
+  }
+  function makeDisclosureBadge(text, label) {
+    var badge = el("span", "disclosure-badge");
+    if (label) badge.setAttribute("aria-label", label);
+    badge.appendChild(el("span", "disclosure-badge-dot"));
+    badge.appendChild(document.createTextNode(text));
+    return badge;
+  }
+  function setDisclosureBadgeActive(badge, isActive) {
+    if (!badge) return;
+    badge.className = "disclosure-badge" + (isActive ? " active" : " hidden");
+  }
+  function makeInlineDisclosure(title, bodyElement, defaultOpen, badgeEl) {
+    var panel = el("div", "inline-disclosure" + (defaultOpen ? " open" : ""));
+    var disclosureButton = el("button", "inline-disclosure-button");
+    disclosureButton.type = "button";
+    disclosureButton.setAttribute("aria-expanded", defaultOpen ? "true" : "false");
+    var titleEl = el("span");
+    titleEl.textContent = title;
+    var rightWrap = el("span", "inline-disclosure-right");
+    if (badgeEl) rightWrap.appendChild(badgeEl);
+    var chevron = el("span", "inline-disclosure-chevron");
+    chevron.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+    rightWrap.appendChild(chevron);
+    disclosureButton.appendChild(titleEl);
+    disclosureButton.appendChild(rightWrap);
+    var body = el("div", "inline-disclosure-body");
+    body.appendChild(bodyElement);
+    bindDisclosure(disclosureButton, panel, body, "open", true);
+    panel.appendChild(disclosureButton);
+    panel.appendChild(body);
+    return panel;
+  }
+  function setStatus(target, msg, type, clearAfterMs) {
+    if (!target) return;
+    target.replaceChildren();
+    if (!msg) {
+      target.textContent = "";
+      return;
+    }
+    var dot = el("span", "dot " + (type || "green"));
+    target.appendChild(dot);
+    target.appendChild(document.createTextNode(" " + msg));
+    clearTimeout(target._t);
+    if (clearAfterMs) {
+      target._t = setTimeout(function() {
+        target.textContent = "";
+      }, clearAfterMs);
+    }
+  }
+  function button(text, cls, onClick) {
+    var btn = el("button", cls || "btn btn-secondary");
+    btn.type = "button";
+    btn.textContent = text;
+    if (onClick) btn.onclick = onClick;
+    return btn;
+  }
+  function actionRow(labelEl, actionEl) {
+    var row = el("div", "field fw-row");
+    row.appendChild(labelEl);
+    row.appendChild(actionEl);
+    return row;
+  }
+  function textLabel(prefix, value) {
+    var label = el("span", "fw-label");
+    if (prefix) {
+      var prefixEl = el("span");
+      prefixEl.style.color = "var(--text2)";
+      prefixEl.textContent = prefix;
+      label.appendChild(prefixEl);
+      label.appendChild(document.createTextNode(" " + value));
+    } else {
+      label.textContent = value;
+    }
+    return label;
+  }
+  function toggleSettingRow(options) {
+    var opts = options || {};
+    var f3 = field("");
+    var row = el("div", "toggle-row");
+    var label = el("span");
+    label.textContent = opts.label || "";
+    var getValue = opts.getValue || function() {
+      return !!opts.value;
+    };
+    var setValue = opts.setValue || function(value) {
+      opts.value = value;
+    };
+    var toggle = el("div", opts.value ? "toggle on" : "toggle");
+    toggle.setAttribute("role", "switch");
+    toggle.setAttribute("tabindex", opts.disabled ? "-1" : "0");
+    toggle.setAttribute("aria-checked", opts.value ? "true" : "false");
+    toggle.setAttribute("aria-label", opts.label || "Toggle setting");
+    if (opts.disabled) {
+      toggle.style.opacity = ".35";
+      toggle.style.cursor = "not-allowed";
+      if (opts.disabledTitle) toggle.title = opts.disabledTitle;
+    }
+    toggle.onclick = function() {
+      if (opts.disabled) return;
+      var next = !getValue();
+      setValue(next);
+      toggle.className = next ? "toggle on" : "toggle";
+      toggle.setAttribute("aria-checked", next ? "true" : "false");
+      if (opts.details) opts.details.style.display = next ? "" : "none";
+      if (opts.badge) setBadgeActive(opts.badge, opts.badgeActive ? opts.badgeActive() : next);
+      if (opts.onChange) opts.onChange(next);
+    };
+    toggle.onkeydown = function(event) {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        toggle.click();
+      }
+    };
+    row.appendChild(label);
+    row.appendChild(toggle);
+    f3.appendChild(row);
+    return { field: f3, toggle };
+  }
+  function rangeSettingField(labelText, key, options) {
+    var opts = options || {};
+    var f3 = field(labelText || "");
+    var rw = el("div", "range-wrap");
+    if (opts.leftLabel) {
+      var left = el("span", "range-label");
+      left.textContent = opts.leftLabel;
+      rw.appendChild(left);
+    }
+    var slider = document.createElement("input");
+    slider.type = "range";
+    slider.min = productNumberMin(key, opts.minFallback);
+    slider.max = productNumberMax(key, opts.maxFallback);
+    slider.step = productNumberStep(key, opts.stepFallback);
+    nativeAdminOnly: if (nativeAdmin) slider.step = "1";
+    slider.value = S2[key];
+    rw.appendChild(slider);
+    if (opts.rightLabel) {
+      var right = el("span", "range-label");
+      right.textContent = opts.rightLabel;
+      rw.appendChild(right);
+    }
+    if (opts.valueSuffix != null) {
+      var value = el("span", "range-val");
+      value.textContent = Math.round(S2[key]) + opts.valueSuffix;
+      slider.oninput = function() {
+        value.textContent = slider.value + opts.valueSuffix;
+      };
+      rw.appendChild(value);
+    }
+    slider.onchange = function() {
+      saveSetting(key, slider.value);
+      if (opts.onChange) opts.onChange(slider.value);
+    };
+    f3.appendChild(rw);
+    return { field: f3, input: slider };
+  }
+  function hourSelectSettingField(labelText, key) {
+    var min = productNumberMin(key, 0);
+    var max = productNumberMax(key, 23);
+    var options = [];
+    for (var h2 = min; h2 <= max; h2++) options.push(h2);
+    var f3 = field(labelText);
+    f3.appendChild(
+      selectFromOptions(options, Math.round(S2[key]), function(v2) {
+        saveSetting(key, parseInt(v2));
+      }, formatHour)
+    );
+    return f3;
+  }
+  function makeFieldError() {
+    return el("div", "field-error");
+  }
+  function photoIdListField(options) {
+    var opts = options || {};
+    var f3 = field(opts.label);
+    var list = el("div", "photo-id-list");
+    var idInputs = [];
+    var labelInputs = [];
+    var error = makeFieldError();
+    var moveUpIcon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>';
+    var moveDownIcon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M19 12l-7 7-7-7"/></svg>';
+    var removeIcon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg>';
+    function notify(changes, delayMs2) {
+      if (opts.onChange) opts.onChange(changes, delayMs2);
+    }
+    function refreshRowButtons() {
+      var rows = Array.prototype.slice.call(list.querySelectorAll(".photo-id-row"));
+      rows.forEach(function(row, index) {
+        var removeBtn = row.querySelector(".photo-id-remove");
+        var moveUpBtn = row.querySelector(".photo-id-move-up");
+        var moveDownBtn = row.querySelector(".photo-id-move-down");
+        if (removeBtn) removeBtn.disabled = idInputs.length <= 1 && !opts.allowClearLast;
+        if (moveUpBtn) moveUpBtn.disabled = !!opts.disableEditing || index === 0;
+        if (moveDownBtn) moveDownBtn.disabled = !!opts.disableEditing || index === rows.length - 1;
+      });
+    }
+    function movePhotoIdRow(row, direction) {
+      var rows = Array.prototype.slice.call(list.querySelectorAll(".photo-id-row"));
+      var fromIndex = rows.indexOf(row);
+      var toIndex = fromIndex + direction;
+      if (fromIndex < 0 || toIndex < 0 || toIndex >= rows.length) return;
+      var movedId = idInputs.splice(fromIndex, 1)[0];
+      var movedLabel = labelInputs.splice(fromIndex, 1)[0];
+      idInputs.splice(toIndex, 0, movedId);
+      labelInputs.splice(toIndex, 0, movedLabel);
+      if (direction < 0) {
+        list.insertBefore(row, rows[toIndex]);
+      } else {
+        list.insertBefore(rows[toIndex], row);
+      }
+      refreshRowButtons();
+      connectFieldLabels(f3);
+      notify(opts.reorderChanges, 0);
+    }
+    function addRow(value, labelValue) {
+      var row = el("div", "photo-id-row");
+      var fields = el("div", "photo-id-fields");
+      var idInput = input("text", value || "", opts.idPlaceholder, MAX_PHOTO_ID_FIELD_LENGTH);
+      var labelInput = input("text", labelValue || "", opts.labelPlaceholder, MAX_PHOTO_ID_FIELD_LENGTH);
+      idInput.readOnly = !!opts.disableEditing;
+      labelInput.readOnly = !!opts.disableEditing;
+      var actions = el("div", "photo-id-row-actions");
+      var moveUpTitle = opts.moveUpTitle || "Move up";
+      var moveDownTitle = opts.moveDownTitle || "Move down";
+      var moveUpBtn = el("button", "btn btn-secondary btn-icon photo-id-move-up");
+      moveUpBtn.type = "button";
+      moveUpBtn.innerHTML = moveUpIcon;
+      moveUpBtn.title = moveUpTitle;
+      moveUpBtn.setAttribute("aria-label", moveUpTitle);
+      moveUpBtn.onclick = function() {
+        movePhotoIdRow(row, -1);
+      };
+      var moveDownBtn = el("button", "btn btn-secondary btn-icon photo-id-move-down");
+      moveDownBtn.type = "button";
+      moveDownBtn.innerHTML = moveDownIcon;
+      moveDownBtn.title = moveDownTitle;
+      moveDownBtn.setAttribute("aria-label", moveDownTitle);
+      moveDownBtn.onclick = function() {
+        movePhotoIdRow(row, 1);
+      };
+      var removeBtn = el("button", "btn btn-secondary btn-icon");
+      removeBtn.classList.add("photo-id-remove");
+      removeBtn.type = "button";
+      removeBtn.innerHTML = removeIcon;
+      removeBtn.title = opts.removeTitle;
+      removeBtn.setAttribute("aria-label", opts.removeTitle);
+      removeBtn.onclick = function() {
+        if (idInputs.length <= 1) {
+          idInput.value = "";
+          labelInput.value = "";
+          notify(opts.clearChanges, 0);
+          return;
+        }
+        var removeIndex = idInputs.indexOf(idInput);
+        idInputs.splice(removeIndex, 1);
+        labelInputs.splice(removeIndex, 1);
+        row.parentNode.removeChild(row);
+        refreshRowButtons();
+        connectFieldLabels(f3);
+        notify(opts.clearChanges, 0);
+      };
+      idInput.oninput = function() {
+        notify(opts.idChanges);
+      };
+      labelInput.oninput = function() {
+        notify(opts.labelChanges);
+      };
+      fields.appendChild(idInput);
+      fields.appendChild(labelInput);
+      row.appendChild(fields);
+      actions.appendChild(moveUpBtn);
+      actions.appendChild(moveDownBtn);
+      actions.appendChild(removeBtn);
+      row.appendChild(actions);
+      list.appendChild(row);
+      idInputs.push(idInput);
+      labelInputs.push(labelInput);
+      refreshRowButtons();
+    }
+    var ids = b(S2[opts.idKey]);
+    var labels = $(S2[opts.labelKey]);
+    for (var i = 0; i < Math.max(ids.length, labels.length, 1); i++) {
+      addRow(ids[i] || "", labels[i] || "");
+    }
+    var addRowWrap = el("div", "photo-id-actions");
+    var addBtn = button(opts.addText, "btn btn-secondary", function() {
+      addRow("", "");
+      idInputs[idInputs.length - 1].focus();
+    });
+    addBtn.title = opts.addText;
+    addBtn.setAttribute("aria-label", opts.addText);
+    addBtn.disabled = !!opts.disableEditing;
+    addRowWrap.appendChild(addBtn);
+    f3.appendChild(list);
+    f3.appendChild(addRowWrap);
+    f3.appendChild(error);
+    return {
+      field: f3,
+      error,
+      getIdsValue: function() {
+        return idInputs.map(function(inputEl) {
+          return inputEl.value.trim();
+        }).filter(Boolean).join(",");
+      },
+      getLabelsValue: function() {
+        return buildPhotoLabelList(idInputs, labelInputs);
+      }
+    };
+  }
+  var controlId = 0;
+  function bindDisclosure(toggle, panel, body, className, expandedWhenPresent) {
+    if (!body.id) body.id = "disclosure-" + ++controlId;
+    toggle.setAttribute("aria-controls", body.id);
+    function syncExpanded() {
+      toggle.setAttribute("aria-expanded", String(panel.classList.contains(className) === expandedWhenPresent));
+    }
+    syncExpanded();
+    toggle.onclick = function(event) {
+      event.stopPropagation();
+      panel.classList.toggle(className);
+      syncExpanded();
+    };
+  }
+  function connectFieldLabels(root) {
+    root.querySelectorAll(".field > label").forEach(function(label) {
+      var control = label.parentElement.querySelector("input,select,textarea");
+      if (!control) return;
+      if (!control.id) control.id = "setting-" + ++controlId;
+      label.htmlFor = control.id;
+    });
+  }
+  function makeCollapsibleCard(title, bodyElement, defaultCollapsed, badgeEl) {
+    var card = el("div", "card");
+    var header = el("div", "card-header");
+    var h3 = document.createElement("h3");
+    var toggle = el("button", "card-toggle");
+    toggle.type = "button";
+    toggle.textContent = title;
+    h3.appendChild(toggle);
+    var rightWrap = el("div", "card-header-right");
+    if (badgeEl) rightWrap.appendChild(badgeEl);
+    var chevron = el("span", "card-chevron");
+    chevron.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+    rightWrap.appendChild(chevron);
+    header.appendChild(h3);
+    header.appendChild(rightWrap);
+    var body = el("div", "card-body");
+    body.appendChild(bodyElement);
+    card.appendChild(header);
+    card.appendChild(body);
+    if (defaultCollapsed) card.classList.add("collapsed");
+    bindDisclosure(toggle, card, body, "collapsed", false);
+    header.onclick = function() {
+      toggle.click();
+    };
+    return card;
+  }
+  function makeBackupCard() {
+    var backupBody = el("div");
+    var backupRow = el("div", "backup-row");
+    var exportBtn = el("button", "btn btn-secondary");
+    exportBtn.textContent = "Export";
+    exportBtn.disabled = !frameIdentityLoaded;
+    exportBtn.onclick = exportConfig;
+    var importBtn = el("button", "btn btn-secondary");
+    importBtn.textContent = "Import";
+    importBtn.onclick = importConfig;
+    backupRow.appendChild(exportBtn);
+    backupRow.appendChild(importBtn);
+    backupBody.appendChild(backupRow);
+    return makeCollapsibleCard("Backup", backupBody, true);
+  }
+  function makeImportSettingsCard() {
+    var importBody = el("div");
+    var importBtn = el("button", "btn btn-secondary btn-block");
+    importBtn.textContent = "Import Settings";
+    importBtn.onclick = importConfig;
+    importBody.appendChild(importBtn);
+    return makeCollapsibleCard("Import Settings", importBody, false);
+  }
+  function field(labelText) {
+    var f3 = el("div", "field");
+    if (labelText) {
+      var l3 = document.createElement("label");
+      l3.textContent = labelText;
+      f3.appendChild(l3);
+    }
+    return f3;
+  }
+  function ntpServersField() {
+    var f3 = field("NTP Servers");
+    var list = el("div", "photo-id-list");
+    [
+      { key: "ntp_server_1", placeholder: "0.pool.ntp.org", label: "NTP Server 1" },
+      { key: "ntp_server_2", placeholder: "1.pool.ntp.org", label: "NTP Server 2" },
+      { key: "ntp_server_3", placeholder: "2.pool.ntp.org", label: "NTP Server 3" }
+    ].forEach(function(spec) {
+      var serverInput = input("text", S2[spec.key], spec.placeholder, MAX_NTP_SERVER_LENGTH);
+      serverInput.setAttribute("aria-label", spec.label);
+      serverInput.onchange = function() {
+        saveSetting(spec.key, serverInput.value);
+        serverInput.value = S2[spec.key];
+      };
+      list.appendChild(serverInput);
+    });
+    f3.appendChild(list);
+    return f3;
+  }
+  function input(type, value, placeholder, maxLength) {
+    var i = document.createElement("input");
+    i.type = type;
+    i.value = value || "";
+    if (placeholder) i.placeholder = placeholder;
+    if (maxLength != null && maxLength > 0) i.maxLength = maxLength;
+    return i;
+  }
+  function esc(s4) {
+    var d2 = document.createElement("div");
+    d2.textContent = s4;
+    return d2.innerHTML;
+  }
+  var bannerTimer = null;
+  function showBanner(msg, type, durationMs) {
+    if (!els.banner) return;
+    if (typeof backupImportInProgress !== "undefined" && backupImportInProgress && type !== "info") return;
+    els.banner.textContent = msg;
+    els.banner.className = "banner banner-" + (type || "success");
+    els.banner.setAttribute("role", type === "error" ? "alert" : "status");
+    els.banner.setAttribute("aria-live", type === "error" ? "assertive" : "polite");
+    els.banner.style.display = "";
+    clearTimeout(bannerTimer);
+    bannerTimer = durationMs === 0 ? null : setTimeout(function() {
+      els.banner.style.display = "none";
+    }, durationMs || 5e3);
+  }
+  var frameIdentity = null;
+  var frameNameDraft = null;
+  var frameIdentityBusy = false;
+  var frameIdentityLoaded = false;
+  var frameIdentityError = "";
+  function validFrameName(value) {
+    if (typeof value !== "string") return false;
+    var name = value.replace(/^[ \t\r\n\f\v]+|[ \t\r\n\f\v]+$/g, "");
+    try {
+      encodeURIComponent(name);
+    } catch (_2) {
+      return false;
+    }
+    return new TextEncoder().encode(name).length <= 120 && !/[\u0000-\u001f\u007f-\u009f]/.test(name);
+  }
+  async function requestFrameIdentity(name) {
+    if (name !== void 0 && !validFrameName(name)) throw new Error("Use up to 120 UTF-8 bytes without control characters.");
+    var options = { cache: "no-store" };
+    var timer = null;
+    if (name !== void 0) {
+      var controller = new AbortController();
+      timer = setTimeout(function() {
+        controller.abort();
+      }, 5e3);
+      options.signal = controller.signal;
+      options.method = "POST";
+      options.headers = { "Content-Type": "application/x-www-form-urlencoded" };
+      options.body = new URLSearchParams({ name }).toString();
+    }
+    try {
+      var response = await fetch("/espframe/api/v1/identity", options);
+      if (!response.ok) throw new Error(name === void 0 ? "Frame name unavailable" : "Frame name could not be saved. Please retry.");
+      var data = await response.json();
+      if (!isObject(data) || !validFrameName(data.name) || typeof data.friendly_name !== "string" || typeof data.hostname !== "string" || !/^[a-z0-9-]{1,63}$/.test(data.hostname) || typeof data.ip_address !== "string" || typeof data.restart_required !== "boolean" || data.mac_suffix !== void 0 && (typeof data.mac_suffix !== "string" || !/^[a-f0-9]{4}$/.test(data.mac_suffix))) {
+        throw new Error("Frame name unavailable");
+      }
+      return data;
+    } catch (error) {
+      if (name !== void 0 && error instanceof Error && error.name === "AbortError") {
+        throw new Error("Frame name could not be saved. Please retry.");
+      }
+      throw error;
+    } finally {
+      if (timer !== null) clearTimeout(timer);
+    }
+  }
+  function updateFrameTitle() {
+    if (!frameIdentity) return;
+    document.title = frameIdentity.friendly_name + " \xB7 EspFrame";
+    var deviceName = document.querySelector(".sp-device-name");
+    if (deviceName) {
+      deviceName.textContent = frameIdentity.friendly_name;
+      deviceName.title = frameIdentity.friendly_name;
+      deviceName.hidden = !frameIdentity.friendly_name;
+    }
+  }
+  async function loadFrameIdentity() {
+    try {
+      frameIdentity = await requestFrameIdentity();
+      updateFrameTitle();
+    } catch (_2) {
+    } finally {
+      frameIdentityLoaded = true;
+      if (rendered) renderSettingsAfterEditing();
+    }
+  }
+  async function saveFrameName(name) {
+    if (frameIdentityBusy) throw new Error("A frame name save is already in progress.");
+    frameIdentityBusy = true;
+    frameIdentityError = "";
+    try {
+      frameIdentity = await requestFrameIdentity(name);
+      frameNameDraft = null;
+      updateFrameTitle();
+    } catch (error) {
+      frameIdentityError = error instanceof Error ? error.message : "Frame name could not be saved.";
+      throw error;
+    } finally {
+      frameIdentityBusy = false;
+    }
+  }
+  function previewFrameHostname(name) {
+    if (!frameIdentity) return null;
+    if (name === frameIdentity.name) return frameIdentity.hostname;
+    if (!name || !frameIdentity.mac_suffix) return null;
+    var slug = name.replace(/[A-Z]/g, function(c3) {
+      return c3.toLowerCase();
+    }).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "frame";
+    return slug.slice(0, 19).replace(/-$/, "") + "-" + frameIdentity.mac_suffix;
+  }
+  function showFrameReconnectDialog(value) {
+    var dialog = document.createElement("dialog");
+    dialog.className = "frame-name-dialog frame-reconnect-dialog";
+    var title = document.createElement("h3");
+    title.id = "frame-reconnect-title";
+    title.textContent = "Frame name saved";
+    dialog.setAttribute("aria-labelledby", title.id);
+    var note = document.createElement("p");
+    note.setAttribute("role", "status");
+    note.textContent = "The frame is restarting. Reopen it at the new address.";
+    var address = document.createElement("a");
+    var port = location.port ? ":" + location.port : "";
+    address.href = "http://" + value.hostname + ".local" + port + "/";
+    address.textContent = value.hostname + ".local";
+    dialog.append(title, note, address);
+    if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(value.ip_address) && value.ip_address.split(".").every(function(part) {
+      return Number(part) <= 255;
+    })) {
+      var ip = document.createElement("a");
+      ip.href = "http://" + value.ip_address + port + "/";
+      ip.textContent = value.ip_address;
+      dialog.append(document.createElement("br"), ip);
+    }
+    dialog.append(document.createElement("br"), button("Close", "btn btn-secondary frame-name-button", function() {
+      dialog.close();
+      dialog.remove();
+    }));
+    dialog.addEventListener("close", function() {
+      dialog.remove();
+    });
+    document.body.appendChild(dialog);
+    dialog.showModal();
+    return note;
+  }
+  function makeFrameNameCard() {
+    if (!frameIdentity) return null;
+    var body = el("div");
+    var label = document.createElement("label");
+    label.className = "frame-name-label";
+    label.textContent = "Frame Name";
+    label.htmlFor = "frame-name";
+    var input2 = document.createElement("input");
+    input2.type = "text";
+    input2.id = "frame-name";
+    input2.value = frameNameDraft === null ? frameIdentity.name : frameNameDraft;
+    input2.placeholder = "e.g. Living Room";
+    input2.disabled = frameIdentityBusy;
+    var preview = el("div", "frame-name-info");
+    var icon = el("span", "frame-name-info-icon");
+    icon.setAttribute("aria-hidden", "true");
+    icon.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v2"/></svg>';
+    var previewText = document.createElement("span");
+    preview.append(icon, previewText);
+    var error = el("p", "field-error");
+    error.setAttribute("role", "alert");
+    error.textContent = frameIdentityError;
+    var save = button("Save & Restart", "btn btn-secondary frame-name-button", async function() {
+      save.disabled = true;
+      input2.disabled = true;
+      try {
+        await apiClient.waitForWrites();
+        await saveFrameName(input2.value);
+        if (frameIdentity.restart_required) {
+          var message = showFrameReconnectDialog(frameIdentity);
+          try {
+            await rebootFrame();
+          } catch (_2) {
+            message.textContent = "Name saved, but the restart failed. Close this dialog and choose Save & Restart to retry.";
+            frameIdentityError = "Name saved, but the restart failed. Please retry.";
+          }
+        }
+      } catch (_2) {
+      } finally {
+        input2.disabled = false;
+        sync();
+        renderSettingsAfterEditing();
+      }
+    });
+    function sync() {
+      var name = input2.value.replace(/^[ \t\r\n\f\v]+|[ \t\r\n\f\v]+$/g, "");
+      var valid = validFrameName(name);
+      error.textContent = valid ? frameIdentityError : "Use up to 120 UTF-8 bytes without control characters.";
+      save.disabled = frameIdentityBusy || !valid || name === frameIdentity.name && !frameIdentity.restart_required;
+      var hostname = previewFrameHostname(name);
+      if (hostname) {
+        var address = document.createElement("code");
+        address.textContent = hostname + ".local";
+        previewText.replaceChildren("Your device will show as ", address, " on your network");
+      } else {
+        previewText.textContent = name ? "Your device's new address will be shown after saving" : "Your device will use its original firmware name and address on your network";
+      }
+    }
+    input2.addEventListener("input", function() {
+      frameNameDraft = input2.value;
+      frameIdentityError = "";
+      sync();
+    });
+    var row = el("div", "frame-name-row");
+    row.append(input2, save);
+    body.append(label, row, error, preview);
+    sync();
+    return makeCollapsibleCard("Frame Name", body, !frameIdentity.restart_required && !frameIdentityError && frameNameDraft === null);
+  }
+  function chooseBackupNameRestore(name) {
+    return new Promise(function(resolve) {
+      var dialog = document.createElement("dialog");
+      dialog.className = "frame-name-dialog";
+      dialog.setAttribute("aria-label", "Import backup");
+      var label = document.createElement("label");
+      var checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.id = "restore-frame-name";
+      checkbox.disabled = !frameIdentity;
+      label.append(checkbox, document.createTextNode(" Also restore frame name: " + (name || "Firmware default")));
+      var help = document.createElement("p");
+      help.textContent = frameIdentity ? "Unchecked keeps this frame's name. Restoring uses this frame's own MAC suffix and requires a restart." : "Update this frame's firmware to restore names. Other settings can still be imported.";
+      function finish(value) {
+        dialog.close();
+        dialog.remove();
+        resolve(value);
+      }
+      dialog.append(
+        label,
+        help,
+        button("Import backup", "btn btn-primary", function() {
+          finish(checkbox.checked);
+        }),
+        button("Cancel", "btn btn-secondary", function() {
+          finish(null);
+        })
+      );
+      dialog.addEventListener("cancel", function(event) {
+        event.preventDefault();
+        finish(null);
+      });
+      document.body.appendChild(dialog);
+      dialog.showModal();
+    });
+  }
+  if (nativeAdmin) window["espframeNativeBackupSchema"](BACKUP_SCHEMA);
+  function backupExportFieldValue(entry) {
+    if (!entry || !Array.isArray(entry.state_keys) || !entry.state_keys.length) return "";
+    if (entry.group === "screen" && entry.field === "schedule_wake_timeout") {
+      return normalizeScheduleWakeTimeout(S2.schedule_wake_timeout);
+    }
+    if (entry.state_keys.length > 1) {
+      return entry.state_keys.map(function(key) {
+        return S2[key];
+      });
+    }
+    return S2[entry.state_keys[0]];
+  }
+  function buildBackupExportData() {
+    var data = {
+      version: BACKUP_CONFIG_VERSION,
+      exported_at: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    BACKUP_SCHEMA.forEach(function(entry) {
+      if (!entry || !entry.group || !entry.field || nativeAdmin && !entry.state_keys.every((key) => nativeSettings.has(key))) return;
+      if (!data[entry.group]) data[entry.group] = {};
+      data[entry.group][entry.field] = backupExportFieldValue(entry);
+    });
+    if (frameIdentity) data["identity"] = { name: frameIdentity.name };
+    return data;
+  }
+  var BACKUP_VERSION_MIGRATIONS = {
+    1: function backupConfigVersion1(data) {
+      var migrated = JSON.parse(JSON.stringify(data));
+      var photos = migrated.photos;
+      if (!photos || !Object.prototype.hasOwnProperty.call(photos, "source")) {
+        migrated.version = 2;
+        return migrated;
+      }
+      var source = photos.source || "All Photos";
+      photos.albums_enabled = source === "Album";
+      photos.people_enabled = source === "Person";
+      photos.tags_enabled = source === "Tag";
+      photos.favorites_enabled = source === "Favorites";
+      photos.rating_enabled = false;
+      photos.location_enabled = false;
+      photos.inclusion_matching = "Match all enabled groups";
+      photos.album_matching = "Any selected album";
+      photos.person_matching = "Any selected person";
+      photos.favorite_mode = source === "Favorites" ? "Favorites only" : "Any";
+      photos.minimum_rating = "Any";
+      photos.country = "";
+      photos.state = "";
+      photos.city = "";
+      photos.excluded_album_ids = "";
+      photos.excluded_album_labels = "";
+      photos.excluded_person_ids = "";
+      photos.excluded_person_labels = "";
+      photos.excluded_tag_ids = "";
+      photos.excluded_tag_labels = "";
+      photos.source = source;
+      migrated.version = 3;
+      return migrated;
+    },
+    2: function backupConfigVersion2(data) {
+      var migrated = JSON.parse(JSON.stringify(data));
+      var photos = migrated.photos;
+      if (photos) {
+        [
+          ["albums_enabled", "excluded_album_ids"],
+          ["people_enabled", "excluded_person_ids"],
+          ["tags_enabled", "excluded_tag_ids"]
+        ].forEach(function(group) {
+          if (String(photos[group[1]] || "").trim()) photos[group[0]] = true;
+        });
+        if (!Object.prototype.hasOwnProperty.call(photos, "favorites_enabled")) {
+          photos.favorites_enabled = photos.favorite_mode && photos.favorite_mode !== "Any";
+        }
+        if (!Object.prototype.hasOwnProperty.call(photos, "rating_enabled")) {
+          photos.rating_enabled = photos.minimum_rating && photos.minimum_rating !== "Any";
+        }
+        if (!Object.prototype.hasOwnProperty.call(photos, "location_enabled")) {
+          photos.location_enabled = !!(String(photos.country || "").trim() || String(photos.state || "").trim() || String(photos.city || "").trim());
+        }
+      }
+      migrated.version = 3;
+      return migrated;
+    },
+    3: function backupConfigVersion3(data) {
+      return data;
+    }
+  };
+  function validateBackupConfigVersion(data) {
+    if (!data || typeof data !== "object" || !Object.prototype.hasOwnProperty.call(data, "version")) {
+      return "Invalid config file - missing version";
+    }
+    if (typeof data.version !== "number" || !isFinite(data.version) || Math.floor(data.version) !== data.version) {
+      return "Unsupported backup version " + String(data.version);
+    }
+    if (data.version > BACKUP_CONFIG_VERSION) {
+      return "Unsupported backup version " + data.version + " - this device supports version " + BACKUP_CONFIG_VERSION;
+    }
+    if (!BACKUP_VERSION_MIGRATIONS[data.version]) {
+      return "Unsupported backup version " + data.version;
+    }
+    return "";
+  }
+  function migrateBackupConfig(data) {
+    var migrated = BACKUP_VERSION_MIGRATIONS[data.version](data);
+    return nativeAdmin ? window["espframeNativeBackupDefaults"](data, migrated) : migrated;
+  }
+  function downloadBackup() {
+    if (!frameIdentityLoaded) return;
+    var data = buildBackupExportData();
+    var json = JSON.stringify(data, null, 2);
+    var blob = new Blob([json], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var now = /* @__PURE__ */ new Date();
+    var name = "espframe-config-" + now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0") + ".json";
+    if (frameIdentity && frameIdentity.name) name = name.replace("espframe", frameIdentity.hostname);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+  function exportConfig() {
+    if (nativeAdmin) return fetchDeviceSettingsState().then(downloadBackup).catch(function() {
+      showBanner("Could not read the settings to export.", "error");
+    });
+    downloadBackup();
+  }
+  function backupEntryKey(entry) {
+    return entry.group + "." + entry.field;
+  }
+  function backupImportFieldPresent(data, entry) {
+    var groupData = data[entry.group] || {};
+    return groupData[entry.field] !== void 0;
+  }
+  function backupImportFieldValue(data, entry) {
+    return (data[entry.group] || {})[entry.field];
+  }
+  function backupImportStateKey(entry) {
+    return entry && Array.isArray(entry.state_keys) && entry.state_keys.length ? entry.state_keys[0] : "";
+  }
+  var backupImportSaveTasks = null;
+  var backupImportInProgress = false;
+  var backupImportMessages = [];
+  var backupImportValues = null;
+  var BACKUP_IMPORT_MAX_BODY = 900;
+  function queueBackupImportSetting(key, value) {
+    if (!backupImportValues) return false;
+    if (nativeAdmin && !nativeSettings.has(key)) return skipBackupImportField(key.replace(/_/g, " ") + " is unavailable");
+    backupImportValues[key] = value;
+    return true;
+  }
+  function recordBackupImportSaveFailure(label) {
+    if (backupImportMessages.length >= 3) return;
+    backupImportMessages.push("Could not restore " + label);
+  }
+  function trackBackupImportSave(result, settingCount) {
+    if (!backupImportSaveTasks) return;
+    var tracked = Promise.resolve(result).then(function(response) {
+      if (response && response.ok === false) throw new Error("save_failed");
+      if (response && typeof response.failedCount === "number") return response;
+      return { failedCount: 0 };
+    }).catch(function() {
+      return { failedCount: Math.max(1, Number(settingCount) || 1) };
+    });
+    backupImportSaveTasks.push(tracked);
+  }
+  function backupImportBatchBodyLength(values, requestedRotation) {
+    var configuration = JSON.stringify({ api_version: 1, reset_epoch: 0, values: legacyRotationValues(values, requestedRotation) });
+    return new URLSearchParams({ configuration }).toString().length;
+  }
+  function backupImportSettingsBatches(values) {
+    var batches = [];
+    var current = {};
+    var keys = Object.keys(values);
+    var rotationIndex = keys.indexOf("screen_rotation");
+    if (rotationIndex > 0 && "portrait_pairing" in values) {
+      keys.unshift(keys.splice(rotationIndex, 1)[0]);
+    }
+    keys.forEach(function(key) {
+      var candidate = Object.assign({}, current);
+      candidate[key] = values[key];
+      if (Object.keys(current).length && backupImportBatchBodyLength(candidate, values.screen_rotation) > BACKUP_IMPORT_MAX_BODY) {
+        batches.push(current);
+        current = {};
+        candidate = {};
+        candidate[key] = values[key];
+      }
+      current = candidate;
+    });
+    if (Object.keys(current).length) batches.push(current);
+    return batches;
+  }
+  function backupImportCanRetrySmaller(error) {
+    return error && (error.status === 413 || error.status === 422 || error.status === 400 && (!error.code || error.code === "invalid_json" || error.code === "invalid_configuration"));
+  }
+  function saveBackupImportBatch(values, requestedRotation) {
+    var keys = Object.keys(values);
+    return saveSettingValues(values, requestedRotation).then(function() {
+      return { failedCount: 0 };
+    }).catch(function(error) {
+      if (keys.length > 1 && backupImportCanRetrySmaller(error)) {
+        var midpoint = Math.ceil(keys.length / 2);
+        var first = {};
+        var second = {};
+        keys.forEach(function(key, index) {
+          (index < midpoint ? first : second)[key] = values[key];
+        });
+        return saveBackupImportBatch(first, requestedRotation).then(function(firstResult) {
+          return saveBackupImportBatch(second, requestedRotation).then(function(secondResult) {
+            return { failedCount: firstResult.failedCount + secondResult.failedCount };
+          });
+        });
+      }
+      recordBackupImportSaveFailure(keys.length === 1 ? keys[0].replace(/_/g, " ") : "settings");
+      return { failedCount: keys.length };
+    });
+  }
+  function saveBackupImportSettings(values) {
+    var batches = nativeAdmin ? [values] : backupImportSettingsBatches(values);
+    return batches.reduce(function(chain, batch) {
+      return chain.then(function(result) {
+        return saveBackupImportBatch(batch, values.screen_rotation).then(function(batchResult) {
+          return { failedCount: result.failedCount + batchResult.failedCount };
+        });
+      });
+    }, Promise.resolve({ failedCount: 0 }));
+  }
+  function backupImportEntryUsesPhotoSourceApply(entry) {
+    return entry && entry.group === "photos" && Array.isArray(entry.state_keys) && entry.state_keys.some(settingUsesPhotoSourceApply);
+  }
+  function backupImportSettingSpec(entry) {
+    var stateKey = backupImportStateKey(entry);
+    return stateKey && PRODUCT_SETTINGS ? PRODUCT_SETTINGS[stateKey] : null;
+  }
+  function backupImportFieldLabel(entry) {
+    return backupEntryKey(entry).replace(/_/g, " ");
+  }
+  function backupImportValidation(ok, value, message) {
+    return { ok, value, message: message || "" };
+  }
+  function isValidBackupDate(value) {
+    if (value === "") return true;
+    nativeAdminOnly: if (nativeAdmin) return isValidNativeCaptureDate(value);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    var parts = value.split("-").map(Number);
+    var date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+    return date.getUTCFullYear() === parts[0] && date.getUTCMonth() === parts[1] - 1 && date.getUTCDate() === parts[2];
+  }
+  function backupNumberStepAligned(value, minimum, step) {
+    if (!step || step <= 0) return true;
+    var offset = (value - minimum) / step;
+    return Math.abs(offset - Math.round(offset)) < 1e-9;
+  }
+  function validateProductSettingBackupImport(entry, value) {
+    var stateKey = backupImportStateKey(entry);
+    var spec = backupImportSettingSpec(entry);
+    if (!hasWritableSetting(stateKey)) {
+      return backupImportValidation(false, value, backupImportFieldLabel(entry) + " is not supported");
+    }
+    if (!spec || !spec.domain) return backupImportValidation(true, value);
+    if (spec.domain === "switch") {
+      if (typeof value === "boolean") return backupImportValidation(true, value);
+      if (typeof value === "string") {
+        var normalizedSwitch = value.trim().toLowerCase();
+        if (normalizedSwitch === "true" || normalizedSwitch === "on") return backupImportValidation(true, true);
+        if (normalizedSwitch === "false" || normalizedSwitch === "off") return backupImportValidation(true, false);
+      }
+      return backupImportValidation(false, value, backupImportFieldLabel(entry) + " was invalid - not imported");
+    }
+    if (spec.domain === "number") {
+      var numberValue = Number(value);
+      if (!isFinite(numberValue)) {
+        return backupImportValidation(false, value, backupImportFieldLabel(entry) + " was not a number - not imported");
+      }
+      var minimum = spec.min !== void 0 ? Number(spec.min) : -Infinity;
+      var maximum = spec.max !== void 0 ? Number(spec.max) : Infinity;
+      var step = spec.step !== void 0 ? Number(spec.step) : 0;
+      nativeAdminOnly: if (nativeAdmin && [
+        "schedule_wake_timeout",
+        "brightness_day",
+        "brightness_night",
+        "base_tone",
+        "warm_tone_intensity"
+      ].indexOf(stateKey) !== -1) step = 1;
+      if (numberValue < minimum || numberValue > maximum || !backupNumberStepAligned(numberValue, minimum, step)) {
+        return backupImportValidation(false, value, backupImportFieldLabel(entry) + " was outside the device range - not imported");
+      }
+      return backupImportValidation(true, numberValue);
+    }
+    if (spec.domain === "select") {
+      var optionValue = String(value);
+      nativeAdminOnly: if (nativeAdmin && stateKey === "interval" && nativeIntervalSeconds(optionValue)) {
+        return backupImportValidation(true, optionValue);
+      }
+      if (productSettingOptions(stateKey, true).indexOf(optionValue) === -1) {
+        return backupImportValidation(false, value, backupImportFieldLabel(entry) + " had an unsupported option - not imported");
+      }
+      return backupImportValidation(true, optionValue);
+    }
+    if (spec.domain === "text") {
+      var textValue = value == null ? "" : String(value).trim();
+      if (spec.maxLength !== void 0 && textValue.length > Number(spec.maxLength)) {
+        return backupImportValidation(false, value, backupImportFieldLabel(entry) + " exceeded the device length limit - not imported");
+      }
+      if ((stateKey === "date_from" || stateKey === "date_to") && !isValidBackupDate(textValue)) {
+        return backupImportValidation(false, value, backupImportFieldLabel(entry) + " was not a valid date - not imported");
+      }
+      return backupImportValidation(true, textValue);
+    }
+    return backupImportValidation(true, value);
+  }
+  function applyGenericBackupImportField(entry, value) {
+    var validation = validateProductSettingBackupImport(entry, value);
+    if (!validation.ok) return skipBackupImportField(validation.message);
+    return queueBackupImportSetting(backupImportStateKey(entry), validation.value);
+  }
+  function skipBackupImportField(message) {
+    if (backupImportInProgress) {
+      if (backupImportMessages.length < 3) backupImportMessages.push(message);
+      return false;
+    }
+    showBanner(message, "error");
+    return false;
+  }
+  function backupImportSummaryMessage(appliedCount, skippedCount, failedCount) {
+    var skippedText = skippedCount + " skipped " + (skippedCount === 1 ? "setting" : "settings");
+    var failedText = failedCount + " failed " + (failedCount === 1 ? "setting" : "settings");
+    if (failedCount) {
+      if (appliedCount || skippedCount) {
+        return "Backup partially restored: " + failedText + (skippedCount ? " and " + skippedText : "");
+      }
+      return "Backup restore failed for " + failedCount + " " + (failedCount === 1 ? "setting" : "settings");
+    }
+    if (!skippedCount) return "Backup restored successfully";
+    return "Backup restored successfully; " + skippedText;
+  }
+  function applyBackupImportField(entry, value) {
+    var entryKey = backupEntryKey(entry);
+    if (/^photos\.excluded_(album|person|tag)_ids$/.test(entryKey)) {
+      var excludedIds = String(value == null ? "" : value).trim();
+      if (T(excludedIds)) {
+        return skipBackupImportField("Excluded IDs exceed 255 characters - not imported");
+      }
+      if (excludedIds && !N(excludedIds)) {
+        return skipBackupImportField("Import skipped invalid excluded IDs");
+      }
+      return queueBackupImportSetting(backupImportStateKey(entry), excludedIds);
+    }
+    switch (backupEntryKey(entry)) {
+      case "connection.immich_url":
+        var importUrl = normalizeConnectionUrl(value);
+        if (importUrl.length > 255) return skipBackupImportField("Immich URL exceeds 255 characters - not imported");
+        if (importUrl && !M(importUrl)) return skipBackupImportField("Immich URL was invalid - not imported");
+        return queueBackupImportSetting("immich_url", importUrl);
+      case "photos.album_ids":
+        var importAlbum = String(value).trim();
+        if (T(importAlbum)) {
+          return skipBackupImportField("Album IDs exceed 255 characters - not imported");
+        } else if (!N(importAlbum)) {
+          return skipBackupImportField("Import skipped invalid album IDs");
+        } else {
+          return queueBackupImportSetting("album_ids", importAlbum);
+        }
+      case "photos.album_labels":
+        var importAlbumLabels = String(value).trim();
+        if (U(importAlbumLabels)) {
+          return skipBackupImportField("Album labels exceed 255 characters - not imported");
+        } else {
+          return queueBackupImportSetting("album_labels", importAlbumLabels);
+        }
+      case "photos.person_ids":
+        var importPerson = String(value).trim();
+        if (T(importPerson)) {
+          return skipBackupImportField("Person IDs exceed 255 characters - not imported");
+        } else if (!N(importPerson)) {
+          return skipBackupImportField("Import skipped invalid person IDs");
+        } else {
+          return queueBackupImportSetting("person_ids", importPerson);
+        }
+      case "photos.person_labels":
+        var importPersonLabels = String(value).trim();
+        if (U(importPersonLabels)) {
+          return skipBackupImportField("Person labels exceed 255 characters - not imported");
+        } else {
+          return queueBackupImportSetting("person_labels", importPersonLabels);
+        }
+      case "photos.tag_ids":
+        var importTag = String(value).trim();
+        if (T(importTag)) {
+          return skipBackupImportField("Tag IDs exceed 255 characters - not imported");
+        } else if (!N(importTag)) {
+          return skipBackupImportField("Import skipped invalid tag IDs");
+        } else {
+          return queueBackupImportSetting("tag_ids", importTag);
+        }
+      case "photos.tag_labels":
+        var importTagLabels = String(value).trim();
+        if (U(importTagLabels)) {
+          return skipBackupImportField("Tag labels exceed 255 characters - not imported");
+        } else {
+          return queueBackupImportSetting("tag_labels", importTagLabels);
+        }
+      case "clock.timezone":
+        var importedTimezone = normalizeTimezoneOption(value);
+        if (TIMEZONES.indexOf(importedTimezone) === -1) {
+          return skipBackupImportField("Timezone was invalid - not imported");
+        }
+        return queueBackupImportSetting("timezone", importedTimezone);
+      case "clock.ntp_servers":
+        if (Array.isArray(value) && value.length <= 3) {
+          for (var ntpIndex = 0; ntpIndex < value.length; ntpIndex++) {
+            var server = p2(value[ntpIndex]);
+            if (server.length > MAX_NTP_SERVER_LENGTH) {
+              return skipBackupImportField("NTP servers exceeded 253 characters - not imported");
+            }
+          }
+          ["ntp_server_1", "ntp_server_2", "ntp_server_3"].forEach(function(key, idx) {
+            if (value[idx] === void 0) return;
+            queueBackupImportSetting(key, p2(value[idx]));
+          });
+          return true;
+        }
+        return skipBackupImportField("NTP servers were invalid - not imported");
+      case "screen.schedule_wake_timeout":
+        var wakeTimeout = normalizeScheduleWakeTimeout(value);
+        var wakeValidation = validateProductSettingBackupImport(entry, wakeTimeout);
+        if (!wakeValidation.ok) return skipBackupImportField(wakeValidation.message);
+        return queueBackupImportSetting("schedule_wake_timeout", wakeValidation.value);
+      case "screen.rotation":
+        var importedRotation = String(value);
+        if (screenRotationOptionsForUi().indexOf(importedRotation) !== -1) {
+          queueBackupImportSetting("screen_rotation", importedRotation);
+          return true;
+        }
+        return skipBackupImportField("Screen rotation was invalid - not imported");
+      default:
+        return applyGenericBackupImportField(entry, value);
+    }
+  }
+  function importConfig() {
+    if (backupImportInProgress) return;
+    var fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.accept = ".json";
+    fileInput.style.display = "none";
+    function removeFileInput() {
+      if (fileInput.parentNode) fileInput.parentNode.removeChild(fileInput);
+    }
+    fileInput.addEventListener("cancel", removeFileInput);
+    fileInput.addEventListener("change", function() {
+      var selectedFile = fileInput.files && fileInput.files[0];
+      removeFileInput();
+      if (!selectedFile) return;
+      var reader = new FileReader();
+      reader.onload = async function() {
+        try {
+          var data;
+          try {
+            data = JSON.parse(String(reader.result));
+          } catch (_2) {
+            showBanner("Invalid file \u2014 could not parse JSON", "error");
+            return;
+          }
+          var versionError = validateBackupConfigVersion(data);
+          if (versionError) {
+            showBanner(versionError, "error");
+            return;
+          }
+          data = migrateBackupConfig(data);
+          if (data.connection) delete data.connection.api_key;
+          var restoreName = false;
+          if (data.identity !== void 0) {
+            if (!isObject(data.identity) || !validFrameName(data.identity.name)) {
+              showBanner("Invalid frame name in backup", "error");
+              return;
+            }
+            var choice = await chooseBackupNameRestore(data.identity.name);
+            if (choice === null) return;
+            restoreName = choice;
+          }
+          backupImportInProgress = true;
+          backupImportMessages = [];
+          backupImportValues = {};
+          showBanner("Importing settings\u2026", "info", 0);
+          backupImportSaveTasks = [];
+          var queuedCount = 0;
+          var skippedCount = 0;
+          var needsPhotoSourceApply = false;
+          BACKUP_SCHEMA.forEach(function(entry) {
+            if (!backupImportFieldPresent(data, entry)) return;
+            if (applyBackupImportField(entry, backupImportFieldValue(data, entry))) {
+              needsPhotoSourceApply = needsPhotoSourceApply || backupImportEntryUsesPhotoSourceApply(entry);
+            } else {
+              skippedCount += 1;
+            }
+          });
+          queuedCount = Object.keys(backupImportValues).length;
+          var restore = queuedCount ? saveBackupImportSettings(backupImportValues) : Promise.resolve();
+          if (queuedCount) trackBackupImportSave(restore, queuedCount);
+          if (restoreName) {
+            queuedCount += 1;
+            trackBackupImportSave(restore.then(function() {
+              return saveFrameName(data.identity.name);
+            }));
+          }
+          Promise.all(backupImportSaveTasks).then(function(results) {
+            var failedCount = results.reduce(function(count, result) {
+              return count + (result && Number(result.failedCount) || 0);
+            }, 0);
+            var appliedCount = queuedCount - failedCount;
+            if (needsPhotoSourceApply && appliedCount) {
+              return applyPhotoSource().then(function() {
+                return { appliedCount, failedCount };
+              }).catch(function() {
+                return { appliedCount, failedCount: failedCount + 1 };
+              });
+            }
+            return { appliedCount, failedCount };
+          }).then(function(summary) {
+            var failedCount = summary.failedCount;
+            var appliedCount = summary.appliedCount;
+            backupImportInProgress = false;
+            var resultMessage = backupImportSummaryMessage(appliedCount, skippedCount, failedCount);
+            if (backupImportMessages.length) resultMessage += ". " + backupImportMessages.join("; ");
+            var apiKeyNeedsInput = !S2.api_key_configured;
+            resultMessage += apiKeyNeedsInput ? ". Backups don\u2019t include the Immich API key. Enter it in the highlighted field on the Immich tab." : ". The destination\u2019s existing Immich API key was left unchanged.";
+            highlightApiKeyAfterRestore = apiKeyNeedsInput;
+            showBanner(
+              resultMessage,
+              failedCount || skippedCount ? "error" : "success",
+              apiKeyNeedsInput ? 0 : void 0
+            );
+            renderSettings();
+            if (apiKeyNeedsInput) openImmichConnectionForApiKey();
+            backupImportSaveTasks = null;
+            backupImportValues = null;
+            backupImportMessages = [];
+          }).catch(function() {
+            backupImportInProgress = false;
+            backupImportSaveTasks = null;
+            backupImportValues = null;
+            backupImportMessages = [];
+            showBanner("Import failed. Please try again.", "error");
+          });
+        } catch (_2) {
+          backupImportInProgress = false;
+          backupImportSaveTasks = null;
+          backupImportValues = null;
+          backupImportMessages = [];
+          showBanner("Import failed. Please try again.", "error");
+        }
+      };
+      reader.onerror = function() {
+        showBanner("Could not read the selected backup file. Please try again.", "error");
+      };
+      reader.readAsText(selectedFile);
+    });
+    document.body.appendChild(fileInput);
+    window.addEventListener("focus", function() {
+      setTimeout(function() {
+        if ((!fileInput.files || !fileInput.files.length) && fileInput.parentNode) {
+          fileInput.parentNode.removeChild(fileInput);
+        }
+      }, 1e3);
+    }, { once: true });
+    fileInput.click();
+  }
+  buildUI();
+  if (nativeAdmin) {
+    tryRender();
+    startNativeSettingsSync();
+  } else initSSE();
+  loadFrameIdentity();
+})();
