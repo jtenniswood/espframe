@@ -82,20 +82,25 @@ bool ClockOverlay::update(const std::optional<std::tm> &local) {
   return true;
 }
 
-void ClockOverlay::draw(uint16_t *frame, bool remember_underlay) {
+void ClockOverlay::draw(uint16_t *frame, bool remember_underlay, uint8_t opacity) {
+  const bool painted = visible() && opacity != 0;
   if (remember_underlay) {
-    latest_painted_ = text_[0] != '\0' && underlays_;
+    latest_painted_ = painted && underlays_;
     if (latest_painted_) {
       for (int row = 0; row < rows; ++row)
         std::memcpy(underlays_->latest.data() + row * columns,
                     frame + (physical_row_ + row) * panel_width + physical_column_, columns * sizeof(*frame));
     }
   }
-  if (text_[0] == '\0')
+  if (!painted)
     return;
   const int column_step = -axis_direction(rotation_);
   for (const bool shadow : {true, false}) {
-    const auto &blends = shadow ? shadow_blends : face_blends;
+    const auto &palette = shadow ? shadow_blends : face_blends;
+    std::array<const GlyphBlend *, 16> blends;
+    for (unsigned alpha = 0; alpha < blends.size(); ++alpha)
+      blends[alpha] = &palette[(alpha * opacity + 127) / 255];
+    const bool opaque_face = !shadow && opacity == 255;
     const int padding = shadow ? shadow_padding : 0;
     const int height = shadow ? shadow_height : glyph_height;
     const int width = shadow ? shadow_width : glyph_width;
@@ -123,7 +128,7 @@ void ClockOverlay::draw(uint16_t *frame, bool remember_underlay) {
             if (alpha == 0)
               continue;
             auto &pixel = column[(2 * pair + half) * column_step];
-            pixel = !shadow && alpha == 15 ? 0xffff : blends[alpha].apply(pixel);
+            pixel = opaque_face && alpha == 15 ? 0xffff : blends[alpha]->apply(pixel);
           }
         }
       }

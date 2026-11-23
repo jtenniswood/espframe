@@ -116,17 +116,38 @@ int PhotoControls::progress(int64_t now) const {
   return this->start_ + (this->target_ - this->start_) * eased / open;
 }
 
-void PhotoControls::animate(bool show, int64_t now) {
+int64_t PhotoControls::text_duration() const {
+  return target_open() ? 50'000 * this->text_from_ / opaque
+                       : 80'000 * (opaque - this->text_from_) / opaque;
+}
+
+uint8_t PhotoControls::text_opacity(int64_t now) const {
+  const int target = target_open() ? 0 : opaque;
+  const auto duration = this->text_duration();
+  if (duration == 0 || now - this->text_started_us_ >= duration)
+    return target;
+  const auto elapsed = std::max<int64_t>(0, now - this->text_started_us_);
+  return this->text_from_ + (target - this->text_from_) * elapsed / duration;
+}
+
+void PhotoControls::animate(bool show, int64_t now, bool text_visible) {
   constexpr int64_t full_duration_us = 200'000;
   constexpr int64_t minimum_duration_us = 87'500;
   const int target = show ? open : 0;
   if (target == this->target_)
     return;
+  this->text_from_ = show && !text_visible ? 0 : this->text_opacity(now);
   this->start_ = this->progress(now);
   this->target_ = target;
   this->started_us_ = now;
   this->duration_us_ = minimum_duration_us +
                        (full_duration_us - minimum_duration_us) * std::abs(target - this->start_) / open;
+  // Fade on the full-size photo on either side of the resize.
+  this->text_started_us_ = now;
+  if (show)
+    this->started_us_ += this->text_duration();
+  else if (this->start_ != 0)
+    this->text_started_us_ += this->duration_us_;
 }
 
 void PhotoControls::prepare(uint16_t *output, SlideSpan span, int pull, ScreenRotation rotation, int progress) {

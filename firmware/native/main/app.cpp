@@ -579,6 +579,7 @@ void run(void *) {
   static PhotoControls controls;
   static PhotoControlsRenderer controls_renderer{controls};
   int last_control_progress = 0;
+  uint8_t last_text_opacity = PhotoControls::opaque;
   ScreenSchedule schedule{loader.schedule()};
   SlideDwell dwell;
   SlidePrefetch prefetch{swipe.settled(), cache_slots};
@@ -964,7 +965,7 @@ void run(void *) {
             cache.find(swipe.settled())) {
           const bool opening = !controls.target_open();
           if (opening || last_control_progress < PhotoControls::open || input.contact_y() >= PhotoControls::toolbar_bottom)
-            controls.animate(opening, esp_timer_get_time());
+            controls.animate(opening, esp_timer_get_time(), clock.visible() || last_caption.opacity != 0);
         }
         if (swipe.dragging() && !was_dragging && (controls.target_open() || last_control_progress != 0))
           controls.animate(false, esp_timer_get_time());
@@ -1003,6 +1004,7 @@ void run(void *) {
         (!input.awake() || network.recovery_status() != NativeNetwork::RecoveryStatus::Off))
       controls.reset();
     const int control_progress = controls.progress(now);
+    const uint8_t text_opacity = controls.text_opacity(now);
 
     if (blend.poll_complete() && fade.running()) {
       // Touch is handled before this block so a superseded blend can never
@@ -1157,7 +1159,8 @@ void run(void *) {
       const bool first_photo = swipe.settled() == 0;
       const bool source_changed = source_anchor == swipe.settled();
       const bool dwelling = visible_and_idle && !fade.running() && !fade.held() &&
-                            !controls.target_open() && control_progress == 0 && last_control_progress == 0;
+                            !controls.target_open() && control_progress == 0 && last_control_progress == 0 &&
+                            text_opacity == PhotoControls::opaque;
       // Keep the settled photo available for inspection during the touch replay.
       constexpr bool hold_photo = SWIPE_TRIAL_REPLAY_HISTORY || SWIPE_TRIAL_WIFI_OUTAGE || trial_replay_touch;
       if ((!hold_photo || first_photo) &&
@@ -1213,6 +1216,7 @@ void run(void *) {
         position == swipe.settled() * slide_width && position == display.presented_position())
       settled_caption = swipe.settled();
     auto caption_sample = caption_fade.update(now, settled_caption);
+    caption_sample.opacity = (caption_sample.opacity * text_opacity + 127) / 255;
     if (blend.pending()) {
       display.wait_for_frame_or_tick();
       continue;
@@ -1285,6 +1289,7 @@ void run(void *) {
                                source_notice != PhotoSourceStatus::None;
     const auto notice_language = paints_notice ? active_device_language.load(std::memory_order_relaxed) : uint8_t{0};
     const bool sliding = swipe.dragging() || swipe.settling();
+    const bool clock_changed = show_clock && (clock_dirty || (clock.visible() && text_opacity != last_text_opacity));
     const auto caption_slot = caption_sample.opacity && !show_recovery ? cache.ready_slot(caption_sample.slide)
                                                                       : std::nullopt;
     const auto *caption = caption_slot && captions[*caption_slot].band_rows() ? &captions[*caption_slot] : nullptr;
@@ -1295,7 +1300,7 @@ void run(void *) {
          (control_progress == 0 &&
           (show_recovery != recovery_painted || source_notice != painted_source_status ||
            connection_notice != painted_connection_notice || notice_language != painted_notice_language ||
-           (display.borrowing() && !sliding) || (show_clock && clock_dirty) || caption_sample != last_caption)))) {
+           (display.borrowing() && !sliding) || clock_changed || caption_sample != last_caption)))) {
       const auto index = inside / slide_width;
       const int offset = inside % slide_width;
       const auto slide_pixels = [&](SlideIndex slide) {
@@ -1321,6 +1326,7 @@ void run(void *) {
           last_submitted = position;
           last_inside = inside;
           last_control_progress = control_progress;
+          last_text_opacity = text_opacity;
         };
         if (control_progress != 0) {
           controls.prepare(output, span, pull, rotation, control_progress);
@@ -1369,7 +1375,7 @@ void run(void *) {
             ((sliding && (use_edge || offset != 0)) || landing)) {
           segment_started = esp_timer_get_time();
           const auto copy_rows = [&](auto *to, const auto *from, int rows) { blitter.copy_panel_rows(to, from, rows); };
-          const bool paint_clock = show_clock && clock.visible();
+          const bool paint_clock = show_clock && clock.visible() && text_opacity != 0;
           const int caption_rows = caption ? caption->band_rows() : 0;
           if (use_edge)
             segmented = prepare_edge_scanout(output, left, pull, paint_clock, rotation, copy_rows, caption_rows);
@@ -1382,7 +1388,7 @@ void run(void *) {
         if (pause_for_copy)
           loader.defer_pixel_work(false);
         if (show_clock) {
-          clock.draw(output);
+          clock.draw(output, false, text_opacity);
           clock_dirty = false;
         }
         paint_caption();
@@ -1408,7 +1414,7 @@ void run(void *) {
             linked_scanout_ok = false;
             render_owned();
             if (show_clock)
-              clock.draw(output);
+              clock.draw(output, false, text_opacity);
             paint_caption();
           }
         }

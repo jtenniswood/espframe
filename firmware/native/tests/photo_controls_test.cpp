@@ -21,35 +21,65 @@ void draw(PhotoControls &controls, uint16_t *output, SlideSpan span, int pull, S
 void slows_down_near_both_ends() {
   PhotoControls controls;
   controls.animate(true, 0);
-  assert(controls.progress(25'000) < PhotoControls::open / 16);
-  assert(controls.progress(100'000) == PhotoControls::open / 2);
-  assert(controls.progress(175'000) > 15 * PhotoControls::open / 16);
-  assert(controls.progress(199'999) < PhotoControls::open);
-  assert(controls.progress(200'000) == PhotoControls::open);
-
-  controls.animate(false, 200'000);
+  assert(controls.progress(75'000) < PhotoControls::open / 16);
+  assert(controls.progress(150'000) == PhotoControls::open / 2);
   assert(controls.progress(225'000) > 15 * PhotoControls::open / 16);
-  assert(controls.progress(300'000) == PhotoControls::open / 2);
-  assert(controls.progress(375'000) < PhotoControls::open / 16);
-  assert(controls.progress(399'999) > 0);
-  assert(controls.progress(400'000) == 0);
+  assert(controls.progress(249'999) < PhotoControls::open);
+  assert(controls.progress(250'000) == PhotoControls::open);
+
+  controls.animate(false, 250'000);
+  assert(controls.progress(275'000) > 15 * PhotoControls::open / 16);
+  assert(controls.progress(350'000) == PhotoControls::open / 2);
+  assert(controls.progress(425'000) < PhotoControls::open / 16);
+  assert(controls.progress(449'999) > 0);
+  assert(controls.progress(450'000) == 0);
+}
+
+void text_only_fades_at_full_size() {
+  PhotoControls controls;
+  controls.animate(true, 0);
+  assert(controls.text_opacity(0) == PhotoControls::opaque);
+  const auto half = controls.text_opacity(25'000);
+  assert(half > 0 && half < PhotoControls::opaque && controls.progress(25'000) == 0);
+  assert(controls.text_opacity(50'000) == 0);
+  assert(controls.text_opacity(200'000) == 0 && controls.progress(200'000) > 0);
+  controls.animate(false, 250'000);
+  assert(controls.text_opacity(449'999) == 0);
+  assert(controls.progress(450'000) == 0 && controls.text_opacity(450'000) == 0);
+  assert(controls.text_opacity(490'000) == 127);
+  assert(controls.text_opacity(530'000) == PhotoControls::opaque);
+
+  controls.animate(true, 600'000, false);
+  assert(controls.text_opacity(600'000) == 0);
+  assert(controls.progress(700'000) == PhotoControls::open / 2);
+}
+
+void tapping_again_during_the_fade_restores_text_without_resizing() {
+  PhotoControls controls;
+  controls.animate(true, 0);
+  const auto faded = controls.text_opacity(20'000);
+  controls.animate(false, 20'000);
+  assert(controls.progress(20'000) == 0 && controls.text_opacity(20'000) == faded);
+  assert(controls.progress(35'000) == 0 && controls.text_opacity(35'000) > faded);
+  assert(controls.text_opacity(100'000) == PhotoControls::opaque);
 }
 
 void reverses_from_the_current_size_and_settles() {
   PhotoControls controls;
   controls.animate(true, 100);
   assert(controls.progress(100) == 0);
-  const int middle = controls.progress(70'100);
+  const int middle = controls.progress(120'100);
   assert(middle > 0 && middle < PhotoControls::open);
-  controls.animate(false, 70'100);
-  assert(controls.progress(70'100) == middle);
-  const int closing = controls.progress(100'100);
+  controls.animate(false, 120'100);
+  assert(controls.progress(120'100) == middle);
+  const int closing = controls.progress(150'100);
   assert(closing > 0 && closing < middle);
-  controls.animate(true, 100'100);
-  assert(controls.progress(100'100) == closing);
-  assert(controls.progress(300'100) == PhotoControls::open);
+  controls.animate(true, 150'100);
+  assert(controls.progress(150'100) == closing && controls.text_opacity(150'100) == 0);
+  assert(controls.progress(350'100) == PhotoControls::open);
   controls.reset();
-  assert(!controls.target_open() && controls.progress(300'100) == 0);
+  assert(!controls.target_open() && controls.progress(350'100) == 0);
+  assert(controls.text_opacity(350'100) == PhotoControls::opaque);
 }
 
 void keeps_both_halves_and_the_toolbar_in_the_same_place_when_rotated() {
@@ -92,6 +122,8 @@ void keeps_both_halves_and_the_toolbar_in_the_same_place_when_rotated() {
 
 int main() {
   slows_down_near_both_ends();
+  text_only_fades_at_full_size();
+  tapping_again_during_the_fade_restores_text_without_resizing();
   reverses_from_the_current_size_and_settles();
   keeps_both_halves_and_the_toolbar_in_the_same_place_when_rotated();
 }
