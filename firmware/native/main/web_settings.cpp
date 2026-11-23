@@ -67,10 +67,14 @@ extern const char recovery_end[] asm("_binary_recovery_html_end");
 extern const char recovery_script_start[] asm("_binary_recovery_js_start");
 extern const char recovery_script_end[] asm("_binary_recovery_js_end");
 
-void set_response_headers(httpd_req_t *request) {
+constexpr auto default_content_policy = "default-src 'self'; frame-ancestors 'none'; form-action 'none'";
+constexpr auto shared_admin_content_policy =
+    "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; form-action 'none'";
+
+void set_response_headers(httpd_req_t *request, const char *content_policy = default_content_policy) {
   httpd_resp_set_hdr(request, "Cache-Control", "no-store");
   httpd_resp_set_hdr(request, "X-Content-Type-Options", "nosniff");
-  httpd_resp_set_hdr(request, "Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'; form-action 'none'");
+  httpd_resp_set_hdr(request, "Content-Security-Policy", content_policy);
 }
 
 NativeNetwork &network(httpd_req_t *request) { return *static_cast<NativeNetwork *>(request->user_ctx); }
@@ -118,8 +122,8 @@ bool from_hotspot_client(httpd_req_t *request) {
   return false;
 }
 
-bool authorize(httpd_req_t *request) {
-  set_response_headers(request);
+bool authorize(httpd_req_t *request, const char *content_policy = default_content_policy) {
+  set_response_headers(request, content_policy);
   const auto station = network(request).address().ipv4;
   if (!station || local_address(request) != station || hotspot_socket(request) || authorization.empty()) {
     httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "Settings are unavailable on this connection.");
@@ -162,10 +166,8 @@ esp_err_t page(httpd_req_t *request) {
   return serve(request, "text/html; charset=utf-8", shared_page_start, shared_page_end);
 }
 esp_err_t admin_preview(httpd_req_t *request) {
-  if (!authorize(request))
+  if (!authorize(request, shared_admin_content_policy))
     return ESP_OK;
-  httpd_resp_set_hdr(request, "Content-Security-Policy",
-                    "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; form-action 'none'");
   return asset(request, "text/html; charset=utf-8", admin_preview_start, admin_preview_end);
 }
 
