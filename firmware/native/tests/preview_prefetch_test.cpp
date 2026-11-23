@@ -105,6 +105,7 @@ int64_t esp_timer_get_time() { return now_us; }
 
 ImmichHttp::~ImmichHttp() = default;
 void ImmichHttp::disconnect() {}
+void ImmichHttp::reset() {}
 
 int ImmichHttp::read(const std::string &url, const char *api_key, std::string_view query, std::span<uint8_t> output,
                       size_t &received, int64_t deadline) {
@@ -136,8 +137,10 @@ int main() {
   assert(!task.notified && !prefetch.take(asset('a'), 1, buffer));
   free_spiram = 32 * 1024 * 1024;
 
-  prefetch.start(asset('a'), 1, base_url, key);
-  prefetch.start(asset('a'), 1, base_url, key);
+  std::string transient_key = key;
+  prefetch.start(asset('a'), 1, base_url, transient_key);
+  transient_key.assign("replaced-key");
+  prefetch.start(asset('a'), 1, base_url, transient_key);
   assert(task.notified && requests == 0);
   assert(prefetch.take(asset('a'), 1, buffer) == 1);
   assert(buffer[0] == 'a' && buffer[1] == 0 && requests == 1);

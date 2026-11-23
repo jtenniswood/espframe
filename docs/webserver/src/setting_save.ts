@@ -11,6 +11,7 @@ interface PendingSetting {
 // recent successful value, rather than another unconfirmed draft.
 export class SettingSaveCoordinator {
   private sequence = 0;
+  private writesInFlight = 0;
   private confirmed = new Map<string, SettingValue>();
   private pending = new Map<string, PendingSetting>();
   private queue: Promise<unknown> | null = null;
@@ -27,9 +28,14 @@ export class SettingSaveCoordinator {
     this.write(key, value);
   }
 
+  idleRevision(): number | null {
+    return this.writesInFlight ? null : this.sequence;
+  }
+
   save<T>(values: Record<string, SettingValue>, send: () => Promise<T>,
           appliedValues?: (result: T) => Record<string, SettingValue>): Promise<T> {
     const revision = ++this.sequence;
+    ++this.writesInFlight;
     const entries = Object.entries(values);
     for (const [key, value] of entries) {
       let pending = this.pending.get(key);
@@ -51,7 +57,7 @@ export class SettingSaveCoordinator {
     request = request.then(
       result => { this.finish(entries, revision, true, appliedValues?.(result)); return result; },
       error => { this.finish(entries, revision, false); throw error; },
-    );
+    ).finally(() => { --this.writesInFlight; });
     this.queue = request.catch(() => undefined);
     return request;
   }

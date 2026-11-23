@@ -16,6 +16,7 @@
 #include "esp_wifi.h"
 #include "lwip/sockets.h"
 #include "mdns.h"
+#include "sodium/randombytes.h"
 
 #include <cerrno>
 #include <fcntl.h>
@@ -36,6 +37,19 @@ constexpr char tag[] = "home-assistant";
 constexpr char service[] = "_esphomelib";
 constexpr uint16_t port = 6053;
 constexpr int64_t diagnostic_interval_us = 60'000'000;
+
+const randombytes_implementation hardware_random{
+    .implementation_name = []() -> const char * { return "esp32p4"; },
+    .random = []() -> uint32_t {
+      uint32_t value;
+      noise_rand_bytes(&value, sizeof(value));
+      return value;
+    },
+    .stir = nullptr,
+    .uniform = nullptr,
+    .buf = noise_rand_bytes,
+    .close = nullptr,
+};
 
 std::optional<float> free_memory_percent(uint32_t capabilities) {
   const auto total = heap_caps_get_total_size(capabilities);
@@ -183,6 +197,11 @@ struct HomeAssistantServer {
 bool start_home_assistant(const NativeNetwork &network, EspHomeIdentity identity, std::string_view key) {
   const auto decoded = decode_home_assistant_key(key);
   if (!decoded || !valid_frame_mac(identity.mac) || identity.name.empty() || identity.name.size() > 31)
+    return false;
+  // Noise initializes libsodium before the first handshake. Register the P4
+  // entropy source so that initialization does not try to open /dev/urandom.
+  static const bool entropy_ready = randombytes_set_implementation(&hardware_random) == 0;
+  if (!entropy_ready)
     return false;
   static HomeAssistantServer server;
   server = {&network, identity, *decoded, key};

@@ -235,6 +235,13 @@ def check_project_release_metadata(product: dict, errors: list[str]) -> None:
                 errors.append("project.github_workflow_names keys must be non-empty strings")
             if not label:
                 errors.append(f"project.github_workflow_names.{name or '<missing>'} must be a non-empty string")
+    docs_targets = project.get("github_docs_workflow_run_targets")
+    if not isinstance(docs_targets, list) or any(not isinstance(name, str) or not name.strip() for name in docs_targets):
+        errors.append("project.github_docs_workflow_run_targets must list workflow names")
+    elif not isinstance(workflow_names, dict) or workflow_names.get("release") not in docs_targets:
+        errors.append("project.github_docs_workflow_run_targets must include the firmware release workflow")
+    elif len(docs_targets) != len(set(docs_targets)):
+        errors.append("project.github_docs_workflow_run_targets must not contain duplicate workflows")
     workflow_path_filters = project.get("github_workflow_path_filters", {})
     expected_path_filter_sets = {"docs_push"}
     if not isinstance(workflow_path_filters, dict) or not workflow_path_filters:

@@ -85,7 +85,10 @@ try {
   updatePairing()
   form.elements.display_mode.value = settings.display_mode ?? 'Fit'
   form.elements.photo_orientation.value = settings.photo_orientation ?? 'Any'
-  form.elements.screen_rotation.value = settings.screen_rotation ?? '0'
+  const rotation = form.elements.screen_rotation
+  for (const option of rotation.options)
+    if (option.value === '90' || option.value === '270') option.hidden = settings.developer_features_enabled !== true
+  rotation.value = settings.screen_rotation ?? '0'
   form.elements.photo_source.value = settings.photo_source ?? 'all'
   for (const [key, fallback] of Object.entries(photoFilterDefaults)) {
     const value = settings[key] ?? fallback

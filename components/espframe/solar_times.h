@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cmath>
+#include <cstdio>
+#include <string>
 
 // ============================================================================
 // NOAA sunrise/sunset calculator
@@ -11,6 +13,15 @@
 
 static constexpr float DEG_TO_RAD = M_PI / 180.0f;
 static constexpr float RAD_TO_DEG = 180.0f / M_PI;
+
+inline std::string format_time_12h(int h, int m) {
+  char buf[16];
+  const char *suffix = (h >= 12) ? "PM" : "AM";
+  int dh = h % 12;
+  if (dh == 0) dh = 12;
+  std::snprintf(buf, sizeof(buf), "%d:%02d %s", dh, m, suffix);
+  return buf;
+}
 
 inline bool calc_sunrise_sunset(int year, int month, int day,
                                 float lat, float lon, float tz_offset,

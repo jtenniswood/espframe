@@ -17,10 +17,7 @@ constexpr int receive_wait_ms = 250;
 
 }  // namespace
 
-ImmichHttp::~ImmichHttp() {
-  if (client_)
-    esp_http_client_cleanup(client_);
-}
+ImmichHttp::~ImmichHttp() { reset(); }
 
 bool ImmichHttp::init_(const char *url, const char *api_key) {
   esp_http_client_config_t config{};
@@ -45,6 +42,14 @@ void ImmichHttp::disconnect() {
   if (client_) {
     esp_http_client_close(client_);
     esp_http_client_clear_response_buffer(client_);
+  }
+}
+
+void ImmichHttp::reset() {
+  reusable_ = false;
+  if (client_) {
+    esp_http_client_cleanup(client_);
+    client_ = nullptr;
   }
 }
 

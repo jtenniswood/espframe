@@ -386,7 +386,8 @@ def check_web_ui_metadata(product: dict, web_template: str, web_text: str, error
         require_contains(text, "switchTab(t.id)", label, errors)
         require_contains(text, 'els["tab_" + t]', label, errors)
         require_contains(text, "buildLogsPage(root)", label, errors)
-        require_contains(text, "appendLog(d.msg || e.data, d.lvl)", label, errors)
+        if not re.search(r"\bappendLog\((d\d*)\.msg \|\| e\.data, \1\.lvl\)", text):
+            errors.append(f"{label} must preserve the log message fallback and severity")
         require_contains(text, "ANSI_LEVEL", label, errors)
         require_contains(text, "sp-log-error", label, errors)
         require_contains(text, "sp-log-warn", label, errors)

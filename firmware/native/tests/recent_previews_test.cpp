@@ -48,6 +48,9 @@ int main() {
   mixed.remember_prepared(slide, tiny);
   const RecentPreviews::PreparedKey cropped{id(1), id(2), DisplayMode::Fill};
   const RecentPreviews::PreparedKey portrait{id(1), id(2), DisplayMode::Fit, PhotoOrientation::Portrait};
+  const RecentPreviews::PreparedKey reversed{id(1), id(2), DisplayMode::Fit, PhotoOrientation::Any,
+                                             ScreenRotation::UpsideDown};
+  assert(mixed.find(reversed).empty());
   assert(mixed.find(cropped).empty() && mixed.find(portrait).empty());
   mixed.remember_prepared(cropped, std::array<uint8_t, 1>{42});
   assert(mixed.find(slide).front() == 8 && mixed.find(cropped).front() == 42);

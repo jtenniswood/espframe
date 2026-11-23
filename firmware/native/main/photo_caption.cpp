@@ -12,8 +12,6 @@ constexpr size_t index_entry_size = 6;
 // Each glyph stores its advance, two four-byte bounds, then the face and shadow masks.
 constexpr size_t glyph_header_size = 9;
 constexpr int side_margin = 45;
-constexpr int right = slide_width - side_margin;
-constexpr int bottom = slide_height - 50;
 constexpr int line_height = 38;
 constexpr int line_gap = 4;
 constexpr int clock_gap = 24;
@@ -119,22 +117,22 @@ void draw_line(uint16_t *frame, std::span<const uint8_t> atlas, const PhotoCapti
                ScreenRotation rotation, uint8_t opacity, bool shadow) {
   if (!line.width)
     return;
-  const int step = -axis_direction(rotation);
+  const Viewport viewport{rotation};
   const int padding = shadow ? shadow_padding : 0;
-  int x = right - line.width - padding;
+  int x = viewport.width - side_margin - line.width - padding;
   const auto draw = [&](const uint8_t *glyph) {
     const auto *bounds = glyph + (shadow ? 5 : 1);
     const auto *mask = glyph + glyph_header_size + (shadow ? mask_size(glyph + 1) : 0);
     const int stride = (bounds[2] + 1) / 2;
-    const int first_column = panel_width - 1 - top + padding - bounds[1];
+    const int y = top - padding + bounds[1];
     for (int column = 0; column < bounds[2]; ++column) {
-      auto *pixels = frame + panel_offset(x + bounds[0] + column, first_column, rotation);
+      auto *pixels = frame + viewport.offset(x + bounds[0] + column, y);
       for (int row = 0; row < bounds[3]; ++row) {
         const auto packed = mask[row * stride + column / 2];
         const unsigned coverage = column % 2 ? packed & 15 : packed >> 4;
         const unsigned alpha = (coverage * opacity + 7) / PhotoCaptionFade::opaque;
         if (alpha)
-          pixels[row * step] = paint(pixels[row * step], alpha, !shadow);
+          pixels[row * viewport.y_stride] = paint(pixels[row * viewport.y_stride], alpha, !shadow);
       }
     }
     x += glyph[0];
@@ -195,11 +193,15 @@ int PhotoCaption::band_rows() const {
   return width ? side_margin + width + shadow_padding : 0;
 }
 
+bool PhotoCaption::fits_beside_clock(ScreenRotation rotation) const {
+  return band_rows() <= Viewport{rotation}.width - (ClockOverlay::first_row + ClockOverlay::rows + clock_gap);
+}
+
 PhotoCaption prepare_photo_caption(std::span<const uint8_t> locations, std::span<const uint8_t> dates,
                                    const PhotoMetadata &metadata, const PhotoMetadataSettings &settings,
-                                   bool show_clock, const std::optional<std::tm> &local) {
+                                   bool show_clock, const std::optional<std::tm> &local, ScreenRotation rotation) {
   const int left = (show_clock ? ClockOverlay::first_row + ClockOverlay::rows + clock_gap : side_margin) + shadow_padding;
-  const int line_width = right - left;
+  const int line_width = Viewport{rotation}.width - side_margin - left;
   PhotoCaption caption;
   caption.date = layout_line(dates, photo_caption_date(metadata, settings, local), line_width);
   if (settings.show_location) {
@@ -221,7 +223,7 @@ void paint_photo_caption(uint16_t *frame, std::span<const uint8_t> locations, st
                          const PhotoCaption &caption, ScreenRotation rotation, uint8_t opacity) {
   if (!opacity)
     return;
-  const int date_top = bottom - line_height;
+  const int date_top = Viewport{rotation}.height - 50 - line_height;
   const int location_top = caption.date.width ? date_top - line_height - line_gap : date_top;
   for (const bool shadow : {true, false}) {
     draw_line(frame, dates, caption.date, date_top, rotation, opacity, shadow);

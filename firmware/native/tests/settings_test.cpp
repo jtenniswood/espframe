@@ -388,12 +388,14 @@ int main() {
   assert(legacy.display_mode == DisplayMode::Fit);
   assert(legacy.photo_orientation == espframe::native::PhotoOrientation::Any);
   assert(legacy.screen_rotation == ScreenRotation::Normal);
+  assert(!legacy.developer_features_enabled);
   assert(!legacy.clock.show && legacy.clock.format == "24 Hour");
   assert((legacy.clock.ntp_servers == std::array<std::string, 3>{"pool.ntp.org", "", ""}));
   assert(!legacy.schedule.enabled && legacy.schedule.on_hour == 6 && legacy.schedule.off_hour == 23 &&
          legacy.schedule.wake_seconds == 60);
   assert(legacy.web_password.empty());
-  assert(!Settings::save_playback(R"({"immich_url":"http://new.local"})"));
+  assert(Settings::save_playback(R"({"immich_url":"http://new.local"})"));
+  assert(legacy.read() && legacy.immich_url == "http://new.local/api");
 
   assert(Settings::save(R"({"ssid":"Photo Lab","password":"wifi secret",
                            "immich_url":"https://photos.test/api/","immich_key":"first-key",
@@ -580,14 +582,10 @@ int main() {
   assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(values, "transition")) == std::string("Cross Fade"));
   assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(values, "transition_speed")) == std::string("Fast"));
   assert(!cJSON_HasObjectItem(values, "api_key") && !cJSON_HasObjectItem(values, "immich_key") &&
-         !cJSON_HasObjectItem(values, "web_password") && !cJSON_HasObjectItem(values, "password") &&
-         !cJSON_HasObjectItem(values, "photo_source"));
-  bool source_unavailable = false;
-  const cJSON *key;
-  cJSON_ArrayForEach(key, cJSON_GetObjectItemCaseSensitive(snapshot.get(), "unavailable")) {
-    source_unavailable |= cJSON_GetStringValue(key) == std::string("photo_source");
-  }
-  assert(source_unavailable);
+         !cJSON_HasObjectItem(values, "web_password") && !cJSON_HasObjectItem(values, "password"));
+  assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(values, "photo_source")) == std::string_view("Memories"));
+  assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(values, "immich_filter_support")) ==
+         std::string_view("unknown"));
 
   const auto form = decode_configuration_form(
       "configuration=%7B%22values%22%3A%7B%22interval%22%3A%2230+seconds%22%2C%22api_key%22%3A%22new%2B%26key%22%7D%7D");
@@ -607,7 +605,9 @@ int main() {
   for (const auto *invalid : {
            R"({"api_version":2,"values":{"brightness_day":50}})",
            R"({"reset_epoch":1,"values":{"brightness_day":50}})",
-           R"({"values":{"brightness_day":50,"photo_source":"Custom"}})",
+           R"({"values":{"brightness_day":50,"photo_source":"custom"}})",
+           R"({"values":{"brightness_day":50,"photo_source":"Memories","photo_source":"Custom"}})",
+           R"({"values":{"brightness_day":50,"album_labels":true}})",
            R"({"values":{"brightness_day":50,"screen_rotation":"90"}})",
            R"({"values":{"brightness_day":50,"portrait_pairs_only":"true"}})",
            R"({"values":{"brightness_day":50,"transition":"Dissolve"}})",
@@ -696,10 +696,17 @@ int main() {
   const auto stale = update_configuration(R"({"reset_epoch":0,"values":{"brightness_day":83}})");
   assert(std::string_view(stale.status) == "409 Conflict" && stored == after_reset);
   assert(!Settings::save_playback(R"({"reset_epoch":0,"immich_url":"http://stale.test","immich_key":"stale-key"})"));
-  assert(update_configuration(R"({"reset_epoch":1,"values":{"immich_url":"http://photos.test"}})").error);
-  assert(stored == after_reset);
-  assert(!update_configuration(R"({"reset_epoch":1,"values":{"immich_url":"http://photos.test","api_key":"fresh-key"}})").error);
-  assert(current.read() && current.immich_key == "fresh-key" && current.reset_epoch == 1);
+  const auto restored_draft = update_configuration(R"({"reset_epoch":1,"values":{
+      "immich_url":"http://photos.test","brightness_day":83,"portrait_pair_framing":"Fill"}})");
+  assert(!restored_draft.error && restored_draft.restart_required);
+  assert(current.read() && !current.has_immich() && current.immich_url == "http://photos.test/api");
+  const Json incomplete(configuration_snapshot(current), cJSON_Delete);
+  assert(cJSON_IsFalse(cJSON_GetObjectItemCaseSensitive(incomplete.get(), "api_key_configured")));
+  assert(update_configuration(R"({"reset_epoch":1,"values":{
+      "prepared_slide_url":"https://prepare.test","prepared_slide_token":"0123456789abcdef0123456789abcdef"}})").error);
+  assert(!update_configuration(R"({"reset_epoch":1,"values":{"api_key":"fresh-key"}})").error);
+  assert(current.read() && current.has_immich() && current.immich_key == "fresh-key" && current.reset_epoch == 1);
+  assert(current.brightness_day == 83 && current.pair_framing == espframe::native::PairFraming::Fill);
   assert(Settings::save_wifi(*new_wifi, 1));
   assert(Settings::save(R"({"immich_url":"http://photos.test","immich_key":"reprovisioned","reset_epoch":0,"reset_epoch":2})"));
   assert(current.read() && current.immich_key == "reprovisioned" && current.reset_epoch == 1);
@@ -737,7 +744,6 @@ int main() {
   assert(current.screen_rotation == ScreenRotation::Normal && current.brightness_day == 64);
   assert(!Settings::save_playback(R"({"immich_url":"http://old.test","immich_key":"old-key"})"));
   assert(!Settings::save(R"({"immich_url":"http://photos.test","immich_key":"fresh-key"})"));
-  assert(reset_configuration(ResetMode::Factory).error);
   const auto after_factory_reset = stored;
   assert(!Settings::save_wifi(*new_wifi, 1));
   assert(!Settings::save(R"({"ssid":"Photo Lab","password":"old-password","immich_url":"http://old.test",
@@ -805,8 +811,56 @@ int main() {
   assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(
       cJSON_GetObjectItemCaseSensitive(orientation_snapshot.get(), "values"), "photo_orientation")) ==
       std::string_view("Portrait Only"));
+  const auto enable_developer = update_configuration(R"({"values":{"developer_features_enabled":true}})");
+  assert(!enable_developer.error && !enable_developer.restart_required);
+  assert(current.read() && current.developer_features_enabled && current.screen_rotation == ScreenRotation::UpsideDown);
+  using espframe::native::active_screen_brightness;
+  using espframe::native::active_screen_schedule;
+  using espframe::native::ScreenBrightness;
+  using espframe::native::ScreenScheduleSettings;
+  const auto live_display = update_configuration(R"({"values":{"brightness_day":72,"brightness_night":54,
+      "schedule_enabled":true,"schedule_on_hour":19,"schedule_off_hour":7,"schedule_wake_timeout":61}})");
+  assert(!live_display.error && !live_display.restart_required);
+  assert((active_screen_brightness.load() == ScreenBrightness{72, 54}));
+  const auto awake_hours = ScreenScheduleSettings::unpack(active_screen_schedule.load());
+  assert(awake_hours.enabled && awake_hours.on_hour == 19 && awake_hours.off_hour == 7 && awake_hours.wake_seconds == 61);
+  assert(current.read() && current.brightness_day == 72 && current.night_brightness() == 54);
+  fail_commit = true;
+  assert(update_configuration(R"({"values":{"brightness_day":76,"schedule_wake_timeout":600}})").error);
+  fail_commit = false;
+  assert((active_screen_brightness.load() == ScreenBrightness{72, 54}));
+  assert(active_screen_schedule.load() == awake_hours.packed());
+  const auto selection_before_rotation = espframe::native::photo_selection_revision.load();
+  const auto rotate = update_configuration(R"({"values":{"screen_rotation":"90","portrait_pairing":true}})");
+  assert(!rotate.error && !rotate.restart_required);
+  assert(espframe::native::requested_screen_rotation.load() == ScreenRotation::Clockwise);
+  assert(espframe::native::photo_selection_revision.load() == selection_before_rotation);
+  assert(current.read() && current.screen_rotation == ScreenRotation::Clockwise && !current.portrait_pairing);
+  assert(!update_configuration(R"({"values":{"portrait_pairing":true}})").error);
+  assert(current.read() && !current.portrait_pairing && !current.requires_portrait_pair());
+  fail_commit = true;
+  assert(update_configuration(R"({"values":{"screen_rotation":"270"}})").error);
+  fail_commit = false;
+  assert(espframe::native::requested_screen_rotation.load() == ScreenRotation::Clockwise);
+  assert(!update_configuration(R"({"values":{"screen_rotation":"270"}})").error);
+  assert(espframe::native::requested_screen_rotation.load() == ScreenRotation::Counterclockwise);
+  assert(current.read() && current.screen_rotation == ScreenRotation::Counterclockwise);
+  const Json rotated_snapshot(configuration_snapshot(current), cJSON_Delete);
+  const auto *rotated_values = cJSON_GetObjectItemCaseSensitive(rotated_snapshot.get(), "values");
+  assert(cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(rotated_values, "developer_features_enabled")));
+  assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(rotated_values, "screen_rotation")) == std::string_view("270"));
+  const auto disable_developer = update_configuration(R"({"values":{"developer_features_enabled":false}})");
+  assert(!disable_developer.error && !disable_developer.restart_required);
+  assert(espframe::native::requested_screen_rotation.load() == ScreenRotation::Normal);
+  assert(current.read() && !current.developer_features_enabled && current.screen_rotation == ScreenRotation::Normal &&
+         !current.portrait_pairing);
+  // A stock backup may restore the fields in any order.
+  assert(!update_configuration(R"({"values":{"screen_rotation":"90","portrait_pairing":true,
+                                             "developer_features_enabled":true}})").error);
+  assert(current.read() && current.screen_rotation == ScreenRotation::Clockwise && !current.portrait_pairing);
   assert(!reset_configuration(ResetMode::Customization).error);
-  assert(current.read() && current.photo_orientation == PhotoOrientation::Any);
+  assert(current.read() && current.photo_orientation == PhotoOrientation::Any &&
+         !current.developer_features_enabled && current.screen_rotation == ScreenRotation::Normal);
 
   using espframe::native::decode_identity_form;
   using espframe::native::make_frame_identity;
@@ -957,7 +1011,14 @@ int main() {
   assert(!restart_required && photo_source_revision.load() == before_live + 2);
   assert(Settings::save_playback(R"({"immich_url":"http://fresh.test","immich_key":"replacement-key","display_mode":"Fit"})",
                                  &restart_required));
-  assert(restart_required && photo_source_revision.load() == before_live + 2);
+  assert(!restart_required && photo_source_revision.load() == before_live + 3);
+  assert(photo_selection_revision.load() == before_live + 3);
+  assert(!Settings::take_live_photo_feed(before_live + 2));
+  fail_commit = true;
+  assert(update_configuration(R"({"values":{"immich_url":"https://failed.test","api_key":"failed-key"}})").error);
+  fail_commit = false;
+  assert(!update_configuration(R"({"values":{"immich_url":"http://fresh.test/api/"}})").restart_required);
+  assert(photo_source_revision.load() == before_live + 3);
 
   const auto before_queued_saves = photo_source_revision.load();
   assert(!update_configuration(R"({"values":{"photo_orientation":"Any"}})").restart_required);
@@ -968,6 +1029,19 @@ int main() {
   const auto coalesced = Settings::take_live_photo_feed(before_queued_saves + 2);
   assert(coalesced && coalesced->photo_orientation == PhotoOrientation::Any &&
          coalesced->pair_display_mode() == DisplayMode::Fit);
+  assert(coalesced->pending_connection && coalesced->pending_connection->immich_url == "http://fresh.test/api" &&
+         coalesced->pending_connection->immich_key == "replacement-key");
+  assert(!Settings::take_live_photo_feed(before_queued_saves + 2));
+
+  const auto replacement = update_configuration(
+      R"({"values":{"immich_url":"https://new-photos.test/immich","api_key":"new-server-key"}})");
+  assert(!replacement.error && !replacement.restart_required);
+  const auto new_revision = photo_source_revision.load();
+  assert(new_revision == before_queued_saves + 3 && photo_selection_revision.load() == new_revision);
+  const auto reconnected = Settings::take_live_photo_feed(new_revision);
+  assert(reconnected && reconnected->pending_connection &&
+         reconnected->pending_connection->immich_url == "https://new-photos.test/immich/api" &&
+         reconnected->pending_connection->immich_key == "new-server-key");
 
   using esphome::espframe::SlideTransition;
   using espframe::native::active_clock_twelve_hour;
@@ -996,17 +1070,24 @@ int main() {
   assert(mixed_photo_feed && mixed_photo_feed->display_mode == DisplayMode::Fill);
 
   const auto clock_timezone = update_configuration(R"json({"values":{"clock_format":"12 Hour",
-      "timezone":"America/New_York (GMT-5)"}})json");
-  assert(!clock_timezone.error && clock_timezone.restart_required && !active_clock_twelve_hour.load());
-  assert(current.read() && current.clock.twelve_hour());
-  current.publish_live_presentation();
+      "timezone":"America/New_York (GMT-5)","show_clock":true}})json");
+  assert(!clock_timezone.error && !clock_timezone.restart_required && active_clock_twelve_hour.load());
+  assert(current.read() && current.clock.twelve_hour() && current.clock.show);
+  assert(espframe::native::active_clock_visible.load());
+  const auto *new_york = espframe::native::find_clock_zone("America/New_York (GMT-5)");
+  assert(new_york && espframe::native::requested_clock_zone.load() == new_york);
+  assert(photo_source_revision.load() == photo_revision_before_appearance + 2);
+  assert(Settings::take_live_photo_feed(photo_revision_before_appearance + 2));
   assert(active_clock_twelve_hour.load() && active_playback_transition.load().random);
 
+  auto ntp_revision = espframe::native::ntp_settings_revision.load();
   const auto ntp_change = update_configuration(R"({"values":{"ntp_server_1":" time.example.test ",
       "ntp_server_2":"","ntp_server_3":"2001:db8::5"}})");
-  assert(!ntp_change.error && ntp_change.restart_required);
+  assert(!ntp_change.error && !ntp_change.restart_required);
   const auto expected_servers = std::array<std::string, 3>{"time.example.test", "", "2001:db8::5"};
   assert(current.read() && current.clock.ntp_servers == expected_servers);
+  assert(espframe::native::updated_ntp_servers(ntp_revision) == expected_servers);
+  assert(!espframe::native::updated_ntp_servers(ntp_revision));
   const Json ntp_snapshot(configuration_snapshot(current), cJSON_Delete);
   const auto *ntp_values = cJSON_GetObjectItemCaseSensitive(ntp_snapshot.get(), "values");
   assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(ntp_values, "ntp_server_1")) ==
@@ -1017,6 +1098,12 @@ int main() {
          expected_servers[2]);
   assert(update_configuration(R"({"values":{"ntp_server_2":"https://other.test"}})").error);
   assert(current.read() && current.clock.ntp_servers == expected_servers);
+  fail_commit = true;
+  assert(update_configuration(R"json({"values":{"ntp_server_2":"time2.example.test",
+      "timezone":"Europe/London (GMT+0)","show_clock":false}})json").error);
+  fail_commit = false;
+  assert(!espframe::native::updated_ntp_servers(ntp_revision));
+  assert(espframe::native::active_clock_visible.load() && espframe::native::requested_clock_zone.load() == new_york);
 
   using espframe::native::active_connection_timeout;
   assert(active_connection_timeout.load() == 600);
@@ -1104,6 +1191,20 @@ int main() {
          filtered.photo_filters.criteria.favorites_enabled &&
          filtered.photo_filters.criteria.favorite_mode == "Exclude favorites");
   assert(active_photo_preset.load() == PhotoPreset::Custom);
+  const auto label_revision = photo_source_revision.load();
+  auto label_save = update_configuration(R"({"values":{"person_labels":"[\"Family, Friends\"]"}})");
+  assert(!label_save.error && !label_save.restart_required && photo_source_revision.load() == label_revision);
+  assert(current.read());
+  const Json labeled(configuration_snapshot(current), cJSON_Delete);
+  const auto *labeled_values = cJSON_GetObjectItemCaseSensitive(labeled.get(), "values");
+  assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(labeled_values, "person_labels")) ==
+         std::string_view(R"(["Family, Friends"])"));
+  const auto labeled_document = stored;
+  const std::string oversized_label = "{\"values\":{\"person_labels\":\"" + std::string(256, 'x') + "\"}}";
+  assert(update_configuration(oversized_label.c_str()).error && stored == labeled_document);
+  label_save = update_configuration(R"({"values":{"person_labels":""}})");
+  assert(!label_save.error && !label_save.restart_required && photo_source_revision.load() == label_revision);
+  assert(current.read() && current.photo_filters.labels[1].empty());
 
   save_filter_frame("album");
   assert(current.read() && !current.photo_filters.criteria.albums_enabled &&
@@ -1123,6 +1224,18 @@ int main() {
   assert(composed_album.photo_source.mode == PhotoSourceMode::Custom && composed_album.photo_filters.criteria.albums_enabled);
   assert(composed_album.photo_filters.criteria.album_ids == "11111111-1111-4111-8111-111111111111");
   assert(composed_album.photo_filters.criteria.location_enabled && composed_album.photo_filters.criteria.city == "London");
+
+  save_filter_frame("album");
+  const auto memories_with_album = apply_shared_filters(R"({"values":{"photo_source":"Memories"}})");
+  assert(memories_with_album.photo_source.mode == PhotoSourceMode::Memories);
+  assert(memories_with_album.photo_filters.criteria.albums_enabled &&
+         memories_with_album.photo_filters.criteria.album_ids == "11111111-1111-4111-8111-111111111111");
+  const auto resumed_filters = apply_shared_filters(R"({"values":{"photo_source":"Custom"}})");
+  assert(resumed_filters.photo_source.mode == PhotoSourceMode::Custom && resumed_filters.photo_filters.criteria.albums_enabled);
+  const auto person_preset = apply_shared_filters(R"({"values":{"photo_source":"Person",
+      "person_ids":"22222222-2222-4222-8222-222222222222","person_labels":"Family"}})");
+  assert(person_preset.photo_source.preset() == PhotoPreset::Person && person_preset.photo_filters.criteria.people_enabled);
+  assert(!person_preset.photo_filters.criteria.albums_enabled && person_preset.photo_filters.labels[1] == "Family");
 
   save_filter_frame("album");
   assert(Settings::save_playback(R"({"immich_url":"http://fresh.test",
@@ -1237,7 +1350,8 @@ int main() {
   assert(!Settings::expire_warm_tone_override(current.clock.timezone, *tinted_feed));
   fail_commit = false;
   assert(active_warm_tone_override.load() && photo_source_revision.load() == before_tone + 1);
-  const auto awaiting_restart = update_configuration(R"({"values":{"brightness_day":70,"favorites_enabled":true}})");
+  const auto awaiting_restart = update_configuration(
+      R"({"values":{"frame_name":"Restarting frame","brightness_day":70,"favorites_enabled":true}})");
   assert(!awaiting_restart.error && awaiting_restart.restart_required);
   assert(Settings::expire_warm_tone_override(current.clock.timezone, *tinted_feed));
   assert(!active_warm_tone_override.load() && photo_source_revision.load() == before_tone + 2);
@@ -1302,13 +1416,92 @@ int main() {
   assert(cJSON_IsFalse(cJSON_GetObjectItemCaseSensitive(update_fields, "wifi_auto_update")));
   const auto *frequency = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(update_fields, "update_frequency"));
   assert(frequency && std::string_view(frequency) == "Weekly");
-  assert(update_configuration(R"({"values":{"auto_update":true}})").error);
+  const auto update_preferences = update_configuration(R"({"values":{"auto_update":true,"update_frequency":"Hourly"}})");
+  assert(!update_preferences.error && !update_preferences.restart_required);
+  assert(current.read() && current.stock_update_preferences.auto_update.value_or(false) &&
+         current.stock_update_preferences.frequency == "Hourly" && current.stock_update_preferences.wifi_auto_update == false);
+  assert(update_configuration(R"({"values":{"update_frequency":"On every boot"}})").error);
+  const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> update_snapshot(configuration_snapshot(current), cJSON_Delete);
+  const auto *update_values = cJSON_GetObjectItemCaseSensitive(update_snapshot.get(), "values");
+  assert(cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(update_values, "auto_update")));
+  assert(std::string_view(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(update_values, "update_frequency"))) == "Hourly");
   assert(Settings::reset(ResetMode::Customization));
-  assert(current.read() && current.stock_update_preferences.frequency == "Weekly");
+  assert(current.read() && current.stock_update_preferences.frequency == "Hourly");
   assert(Settings::reset(ResetMode::Factory));
   assert(current.read() && !current.stock_update_preferences.frequency && !current.stock_update_preferences.auto_update);
+
+  assert(Settings::save(R"({"ssid":"Test Wi-Fi","password":"test-wifi-key","immich_url":"https://photos.test",
+      "immich_key":"test-immich-key","web_password":"test-admin-password"})"));
+  assert(Settings::save(R"({"immich_url":"https://photos.test","immich_key":"test-immich-key","slide_seconds":30})"));
+  assert(current.read() && current.web_password == "test-admin-password" && current.slide_seconds == 30);
+  assert(Settings::save(R"({"immich_url":"https://photos.test","immich_key":"test-immich-key","web_password":"replacement-admin"})"));
+  assert(current.read() && current.web_password == "replacement-admin");
+  assert(update_configuration(R"({"values":{"photo_metadata_date_enabled":false}})").error == nullptr);
+  assert(!Settings::save(R"({"web_password":""})", current.reset_epoch + 1));
+  assert(Settings::save(R"({"web_password":""})", current.reset_epoch));
+  assert(current.read() && current.web_password.empty() && current.ssid == "Test Wi-Fi" &&
+         current.immich_key == "test-immich-key" && !current.metadata.show_date);
+  assert(update_configuration(R"({"values":{"photo_metadata_date_enabled":true}})").error == nullptr);
+  assert(current.read() && current.metadata.show_date);
+  assert(Settings::reset(ResetMode::Customization));
+  assert(current.read() && current.web_password.empty() && current.ssid == "Test Wi-Fi");
 
   verify_stock_pairing_migration();
   verify_stock_connection_migration();
   verify_setup_framing();
+
+  assert(Settings::save(R"({"immich_url":"http://photos.test","immich_key":"wifi-key","web_password":"wifi-settings",
+      "firmware_updates":{"auto_update":false,"update_frequency":"Weekly","wifi_auto_update":false}})"));
+  const auto wifi_preference = update_configuration(R"({"values":{"c6_auto_update":true}})");
+  assert(!wifi_preference.error && !wifi_preference.restart_required);
+  assert(update_configuration(R"({"values":{"c6_auto_update":"false"}})").error);
+  assert(current.read() && current.stock_update_preferences.wifi_auto_update == true &&
+         current.stock_update_preferences.auto_update == false && current.stock_update_preferences.frequency == "Weekly");
+  const Json wifi_snapshot(configuration_snapshot(current), cJSON_Delete);
+  assert(cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(wifi_snapshot.get(), "values"),
+                                                     "c6_auto_update")));
+  const auto wireguard = update_configuration(R"({"values":{"wireguard_enabled":true,
+      "wireguard_endpoint":"vpn.example.test","wireguard_port":51821,"wireguard_address":"10.10.0.10",
+      "wireguard_netmask":"255.255.255.0","wireguard_allowed_ips":"10.10.0.25/24; 10.10.0.1",
+      "wireguard_peer_public_key":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      "wireguard_private_key":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBA="}})");
+  assert(!wireguard.error && !wireguard.restart_required);
+  assert(update_configuration(R"({"values":{"wireguard_port":0,"wireguard_enabled":false}})").error);
+  assert(update_configuration(R"({"values":{"wireguard_private_key":"invalid"}})").error);
+  assert(current.read() && current.wireguard.enabled && current.wireguard.port == 51821 &&
+         current.wireguard.allowed_ips == "10.10.0.0/24, 10.10.0.1/32");
+  const auto saved_tunnel = current.wireguard;
+  const Json tunnel_snapshot(configuration_snapshot(current), cJSON_Delete);
+  const auto *tunnel_values = cJSON_GetObjectItemCaseSensitive(tunnel_snapshot.get(), "values");
+  const auto *tunnel_secrets = cJSON_GetObjectItemCaseSensitive(tunnel_snapshot.get(), "secrets_configured");
+  assert(!cJSON_HasObjectItem(tunnel_values, "wireguard_private_key") &&
+         cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(tunnel_secrets, "wireguard_private_key")));
+  assert(Settings::save(R"({"immich_url":"http://photos.test","immich_key":"wifi-key","web_password":"wifi-settings"})"));
+  assert(current.read() && current.wireguard == saved_tunnel);
+  assert(!update_configuration(R"({"values":{"wireguard_private_key":""}})").error);
+  assert(current.read() && current.wireguard.private_key.empty() && current.wireguard.endpoint == "vpn.example.test");
+  assert(Settings::reset(ResetMode::Customization));
+  assert(current.read() && !current.wireguard.enabled && current.wireguard.endpoint.empty());
+  const auto stored = Settings::storage_revision();
+  assert(!update_configuration(R"({"values":{"brightness_day":70}})").error);
+  assert(Settings::storage_revision() == stored + 1);
+  assert(!update_configuration(R"({"values":{"brightness_day":70}})").error);
+  assert(Settings::storage_revision() == stored + 1);
+  fail_commit = true;
+  assert(update_configuration(R"({"values":{"brightness_day":75}})").error);
+  fail_commit = false;
+  assert(Settings::storage_revision() == stored + 1);
+
+  espframe::native::FrameStatusStore live_status;
+  assert(!live_status.solar_times());
+  live_status.set_solar_times(espframe::native::SolarTimes{390, 1145});
+  const Json solar_snapshot(configuration_snapshot(current, live_status.solar_times()), cJSON_Delete);
+  const auto *solar_values = cJSON_GetObjectItemCaseSensitive(solar_snapshot.get(), "values");
+  assert(std::string_view(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(solar_values, "sunrise"))) == "6:30 AM");
+  assert(std::string_view(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(solar_values, "sunset"))) == "7:05 PM");
+  live_status.set_solar_times({});
+  const Json syncing_snapshot(configuration_snapshot(current, live_status.solar_times()), cJSON_Delete);
+  const auto *syncing_values = cJSON_GetObjectItemCaseSensitive(syncing_snapshot.get(), "values");
+  assert(std::string_view(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(syncing_values, "sunrise"))).empty());
+  assert(update_configuration(R"({"values":{"sunrise":"6:10 AM"}})").error);
 }

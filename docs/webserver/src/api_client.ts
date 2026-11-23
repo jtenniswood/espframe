@@ -114,9 +114,33 @@ export class EspframeApiClient {
   }
 
   async getConfigurationSnapshot(): Promise<ConfigurationSnapshot> {
+    const result = await this.pollConfiguration();
+    if (!result) throw new EspframeApiError("server", "invalid_configuration_snapshot");
+    this.useConfigurationSnapshot(result.snapshot);
+    return result.snapshot;
+  }
+
+  useConfigurationSnapshot(snapshot: ConfigurationSnapshot): void {
+    this.resetEpoch = snapshot.reset_epoch;
+  }
+
+  async pollConfiguration(etag?: string): Promise<{ snapshot: ConfigurationSnapshot; etag?: string } | null> {
     const capabilities = await this.negotiate();
     if (!capabilities) throw new EspframeApiError("unavailable", "configuration_api_unavailable");
-    const payload = await this.requestJson(capabilities.configuration_path, { cache: "no-store" }, "configuration_api_failed");
+    const result = await this.requestWith(capabilities.configuration_path, {
+      cache: "no-store", headers: etag ? { "If-None-Match": etag } : undefined,
+    }, async response => {
+      if (etag && response.status === 304) return null;
+      return {
+        payload: await this.json(response, "configuration_api_failed"),
+        etag: response.headers?.get("ETag") || undefined,
+      };
+    });
+    if (!result) return null;
+    return { snapshot: this.parseConfiguration(result.payload, capabilities), etag: result.etag };
+  }
+
+  private parseConfiguration(payload: unknown, capabilities: ConfigurationCapabilities): ConfigurationSnapshot {
     if (!object(payload) || payload.api_version !== capabilities.api_version ||
         (capabilities.reset_path && !Number.isInteger(payload.reset_epoch)) || !object(payload.values) ||
         !Array.isArray(payload.unavailable) || !payload.unavailable.every(value => typeof value === "string")) {
@@ -145,10 +169,9 @@ export class EspframeApiClient {
         secretsConfigured[key] = value;
       }
     }
-    this.resetEpoch = Number.isInteger(payload.reset_epoch) ? payload.reset_epoch as number : 0;
     return {
       api_version: capabilities.api_version,
-      reset_epoch: this.resetEpoch,
+      reset_epoch: Number.isInteger(payload.reset_epoch) ? payload.reset_epoch as number : 0,
       api_key_configured: apiKeyConfigured,
       secrets_configured: secretsConfigured,
       values,
@@ -196,7 +219,7 @@ export class EspframeApiClient {
         await new Promise(resolve => setTimeout(resolve, 100));
         return payload as unknown as ConfigurationUpdateResponse;
       } catch (error) {
-        if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
+        if (!capabilities.legacy_entity_api || !(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
         this.negotiated = null;
         for (const setting of legacy) await this.legacyWrite(setting);
         return null;

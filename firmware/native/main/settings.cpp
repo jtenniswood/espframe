@@ -7,6 +7,7 @@
 #include "playback_transition.h"
 #include "slideshow_interval.h"
 #include "slideshow_transition.h"
+#include "wireguard_helpers.h"
 
 #include "cJSON.h"
 #include "nvs.h"
@@ -14,6 +15,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstring>
 #include <initializer_list>
 #include <limits>
@@ -32,6 +34,7 @@ constexpr size_t legacy_max_json_size = 3072;
 constexpr auto new_setup_framing = DisplayMode::Fill;
 constexpr std::array ntp_fields{"ntp_server_1", "ntp_server_2", "ntp_server_3"};
 std::mutex storage_mutex;
+std::atomic<uint32_t> revision{};
 std::optional<PhotoFeedSettings> published_feed;
 
 bool load_string(nvs_handle_t storage, const char *key, std::string &value, size_t maximum) {
@@ -61,6 +64,12 @@ bool valid_immich_key(std::string_view key) {
 }
 
 bool normalize(Settings &settings) {
+  if (portrait_screen(settings.screen_rotation)) {
+    if (settings.developer_features_enabled)
+      settings.portrait_pairing = false;
+    else
+      settings.screen_rotation = ScreenRotation::Normal;
+  }
   std::string name;
   if (!esphome::espframe::normalize_frame_name(settings.frame_name, name))
     return false;
@@ -85,9 +94,9 @@ bool normalize(Settings &settings) {
     return false;
   }
   auto &url = settings.immich_url;
-  if (url.empty() && settings.immich_key.empty())
-    return !settings.has_prepared_slides();
-  if (!settings.has_immich() || !normalize_http_base(url))
+  if (url.empty())
+    return settings.immich_key.empty() && !settings.has_prepared_slides();
+  if (!normalize_http_base(url) || (settings.has_prepared_slides() && !settings.has_immich()))
     return false;
   if (url.find('/', url.find("://") + 3) == std::string::npos || !url.ends_with("/api"))
     url += "/api";
@@ -141,6 +150,56 @@ bool read_flag(const cJSON *root, const char *name, bool &enabled) {
     return false;
   enabled = cJSON_IsTrue(field);
   return true;
+}
+
+bool read_wireguard_fields(const cJSON *root, WireguardSettings &config) {
+  struct Field {
+    const char *key;
+    std::string WireguardSettings::*member;
+    bool (*valid)(const std::string &);
+  };
+  constexpr Field fields[]{
+      {"wireguard_endpoint", &WireguardSettings::endpoint, espframe_is_valid_wireguard_endpoint},
+      {"wireguard_address", &WireguardSettings::address, espframe_is_valid_wireguard_address},
+      {"wireguard_netmask", &WireguardSettings::netmask, espframe_is_valid_ipv4_netmask},
+      {"wireguard_peer_public_key", &WireguardSettings::peer_public_key, espframe_is_valid_wireguard_key},
+      {"wireguard_private_key", &WireguardSettings::private_key, espframe_is_valid_wireguard_key},
+  };
+  for (const auto &field : fields) {
+    if (!cJSON_HasObjectItem(root, field.key))
+      continue;
+    auto &value = config.*field.member;
+    if (!read_field(root, field.key, value))
+      return false;
+    value = espframe_wireguard_trim(value);
+    if (!value.empty() && !field.valid(value))
+      return false;
+  }
+  if (cJSON_HasObjectItem(root, "wireguard_allowed_ips")) {
+    if (!read_field(root, "wireguard_allowed_ips", config.allowed_ips) || config.allowed_ips.size() > 100)
+      return false;
+    config.allowed_ips = espframe_wireguard_trim(config.allowed_ips);
+    if (!config.allowed_ips.empty()) {
+      config.allowed_ips = espframe_normalize_wireguard_allowed_ips(config.allowed_ips);
+      if (config.allowed_ips.empty())
+        return false;
+    }
+  }
+  return read_flag(root, "wireguard_enabled", config.enabled) &&
+         read_integer(root, "wireguard_port", 1, 65535, config.port);
+}
+
+bool read_saved_wireguard(const cJSON *root, WireguardSettings &config) {
+  const auto *saved = cJSON_GetObjectItemCaseSensitive(root, "wireguard");
+  return !saved || (cJSON_IsObject(saved) && read_wireguard_fields(saved, config));
+}
+
+bool add_saved_wireguard(cJSON *root, const WireguardSettings &config) {
+  if (config == WireguardSettings{})
+    return true;
+  auto *saved = cJSON_AddObjectToObject(root, "wireguard");
+  return saved && config.add_public_fields(saved) &&
+         cJSON_AddStringToObject(saved, "wireguard_private_key", config.private_key.c_str());
 }
 
 bool read_stock_update_preferences(const cJSON *root, StockUpdatePreferences &preferences) {
@@ -259,8 +318,12 @@ bool read_rotation(const cJSON *root, ScreenRotation &rotation) {
   const std::string_view value{text};
   if (value == "0")
     rotation = ScreenRotation::Normal;
+  else if (value == "90")
+    rotation = ScreenRotation::Clockwise;
   else if (value == "180")
     rotation = ScreenRotation::UpsideDown;
+  else if (value == "270")
+    rotation = ScreenRotation::Counterclockwise;
   else
     return false;
   return true;
@@ -327,6 +390,9 @@ constexpr std::pair<const char *, std::string ImmichFilterConfig::*> filter_plac
     {"filter_country", &ImmichFilterConfig::country}, {"filter_state", &ImmichFilterConfig::state},
     {"filter_city", &ImmichFilterConfig::city}};
 
+constexpr std::array filter_label_fields{"album_labels", "person_labels", "tag_labels",
+    "excluded_album_labels", "excluded_person_labels", "excluded_tag_labels"};
+
 constexpr std::array ratings{"Any", "1+", "2+", "3+", "4+", "5+"};
 
 bool read_choice(const cJSON *root, const char *key, std::string &value,
@@ -373,6 +439,12 @@ bool read_photo_filters(const cJSON *root, PhotoFilters &filters) {
     if (!read_field(root, key, criteria.*member, true) || !normalize_filter_ids(criteria.*member))
       return false;
   }
+  for (size_t i = 0; i < filter_label_fields.size(); ++i) {
+    auto &labels = filters.labels[i];
+    // Stock settings and backups can use either JSON text or comma-separated labels.
+    if (!read_field(root, filter_label_fields[i], labels, true) || labels.size() > 255)
+      return false;
+  }
   for (const auto &[key, member] : filter_places) {
     auto &value = criteria.*member;
     if (!read_field(root, key, value, true) || value.size() > 96 ||
@@ -395,7 +467,7 @@ bool read_photo_filters(const cJSON *root, PhotoFilters &filters) {
          read_choice(root, "favorite_mode", criteria.favorite_mode, {"Any", "Favorites only", "Exclude favorites"});
 }
 
-bool add_photo_filter_fields(cJSON *object, const PhotoFilters &filters) {
+bool add_photo_filter_fields(cJSON *object, const PhotoFilters &filters, bool include_empty_labels) {
   const auto &criteria = filters.criteria;
   for (const auto &[key, member] : filter_flags) {
     if (!cJSON_AddBoolToObject(object, key, criteria.*member))
@@ -403,6 +475,11 @@ bool add_photo_filter_fields(cJSON *object, const PhotoFilters &filters) {
   }
   for (const auto &[key, member] : filter_lists) {
     if (!cJSON_AddStringToObject(object, key, (criteria.*member).c_str()))
+      return false;
+  }
+  for (size_t i = 0; i < filter_label_fields.size(); ++i) {
+    if ((include_empty_labels || !filters.labels[i].empty()) &&
+        !cJSON_AddStringToObject(object, filter_label_fields[i], filters.labels[i].c_str()))
       return false;
   }
   for (const auto &[key, member] : filter_places) {
@@ -484,6 +561,7 @@ bool read_playback(const cJSON *root, Settings &settings) {
          read_transition(root, settings) && read_connection_timeout(root, settings.connection_timeout_seconds) &&
          read_display_mode(root, settings.display_mode) && read_orientation(root, settings.photo_orientation) &&
          read_rotation(root, settings.screen_rotation) &&
+         read_flag(root, "developer_features_enabled", settings.developer_features_enabled) &&
          read_source(root, settings.photo_source) && read_photo_filters(root, settings.photo_filters) &&
          read_capture_dates(root, settings.capture_dates) &&
          read_clock(root, settings.clock) && read_brightness(root, settings) &&
@@ -521,7 +599,8 @@ bool parse_all(const cJSON *root, Settings &settings) {
          read_field(root, "frame_name", settings.frame_name, true) &&
          read_integer(root, "reset_epoch", 0, std::numeric_limits<uint32_t>::max(), settings.reset_epoch) &&
          read_playback(root, settings) && read_saved_photo_preset(root, settings.photo_source) &&
-         read_stock_update_preferences(root, settings.stock_update_preferences) && normalize(settings);
+         read_stock_update_preferences(root, settings.stock_update_preferences) &&
+         read_saved_wireguard(root, settings.wireguard) && normalize(settings);
 }
 
 Json load_document(bool *may_create = nullptr) {
@@ -605,7 +684,10 @@ bool write(const char *json, bool clear_legacy) {
 
 bool write_document(const cJSON *document, bool clear_legacy = false) {
   const std::unique_ptr<char, decltype(&cJSON_free)> serialized(cJSON_PrintUnformatted(document), cJSON_free);
-  return serialized && write(serialized.get(), clear_legacy);
+  if (!serialized || !write(serialized.get(), clear_legacy))
+    return false;
+  revision.fetch_add(1, std::memory_order_release);
+  return true;
 }
 
 bool put_wifi(cJSON *document, const char *ssid, const char *password) {
@@ -643,6 +725,51 @@ PhotoFilters shared_photo_filters(const PhotoFeedSettings &settings) {
   return filters;
 }
 
+void apply_photo_preset(PhotoFeedSettings &settings, PhotoPreset preset) {
+  auto &source = settings.photo_source;
+  auto &criteria = settings.photo_filters.criteria;
+  source.legacy_preset.reset();
+  if (preset == PhotoPreset::Memories) {
+    source.mode = PhotoSourceMode::Memories;
+  } else if (preset == PhotoPreset::Custom) {
+    source.mode = PhotoSourceMode::Custom;
+  } else {
+    // Use the same preset behavior as the stock selector. Keep the saved
+    // inclusion lists so another preset can use them later.
+    criteria.albums_enabled = preset == PhotoPreset::Album;
+    criteria.people_enabled = preset == PhotoPreset::Person;
+    criteria.tags_enabled = preset == PhotoPreset::Tag;
+    criteria.favorites_enabled = preset == PhotoPreset::Favorites;
+    criteria.rating_enabled = criteria.location_enabled = false;
+    criteria.inclusion_matching = "Match all enabled groups";
+    criteria.album_matching = "Any selected album";
+    criteria.person_matching = "Any selected person";
+    criteria.tag_matching = "Any selected tag";
+    criteria.favorite_mode = criteria.favorites_enabled ? "Favorites only" : "Any";
+    criteria.minimum_rating = 0;
+    criteria.country.clear();
+    criteria.state.clear();
+    criteria.city.clear();
+    criteria.excluded_album_ids.clear();
+    criteria.excluded_person_ids.clear();
+    criteria.excluded_tag_ids.clear();
+    for (size_t i = 3; i < filter_label_fields.size(); ++i)
+      settings.photo_filters.labels[i].clear();
+    if (preset == PhotoPreset::All) {
+      source.mode = PhotoSourceMode::Library;
+    } else if (preset == PhotoPreset::Favorites) {
+      source.mode = PhotoSourceMode::Favorites;
+    } else if (preset == PhotoPreset::Album && !source.album_id.empty() &&
+               (criteria.album_ids.empty() || criteria.album_ids == source.album_id)) {
+      source.mode = PhotoSourceMode::Album;
+      criteria.album_ids = source.album_id;
+    } else {
+      source.mode = PhotoSourceMode::Custom;
+      source.legacy_preset = preset;
+    }
+  }
+}
+
 bool changes_photo_source(std::string_view key) {
   return key == "photo_source" || key == "album_id" || key == "album_order" || is_composable_filter(key);
 }
@@ -659,19 +786,24 @@ bool changes_photo_presentation(std::string_view key) {
   constexpr std::string_view options[]{
       "display_mode", "portrait_pair_framing", "photo_metadata_date_enabled", "photo_metadata_location_enabled",
       "photo_metadata_date_format", "photo_metadata_date_taken_format", "device_language", "base_tone_enabled", "base_tone",
-      "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"};
+      "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override", "show_clock", "timezone"};
   return std::ranges::find(options, key) != std::end(options);
 }
 
 bool changes_live_presentation(std::string_view key) {
   return key == "slide_seconds" || key == "clock_format" || key == "transition" || key == "transition_speed" ||
-         key == "conn_timeout";
+         key == "conn_timeout" || key == "screen_rotation" || key == "brightness_day" || key == "brightness_night" ||
+         key == "schedule_enabled" || key == "schedule_on_hour" || key == "schedule_off_hour" ||
+         key == "schedule_wake_timeout" || key == "show_clock" || key == "timezone" ||
+         std::ranges::find(ntp_fields, key) != std::end(ntp_fields);
 }
 
 void publish_photo_feed(PhotoFeedSettings &&feed, bool selection_changed) {
   active_photo_preset.store(feed.photo_source.preset(), std::memory_order_relaxed);
   active_warm_tone_override.store(feed.tone.night_override, std::memory_order_relaxed);
   active_device_language.store(feed.metadata.language, std::memory_order_relaxed);
+  if (published_feed && !feed.pending_connection)
+    feed.pending_connection = std::move(published_feed->pending_connection);
   published_feed = std::move(feed);
   const auto revision = photo_source_revision.load(std::memory_order_relaxed) + 1;
   // The last selection revision survives if another save publishes a
@@ -692,7 +824,7 @@ Settings::UpdateResult store_settings(Settings &settings, bool clear_legacy = fa
       (settings.home_assistant_key_set &&
        !cJSON_AddStringToObject(updated.get(), "home_assistant_key", settings.home_assistant_key.c_str())) ||
       !put_epoch(updated.get(), settings.reset_epoch) || !settings.add_playback_fields(updated.get()) ||
-      !settings.add_stock_update_preferences(updated.get()))
+      !settings.add_stock_update_preferences(updated.get()) || !add_saved_wireguard(updated.get(), settings.wireguard))
     return Result::Failed;
   if (!settings.brightness_night)
     cJSON_DeleteItemFromObjectCaseSensitive(updated.get(), "brightness_night");
@@ -722,6 +854,20 @@ bool Settings::read() {
   return true;
 }
 
+uint32_t Settings::storage_revision() {
+  return revision.load(std::memory_order_acquire);
+}
+
+bool WireguardSettings::add_public_fields(cJSON *object) const {
+  return cJSON_AddBoolToObject(object, "wireguard_enabled", enabled) &&
+         cJSON_AddNumberToObject(object, "wireguard_port", port) &&
+         cJSON_AddStringToObject(object, "wireguard_endpoint", endpoint.c_str()) &&
+         cJSON_AddStringToObject(object, "wireguard_address", address.c_str()) &&
+         cJSON_AddStringToObject(object, "wireguard_netmask", netmask.c_str()) &&
+         cJSON_AddStringToObject(object, "wireguard_allowed_ips", allowed_ips.c_str()) &&
+         cJSON_AddStringToObject(object, "wireguard_peer_public_key", peer_public_key.c_str());
+}
+
 bool Settings::save(const char *json, std::optional<uint32_t> expected_epoch) {
   return save_usb(json, expected_epoch) == UsbSaveResult::Saved;
 }
@@ -746,6 +892,15 @@ Settings::UsbSaveResult Settings::save_usb(const char *json, std::optional<uint3
   const auto epoch = configured ? saved.reset_epoch : 0;
   if (expected_epoch && *expected_epoch != epoch)
     return Result::Rejected;
+  const auto *web_password = cJSON_GetObjectItemCaseSensitive(document.get(), "web_password");
+  if (!request.any() && document->child == web_password && cJSON_IsString(web_password) && !web_password->next &&
+      !web_password->valuestring[0]) {
+    // A password-only USB request clears the credential while retaining the saved document.
+    if (!configured)
+      return Result::Rejected;
+    cJSON_DeleteItemFromObjectCaseSensitive(previous.get(), "web_password");
+    return write_document(previous.get()) ? Result::Saved : Result::Rejected;
+  }
   // A reset or unreadable native configuration blocks reimport. Existing
   // native connections and explicit pairing choices take precedence.
   const bool blocked = (!configured && !may_create) || epoch != 0;
@@ -776,6 +931,9 @@ Settings::UsbSaveResult Settings::save_usb(const char *json, std::optional<uint3
   if (configured && cJSON_HasObjectItem(previous.get(), "frame_name"))
     name = &saved.frame_name;
   if (!provided("frame_name") && name && !cJSON_AddStringToObject(document.get(), "frame_name", name->c_str()))
+    return Result::Rejected;
+  if (configured && !provided("web_password") && !saved.web_password.empty() &&
+      !cJSON_AddStringToObject(document.get(), "web_password", saved.web_password.c_str()))
     return Result::Rejected;
   if (!new_key && saved.home_assistant_key_set &&
       !cJSON_AddStringToObject(document.get(), "home_assistant_key", saved.home_assistant_key.c_str()))
@@ -808,6 +966,8 @@ Settings::UsbSaveResult Settings::save_usb(const char *json, std::optional<uint3
   Settings candidate;
   if (configured)
     candidate.stock_update_preferences = std::move(saved.stock_update_preferences);
+  if (configured && !provided("wireguard") && !add_saved_wireguard(document.get(), saved.wireguard))
+    return Result::Rejected;
   if (!put_epoch(document.get(), epoch) || !parse_all(document.get(), candidate) || !candidate.has_immich())
     return Result::Rejected;
   cJSON_DeleteItemFromObjectCaseSensitive(document.get(), "firmware_updates");
@@ -907,46 +1067,7 @@ bool Settings::save_photo_preset(PhotoPreset preset, std::string_view paired_key
   if (settings.photo_source.preset() == preset)
     return true;
 
-  auto &source = settings.photo_source;
-  auto &criteria = settings.photo_filters.criteria;
-  source.legacy_preset.reset();
-  if (preset == PhotoPreset::Memories) {
-    source.mode = PhotoSourceMode::Memories;
-  } else if (preset == PhotoPreset::Custom) {
-    source.mode = PhotoSourceMode::Custom;
-  } else {
-    // Use the same preset behavior as the stock selector. Keep the saved
-    // inclusion lists so another preset can use them later.
-    criteria.albums_enabled = preset == PhotoPreset::Album;
-    criteria.people_enabled = preset == PhotoPreset::Person;
-    criteria.tags_enabled = preset == PhotoPreset::Tag;
-    criteria.favorites_enabled = preset == PhotoPreset::Favorites;
-    criteria.rating_enabled = criteria.location_enabled = false;
-    criteria.inclusion_matching = "Match all enabled groups";
-    criteria.album_matching = "Any selected album";
-    criteria.person_matching = "Any selected person";
-    criteria.tag_matching = "Any selected tag";
-    criteria.favorite_mode = criteria.favorites_enabled ? "Favorites only" : "Any";
-    criteria.minimum_rating = 0;
-    criteria.country.clear();
-    criteria.state.clear();
-    criteria.city.clear();
-    criteria.excluded_album_ids.clear();
-    criteria.excluded_person_ids.clear();
-    criteria.excluded_tag_ids.clear();
-    if (preset == PhotoPreset::All) {
-      source.mode = PhotoSourceMode::Library;
-    } else if (preset == PhotoPreset::Favorites) {
-      source.mode = PhotoSourceMode::Favorites;
-    } else if (preset == PhotoPreset::Album && !source.album_id.empty() &&
-               (criteria.album_ids.empty() || criteria.album_ids == source.album_id)) {
-      source.mode = PhotoSourceMode::Album;
-      criteria.album_ids = source.album_id;
-    } else {
-      source.mode = PhotoSourceMode::Custom;
-      source.legacy_preset = preset;
-    }
-  }
+  apply_photo_preset(settings, preset);
   if (store_settings(settings) != UpdateResult::Saved)
     return false;
   publish_photo_feed(std::move(settings), true);
@@ -982,8 +1103,10 @@ bool Settings::add_playback_fields(cJSON *object, PhotoFilterUpdate filter_updat
       return false;
   }
   const bool filters_added = filter_update == PhotoFilterUpdate::Compose
-                                 ? add_photo_filter_fields(object, shared_photo_filters(*this))
-                                 : add_photo_filter_fields(object, photo_filters);
+                                 ? add_photo_filter_fields(object, shared_photo_filters(*this), true)
+                                 : add_photo_filter_fields(object, photo_filters, false);
+  const auto *source_name = filter_update == PhotoFilterUpdate::Compose ? photo_preset_name(photo_source.preset())
+                                                                       : photo_source_name(photo_source.mode);
   return filters_added &&
          cJSON_AddStringToObject(object, "frame_name", frame_name.c_str()) &&
          cJSON_AddStringToObject(object, "immich_url", immich_url.c_str()) &&
@@ -1010,7 +1133,8 @@ bool Settings::add_playback_fields(cJSON *object, PhotoFilterUpdate filter_updat
          cJSON_AddStringToObject(object, "display_mode", display_mode_name(display_mode)) &&
          cJSON_AddStringToObject(object, "photo_orientation", photo_orientation_name(photo_orientation)) &&
          cJSON_AddStringToObject(object, "screen_rotation", screen_rotation_name(screen_rotation)) &&
-         cJSON_AddStringToObject(object, "photo_source", photo_source_name(photo_source.mode)) &&
+         cJSON_AddBoolToObject(object, "developer_features_enabled", developer_features_enabled) &&
+         cJSON_AddStringToObject(object, "photo_source", source_name) &&
          (!photo_source.legacy_preset ||
           cJSON_AddStringToObject(object, "legacy_photo_preset", photo_preset_name(photo_source.preset()))) &&
          cJSON_AddStringToObject(object, "album_id", photo_source.album_id.c_str()) &&
@@ -1062,7 +1186,13 @@ bool Settings::save_playback(const char *json, bool *restart_required) {
 
 void Settings::publish_live_presentation() const {
   active_slideshow_interval.store(slide_seconds, std::memory_order_relaxed);
+  requested_screen_rotation.store(screen_rotation, std::memory_order_relaxed);
+  active_screen_brightness.store({brightness_day, night_brightness()}, std::memory_order_relaxed);
+  active_screen_schedule.store(schedule.packed(), std::memory_order_relaxed);
   active_clock_twelve_hour.store(clock.twelve_hour(), std::memory_order_relaxed);
+  active_clock_visible.store(clock.show, std::memory_order_relaxed);
+  requested_clock_zone.store(find_clock_zone(clock.timezone), std::memory_order_relaxed);
+  publish_ntp_servers(clock.ntp_servers);
   active_device_language.store(metadata.language, std::memory_order_relaxed);
   active_warm_tone_override.store(tone.night_override, std::memory_order_relaxed);
   active_connection_timeout.store(connection_timeout_seconds, std::memory_order_relaxed);
@@ -1071,19 +1201,20 @@ void Settings::publish_live_presentation() const {
 }
 
 Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optional<uint32_t> expected_epoch,
-                                                 PhotoFilterUpdate filter_update) {
+                                                 PhotoFilterUpdate filter_update, std::optional<PhotoPreset> preset) {
   std::string replacement_key;
   std::string replacement_token;
   const std::lock_guard lock(storage_mutex);
   Settings settings;
-  if (!cJSON_IsObject(update) || !load(settings) || settings.web_password.empty())
+  if (!cJSON_IsObject(update) || !load(settings))
     return UpdateResult::Failed;
   if (expected_epoch && *expected_epoch != settings.reset_epoch)
     return UpdateResult::Stale;
-  if (!update->child)
+  if (!update->child && !preset)
     return UpdateResult::Unchanged;
   const bool shared_filters = filter_update == PhotoFilterUpdate::Compose;
-  const bool compose_filters = shared_filters && settings.photo_source.mode != PhotoSourceMode::Memories;
+  const bool change_preset = preset && *preset != settings.photo_source.preset();
+  const bool compose_filters = shared_filters && !change_preset && settings.photo_source.mode != PhotoSourceMode::Memories;
   std::optional<ImmichFilterConfig> stored_criteria;
   // Compare the submitted fields with the same implied filter values the
   // shared API returns. Only save those values when the filter really changes.
@@ -1103,17 +1234,26 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   if (!previous || !next || !settings.add_playback_fields(previous.get()))
     return UpdateResult::Failed;
   const bool was_configured = settings.has_immich();
+  const auto previous_updates = settings.stock_update_preferences;
   const auto previous_night_brightness = settings.brightness_night;
-  const auto previous_prepared_url = settings.prepared_slide_url;
+  const PhotoConnectionSettings previous_connection = settings;
+  const auto previous_labels = settings.photo_filters.labels;
+  const auto previous_rotation = settings.screen_rotation;
+  if (change_preset) {
+    if (*preset == PhotoPreset::Memories || *preset == PhotoPreset::Custom)
+      settings.photo_filters = shared_photo_filters(settings);
+    apply_photo_preset(settings, *preset);
+  }
   if (!read_field(update, "immich_url", settings.immich_url, true) ||
       !read_field(update, "immich_key", replacement_key, true) ||
       !read_field(update, "frame_name", settings.frame_name, true) ||
       !read_field(update, "prepared_slide_url", settings.prepared_slide_url, true) ||
-      !read_field(update, "prepared_slide_token", replacement_token, true) || !read_playback(update, settings))
+      !read_field(update, "prepared_slide_token", replacement_token, true) || !read_playback(update, settings) ||
+      !read_stock_update_preferences(update, settings.stock_update_preferences))
     return UpdateResult::Invalid;
-  const bool connection_secret_changed =
-      (!replacement_key.empty() && replacement_key != settings.immich_key) ||
-      (!replacement_token.empty() && replacement_token != settings.prepared_slide_token);
+  if (cJSON_HasObjectItem(update, "screen_rotation") && portrait_screen(settings.screen_rotation) &&
+      !settings.developer_features_enabled)
+    return UpdateResult::Invalid;
   if (!replacement_key.empty())
     settings.immich_key = replacement_key;
   if (settings.prepared_slide_url.empty()) {
@@ -1122,32 +1262,36 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
     settings.prepared_slide_token.clear();
   } else {
     if (!normalize_http_base(settings.prepared_slide_url) ||
-        (settings.prepared_slide_url != previous_prepared_url && replacement_token.empty()))
+        (settings.prepared_slide_url != previous_connection.prepared_slide_url && replacement_token.empty()))
       return UpdateResult::Invalid;
     if (!replacement_token.empty())
       settings.prepared_slide_token = std::move(replacement_token);
   }
   if (!normalize(settings))
     return UpdateResult::Invalid;
+  const bool connection_changed = previous_connection != static_cast<const PhotoConnectionSettings &>(settings);
+  const bool rotation_changed = previous_rotation != settings.screen_rotation;
   if (!settings.add_playback_fields(next.get()))
     return UpdateResult::Failed;
   const bool fixed_night_brightness = previous_night_brightness != settings.brightness_night;
   // The device-tools form sends a full snapshot. Classify the actual changes
   // after validation, including an explicitly pinned night brightness.
-  bool changed = connection_secret_changed || fixed_night_brightness;
-  bool restart = changed || !was_configured;
-  bool selection_changed = false;
-  bool photo_changed = false;
+  bool restart = !was_configured || !settings.has_immich();
+  bool changed = connection_changed || fixed_night_brightness ||
+                 settings.stock_update_preferences != previous_updates;
+  bool selection_changed = connection_changed;
+  bool photo_changed = connection_changed;
   bool live_presentation_changed = false;
   bool filters_changed = false;
   const cJSON *field;
   cJSON_ArrayForEach(field, next.get()) {
     const std::string_view key(field->string);
-    if (key == "legacy_photo_preset" ||
+    if (key == "immich_url" || key == "prepared_slide_url" || key == "legacy_photo_preset" ||
+        std::ranges::find(filter_label_fields, key) != filter_label_fields.end() ||
         cJSON_Compare(field, cJSON_GetObjectItemCaseSensitive(previous.get(), field->string), true))
       continue;
     changed = true;
-    if (changes_photo_source(key))
+    if (!change_preset && changes_photo_source(key))
       settings.photo_source.legacy_preset.reset();
     if (shared_filters && is_composable_filter(key)) {
       if (!compose_filters)
@@ -1157,12 +1301,25 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
     const bool selects_photos = changes_photo_selection(key);
     const bool presents_photos = changes_photo_presentation(key);
     const bool presents_playback = changes_live_presentation(key);
-    selection_changed |= selects_photos;
+    const bool rotation_disables_pairing = rotation_changed && portrait_screen(settings.screen_rotation) &&
+                                          key == "portrait_pairing";
+    selection_changed |= selects_photos && !rotation_disables_pairing;
     photo_changed |= selects_photos || presents_photos;
     live_presentation_changed |= presents_playback;
-    restart |= !selects_photos && !presents_photos && !presents_playback;
+    restart |= !selects_photos && !presents_photos && !presents_playback && key != "developer_features_enabled";
   }
-  if (!changed)
+  if (cJSON_HasObjectItem(update, "c6_auto_update")) {
+    bool enabled{};
+    if (!read_flag(update, "c6_auto_update", enabled))
+      return UpdateResult::Invalid;
+    changed |= settings.stock_update_preferences.wifi_auto_update != enabled;
+    settings.stock_update_preferences.wifi_auto_update = enabled;
+  }
+  const auto previous_wireguard = settings.wireguard;
+  if (!read_wireguard_fields(update, settings.wireguard))
+    return UpdateResult::Invalid;
+  changed |= settings.wireguard != previous_wireguard;
+  if (!changed && !change_preset && previous_labels == settings.photo_filters.labels)
     return UpdateResult::Unchanged;
   if (filters_changed) {
     const auto &criteria = settings.photo_filters.criteria;
@@ -1180,8 +1337,10 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   if (result == UpdateResult::Saved && !restart) {
     if (live_presentation_changed)
       settings.publish_live_presentation();
-    if (photo_changed)
-      publish_photo_feed(std::move(settings), selection_changed);
+    if (connection_changed)
+      settings.pending_connection = std::move(static_cast<PhotoConnectionSettings &>(settings));
+    if (photo_changed || change_preset)
+      publish_photo_feed(std::move(settings), selection_changed || change_preset);
     return UpdateResult::SavedLive;
   }
   return result;
@@ -1190,7 +1349,7 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
 bool Settings::reset(ResetMode mode) {
   const std::lock_guard lock(storage_mutex);
   Settings saved;
-  if (!load(saved) || saved.web_password.empty())
+  if (!load(saved))
     return false;
   Settings reset;
   if (mode == ResetMode::Customization) {

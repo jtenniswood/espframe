@@ -32,7 +32,6 @@ struct ImmichPhoto {
 
 inline constexpr size_t photo_search_batch = 16;
 
-enum class ImmichSearchApi { Unknown, Legacy, Structured };
 enum class PhotoFilterStatus { Ready, Incomplete, Unsupported };
 
 struct PhotoSearchRequest {

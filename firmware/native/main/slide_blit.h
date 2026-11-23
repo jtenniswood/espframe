@@ -16,10 +16,10 @@ struct SlideSpan {
 
 // Cached pixels already face the viewer. Rotating the whole swipe swaps the
 // order of its two slices and mirrors their split, without another pixel pass.
-inline SlideSpan orient_slide_span(const uint16_t *left, const uint16_t *right, int native_height,
+inline SlideSpan orient_slide_span(const uint16_t *left, const uint16_t *right, int viewport_width,
                                    int offset, ScreenRotation rotation) {
-  if (rotation == ScreenRotation::UpsideDown && offset != 0)
-    return {right, left, native_height - offset};
+  if (axis_direction(rotation) < 0 && offset != 0)
+    return {right, left, viewport_width - offset};
   return {left, right, offset};
 }
 

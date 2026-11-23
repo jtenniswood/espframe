@@ -10,11 +10,34 @@ struct ScreenScheduleSettings {
   uint8_t on_hour{6};
   uint8_t off_hour{23};
   uint32_t wake_seconds{60};
+
+  // A single 32-bit value keeps all four settings in sync across cores.
+  constexpr uint32_t packed() const {
+    return (wake_seconds << 11) | (uint32_t{off_hour} << 6) | (uint32_t{on_hour} << 1) | enabled;
+  }
+
+  static constexpr ScreenScheduleSettings unpack(uint32_t value) {
+    return {static_cast<bool>(value & 1), static_cast<uint8_t>((value >> 1) & 31),
+            static_cast<uint8_t>((value >> 6) & 31), value >> 11};
+  }
 };
 
 class ScreenSchedule {
  public:
   explicit ScreenSchedule(ScreenScheduleSettings settings) : settings_(settings) {}
+
+  void set_settings(ScreenScheduleSettings settings) {
+    if (settings.packed() == settings_.packed())
+      return;
+    if (settings_.enabled && !settings.enabled) {
+      manually_asleep_ = false;
+      wake_until_ = 0;
+    } else if (wake_until_) {
+      // A changed duration is measured from the original touch wake.
+      wake_until_ += (static_cast<int64_t>(settings.wake_seconds) - settings_.wake_seconds) * 1'000'000;
+    }
+    settings_ = settings;
+  }
 
   void sleep() {
     manually_asleep_ = true;

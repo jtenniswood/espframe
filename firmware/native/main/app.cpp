@@ -1,16 +1,20 @@
 #include "autoplay_fade.h"
+#include "c6_firmware_update.h"
 #include "clock_overlay.h"
 #include "daylight.h"
 #include "display.h"
 #include "esphome_trial.h"
 #include "firmware_update.h"
+#include "native_release_updates.h"
 #include "frame_blend.h"
 #include "frame_blitter.h"
 #include "immich.h"
 #include "initial_photo_timeout.h"
 #include "live_trial.h"
 #include "native_network.h"
+#include "photo_controls.h"
 #include "playback_transition.h"
+#include "preview_decoder.h"
 #include "recovery_card.h"
 #include "screen_control.h"
 #include "slide_cache.h"
@@ -25,6 +29,7 @@
 #include "trial_replay.h"
 #include "trial_swipe_landing.h"
 #include "usb_setup.h"
+#include "web_logs.h"
 
 #include "driver/jpeg_decode.h"
 #include "esp_cache.h"
@@ -74,6 +79,44 @@ extern const uint8_t recovery_atlas[] asm("_binary_recovery_glyphs_bin_start");
 extern const uint8_t status_masks[] asm("_binary_status_masks_bin_start");
 extern const uint8_t status_masks_end[] asm("_binary_status_masks_bin_end");
 NativeNetwork network;
+
+class PhotoControlsRenderer {
+ public:
+  explicit PhotoControlsRenderer(const PhotoControls &controls) : controls_(controls) {}
+
+  void start() {
+    done_ = xSemaphoreCreateBinaryStatic(&done_storage_);
+    if (xTaskCreatePinnedToCore(run_, "photo-scale", 2048, this, player_priority, &worker_, loader_core) != pdPASS)
+      worker_ = nullptr;
+  }
+
+  void draw() const {
+    if (worker_) {
+      // Each core writes whole rows. Join before painting the toolbar or submitting the frame.
+      xTaskNotifyGive(worker_);
+      controls_.draw_rows(panel_height / 2, panel_height);
+      xSemaphoreTake(done_, portMAX_DELAY);
+    } else {
+      controls_.draw_rows(0, panel_height);
+    }
+    controls_.draw_toolbar();
+  }
+
+ private:
+  static void run_(void *context) {
+    const auto &renderer = *static_cast<PhotoControlsRenderer *>(context);
+    while (true) {
+      ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+      renderer.controls_.draw_rows(0, panel_height / 2);
+      xSemaphoreGive(renderer.done_);
+    }
+  }
+
+  const PhotoControls &controls_;
+  StaticSemaphore_t done_storage_{};
+  SemaphoreHandle_t done_{};
+  TaskHandle_t worker_{};
+};
 
 struct GestureTiming {
   int64_t gesture_to_scanout_us{};
@@ -144,18 +187,18 @@ uint16_t rgb565(int r, int g, int b) {
 void draw_test_slide(uint16_t *destination, int slide, ScreenRotation rotation) {
   constexpr int sky[][3]{{224, 143, 99}, {64, 162, 190}, {101, 146, 220},
                          {199, 112, 143}, {77, 165, 146}};
-  const int column_step = -axis_direction(rotation);
-  for (int x = 0; x < slide_width; ++x) {
-    auto *column = destination + panel_offset(x, panel_width - 1, rotation);
-    const int scene = slide == 3 && x >= slide_width / 2 ? 4 : slide;
+  const Viewport viewport{rotation};
+  for (int x = 0; x < viewport.width; ++x) {
+    auto *column = destination + viewport.offset(x, 0);
+    const int scene = slide == 3 && x >= viewport.width / 2 ? 4 : slide;
     const float phase = scene * 1.6f + x * 0.008f;
     const int ridge = static_cast<int>(485 + 90 * std::sin(phase) + 35 * std::sin(phase * 2.4f));
     const int shore = static_cast<int>(635 + 23 * std::sin(phase * 0.6f + 1.0f));
     const int sun_x = 260 + scene * 146;
     const int sun_y = 200 + scene * 21;
-    for (int y = 0; y < slide_height; ++y) {
+    for (int y = 0; y < viewport.height; ++y) {
       uint16_t color;
-      if (slide == 3 && std::abs(x - slide_width / 2) <= 2) {
+      if (slide == 3 && std::abs(x - viewport.width / 2) <= 2) {
         color = rgb565(22, 22, 22);
       } else if ((x - sun_x) * (x - sun_x) + (y - sun_y) * (y - sun_y) < 3'600) {
         color = rgb565(255, 237, 201);
@@ -166,7 +209,7 @@ void draw_test_slide(uint16_t *destination, int slide, ScreenRotation rotation) 
       } else {
         color = rgb565(20 + scene * 16, 89 + y / 20, 112 + scene * 12);
       }
-      column[y * column_step] = color;
+      column[y * viewport.y_stride] = color;
     }
   }
 }
@@ -223,6 +266,12 @@ class SlideLoader {
   using Preparation = ImmichSource::Preparation;
   using Result = ImmichSource::PrepareResult;
 
+  struct RotationSource {
+    const uint16_t *pixels{};
+    ScreenRotation rotation{};
+    bool paired{};
+  };
+
   struct Completion {
     SlideCache::Lease lease;
     SlideIndex first_photo;
@@ -235,6 +284,7 @@ class SlideLoader {
     bool source_ready;
     Preparation preparation;
     ImmichSource::PendingPresentation presentation;
+    bool rotation_fallback;
   };
 
   bool live() const { return this->live_; }
@@ -264,6 +314,8 @@ class SlideLoader {
 
   void start_network() const {
     network.start(this->settings_);
+    if constexpr (!esphome_trial)
+      start_c6_firmware_updates(network);
   }
 
   bool start() {
@@ -305,14 +357,18 @@ class SlideLoader {
       this->timings_ = xQueueCreate(32, sizeof(GestureTiming));
     ESP_ERROR_CHECK(this->requests_ && this->completed_ && this->pixel_work_wake_ && (trace_enabled || this->timings_)
                         ? ESP_OK : ESP_ERR_NO_MEM);
-    const auto result = xTaskCreatePinnedToCore(run_, "slide-prepare", 6144, this, 2, &this->task_, loader_core);
+    // Native playback also applies saved feed changes in this worker.
+    constexpr uint32_t loader_stack_bytes = esphome_trial ? 6144 : 12288;
+    const auto result = xTaskCreatePinnedToCore(run_, "slide-prepare", loader_stack_bytes, this, 2, &this->task_,
+                                              loader_core);
     ESP_ERROR_CHECK(result == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
     return true;
   }
 
-  void submit(const SlideCache::Lease &lease, uint32_t source_revision, bool replace_source, Preparation preparation) {
+  void submit(const SlideCache::Lease &lease, uint32_t source_revision, bool replace_source, Preparation preparation,
+              ScreenRotation rotation, RotationSource cached) {
     this->cancelled_ = false;
-    const Request request{lease, source_revision, replace_source, preparation};
+    const Request request{lease, source_revision, replace_source, preparation, rotation, cached};
     ESP_ERROR_CHECK(xQueueSend(this->requests_, &request, 0) == pdPASS ? ESP_OK : ESP_ERR_INVALID_STATE);
     xTaskNotifyGive(this->task_);
   }
@@ -367,6 +423,8 @@ class SlideLoader {
     uint32_t source_revision;
     bool replace_source;
     Preparation preparation;
+    ScreenRotation rotation;
+    RotationSource cached;
   };
 
   bool apply_photo_settings_(const Request &request) {
@@ -375,6 +433,8 @@ class SlideLoader {
       return false;
     if (feed->needs_local_date() || feed->tone.needs_time())
       network.request_time_sync();
+    if (feed->pending_connection)
+      network.use_photo_connection(*feed->pending_connection);
     frame_status.configure(true, feed->photo_source.mode);
     this->source_.apply_photo_settings(std::move(*feed), request.replace_source ? std::optional{request.lease.slide}
                                                                                 : std::nullopt);
@@ -387,10 +447,10 @@ class SlideLoader {
     uint32_t source_revision{};
     constexpr int64_t tone_check_interval_us = 60'000'000;
     int64_t next_tone_check = esp_timer_get_time() + tone_check_interval_us;
-    const auto *tone_zone = !esphome_trial && loader.live_ ? find_clock_zone(loader.settings_.clock.timezone) : nullptr;
-    Daylight tone_daylight{tone_zone};
+    const bool maintain_tone = !esphome_trial && loader.live_;
+    Daylight tone_daylight{nullptr};
     while (true) {
-      if (tone_zone) {
+      if (maintain_tone) {
         const auto remaining_ms = (next_tone_check - esp_timer_get_time() + 999) / 1000;
         ulTaskNotifyTake(pdTRUE, std::max<TickType_t>(1, pdMS_TO_TICKS(std::max<int64_t>(0, remaining_ms))));
         const auto now = esp_timer_get_time();
@@ -398,11 +458,14 @@ class SlideLoader {
           next_tone_check = now + tone_check_interval_us;
           if (active_warm_tone_override.load(std::memory_order_relaxed) &&
               !loader.pixel_work_deferred_.load(std::memory_order_relaxed)) {
-            const auto local = local_clock_time(std::time(nullptr));
-            if (!local)
+            const auto local = local_clock_reading(std::time(nullptr));
+            if (!local.time)
               network.request_time_sync();
-            else if (tone_daylight.is_day(local))
-              loader.source_.expire_warm_tone_override();
+            else if (local.zone) {
+              tone_daylight.set_zone(local.zone);
+              if (tone_daylight.is_day(local.time))
+                loader.source_.expire_warm_tone_override(*local.zone);
+            }
           }
         }
       } else {
@@ -418,28 +481,52 @@ class SlideLoader {
       if (xQueueReceive(loader.requests_, &request, 0) != pdPASS)
         continue;
       const auto &lease = request.lease;
-      const auto connection = network.photo_connection();
+      auto connection = network.photo_connection();
       auto result = Result::Ready;
       bool source_ready = true;
+      bool rotation_fallback = false;
       ImmichSource::PendingPresentation presentation{};
-      if ((!esphome_trial || trial_immich) && !trial_fixtures && loader.live_ && lease.slide > 0) {
+      if (request.preparation == Preparation::RotateCached) {
+        source_ready = false;
+        if (loader.live_ && lease.slide > 0 && !trial_fixtures) {
+          result = loader.source_.prepare(lease.slide, lease.pixels, true, presentation, request.preparation,
+                                          request.rotation);
+        } else {
+          draw_test_slide(lease.pixels, lease.slide % fixture_count, request.rotation);
+        }
+        if (result != Result::Ready && !loader.cancelled_) {
+          rotation_fallback = reframe_cached_photo(lease.pixels, request.cached.pixels, request.cached.rotation,
+                                                    request.rotation, request.cached.paired, loader.source_.display_mode(),
+                                                    {&loader, [](void *context) {
+                                                      return static_cast<SlideLoader *>(context)->wait_for_pixel_work();
+                                                    }});
+          if (rotation_fallback) {
+            presentation = loader.source_.describe_cached_slide(lease.slide, request.rotation);
+            presentation.paired = request.cached.paired && !portrait_screen(request.rotation);
+            result = Result::Ready;
+          }
+        }
+        loader.source_.end_preview_promotion();
+      } else if ((!esphome_trial || trial_immich) && !trial_fixtures && loader.live_ && lease.slide > 0) {
         if constexpr (trial_immich)
           record_live_trial_prepare();
         if constexpr (!esphome_trial) {
           if (request.source_revision != source_revision) {
             source_ready = loader.apply_photo_settings_(request);
-            if (source_ready)
+            if (source_ready) {
               source_revision = request.source_revision;
+              connection = network.photo_connection();
+            }
           }
         }
         result = source_ready ? loader.source_.prepare(lease.slide, lease.pixels, lease.replacement,
-                                                       presentation, request.preparation) : Result::Retry;
+                                                       presentation, request.preparation, request.rotation) : Result::Retry;
         loader.source_.end_preview_promotion();
       } else {
         const int fixture = lease.slide % fixture_count;
         const auto &photo = photos[fixture];
         const auto started_us = trial_fixtures && photo.begin ? esp_timer_get_time() : 0;
-        const bool decoded = decode_photo(photo, lease.pixels, decoder);
+        const bool decoded = !portrait_screen(request.rotation) && decode_photo(photo, lease.pixels, decoder);
         if constexpr (trial_fixtures) {
           if (photo.begin)
             record_live_trial_preparation_time(decoded ? TrialPreparationStage::HardwareJpeg
@@ -448,8 +535,8 @@ class SlideLoader {
                                                static_cast<size_t>(photo.end - photo.begin));
         }
         if (!decoded)
-          draw_test_slide(lease.pixels, fixture, loader.rotation());
-        else if (loader.rotation() == ScreenRotation::UpsideDown)
+          draw_test_slide(lease.pixels, fixture, request.rotation);
+        else if (request.rotation == ScreenRotation::UpsideDown)
           std::reverse(lease.pixels, lease.pixels + pixel_count);
       }
       // The worker owns every pixel until it publishes the lease. Sync it
@@ -462,8 +549,13 @@ class SlideLoader {
       const Completion completion{lease, loader.source_.first_slide(), loader.source_.next_slide(), connection,
                                   loader.source_.source_status(), loader.source_.response(), result,
                                   result != Result::Ready && loader.cancelled_.load(), source_ready,
-                                  request.preparation, presentation};
+                                  request.preparation, presentation, rotation_fallback};
       xQueueSend(loader.completed_, &completion, portMAX_DELAY);
+      if constexpr (!esphome_trial) {
+        // Check which filters the server supports after handing off a ready slide.
+        if (result == Result::Ready && loader.live_ && lease.slide > 0 && uxQueueMessagesWaiting(loader.requests_) == 0)
+          loader.source_.probe_filter_support();
+      }
     }
   }
 
@@ -483,8 +575,10 @@ class SlideLoader {
 };
 
 void run(void *) {
-  if constexpr (!esphome_trial)
+  if constexpr (!esphome_trial) {
     start_firmware_boot_check();
+    start_native_release_updates(network);
+  }
   static SlideLoader loader;
   if (!loader.start()) {
     vTaskDelete(nullptr);
@@ -493,7 +587,8 @@ void run(void *) {
   SlideCache::Buffers buffers{};
   allocate_slide_buffers(buffers, 0, SlideCache::minimum_capacity);
   const bool live = loader.live();
-  const auto rotation = loader.rotation();
+  auto rotation = loader.rotation();
+  Viewport viewport{rotation};
   const SlideIndex slide_count = live && !trial_fixtures ? std::numeric_limits<PixelPosition>::max() / slide_width
                                                         : fixture_slides;
   FrameBlend blend;
@@ -503,14 +598,19 @@ void run(void *) {
   FrameBlitter blitter;
   blitter.init();
   ClockOverlay clock;
-  const auto day_level = loader.brightness();
-  const auto night_level = loader.night_brightness();
-  const bool solar_brightness = day_level != night_level;
+  ScreenBrightness brightness_levels{loader.brightness(), loader.night_brightness()};
+  const bool solar_brightness = brightness_levels.day != brightness_levels.night;
   const bool use_local_time = loader.clock().show || loader.schedule().enabled || solar_brightness;
-  const bool local_time_configured = (use_local_time || loader.photos_need_time() || (!esphome_trial && live)) &&
-                                     configure_local_time(loader.clock().timezone);
-  Daylight daylight{solar_brightness ? find_clock_zone(loader.clock().timezone) : nullptr};
-  uint8_t brightness = day_level;
+  const auto *clock_zone = find_clock_zone(loader.clock().timezone);
+  const bool show_solar_times = !esphome_trial && clock_zone != nullptr;
+  bool local_time_configured = (use_local_time || loader.photos_need_time() || (!esphome_trial && live) || show_solar_times) &&
+                               configure_local_time(clock_zone);
+  Daylight daylight{solar_brightness || show_solar_times ? clock_zone : nullptr};
+  std::optional<SolarTimes> published_solar_times;
+  if (show_solar_times && local_time_configured)
+    network.request_time_sync();
+  bool daytime = true;
+  uint8_t brightness = brightness_levels.day;
   std::optional<uint8_t> manual_brightness;
   uint8_t applied_brightness = 0;
   const bool can_layer_fade = clock.init(loader.clock(), clock_atlas, can_fade && display.can_pin_frame(), rotation);
@@ -525,6 +625,7 @@ void run(void *) {
   SlideCache cache{buffers};
   // Caption layout travels with the cache lease, separate from scanout pixels.
   static std::array<PhotoCaption, SlideCache::capacity> captions;
+  std::array<bool, SlideCache::capacity> paired_slots{};
   const std::span<const uint8_t> caption_glyphs{caption_atlas, static_cast<size_t>(caption_atlas_end - caption_atlas)};
   const std::span<const uint8_t> date_glyphs{date_atlas, static_cast<size_t>(date_atlas_end - date_atlas)};
   PhotoCaptionFade caption_fade;
@@ -534,12 +635,16 @@ void run(void *) {
   if constexpr (trial_immich)
     record_live_trial_cache(cache_slots, 0);
   TouchReader touch;
-  touch.start(rotation);
-  Swipe swipe{slide_width, slide_count, live ? 0 : 2};
+  touch.start();
+  Swipe swipe{viewport.width, slide_count, live ? 0 : 2};
   SwipeInput input;
+  static PhotoControls controls;
+  static PhotoControlsRenderer controls_renderer{controls};
+  int last_control_progress = 0;
+  uint8_t last_text_opacity = PhotoControls::opaque;
   ScreenSchedule schedule{loader.schedule()};
   SlideDwell dwell;
-  SlidePrefetch prefetch{swipe.settled(), cache_slots};
+  SlidePrefetch prefetch{swipe.settled(), cache_slots, viewport.width};
   AutoplayFade fade;
   auto previous_transition = SlideTransition::NONE;
   auto effect = slide_transition_plan(SlideTransition::CROSS_FADE);
@@ -601,19 +706,21 @@ void run(void *) {
     trace.start(Display::nominal_frame_period_us());
   if constexpr (!esphome_trial || trial_immich)
     loader.start_network();
+  if constexpr (!SWIPE_TRIAL_BENCHMARK)
+    controls_renderer.start();
   const auto submit_frame = [&](PixelPosition position, bool moving = true, bool resisted = false,
                                 const ScanoutFrame *frame = nullptr, std::optional<SlideRange> sources = {}) {
     if (!display.submit(position, frame, sources))
       return false;
     if constexpr (trial_detail_metrics) {
-      if (detail_to_submit && position == detail_to_submit->slide * slide_width)
+      if (detail_to_submit && position == detail_to_submit->slide * viewport.width)
         detail_submitted = detail_to_submit;
       detail_to_submit.reset();
     }
     if constexpr (capture_motion) {
       submitted_stamp = moving ? motion_epoch.stamp(preparing >= 0, resisted) : MotionStamp{};
       submitted_stamp.landing = submitted_stamp.phase == MotionPhase::Settle &&
-                                position == swipe.settle_destination() * slide_width;
+                                position == swipe.settle_destination() * viewport.width;
     }
     if constexpr (trial_immich)
       submitted_drag_demand_us = submitted_stamp.phase == MotionPhase::Drag ? drag_demand.take() : 0;
@@ -626,7 +733,7 @@ void run(void *) {
     clock_dirty = false;
     if constexpr (capture_motion)
       motion_epoch.update(MotionPhase::Crossfade);
-    submit_frame(fade.anchor() * slide_width);
+    submit_frame(fade.anchor() * viewport.width);
     recovery_painted = false;
     painted_source_status = PhotoSourceStatus::None;
     painted_connection_notice = ImmichResponse::Pending;
@@ -638,6 +745,8 @@ void run(void *) {
   uint32_t selection_revision{};
   SlideIndex source_anchor = -1;
   bool preparing_refresh = false;
+  std::optional<ScreenRotation> preparing_rotation;
+  bool awaiting_rotation_frame = false;
   using Preparation = SlideLoader::Preparation;
   constexpr bool stage_at_edge = !esphome_trial || live_trial_edge_detail || SWIPE_TRIAL_REPLAY_EDGE_DETAIL;
   constexpr bool stage_all_pairs = trial_replay_staged_detail && !SWIPE_TRIAL_REPLAY_EDGE_DETAIL;
@@ -650,30 +759,56 @@ void run(void *) {
 
   while (true) {
     auto now = esp_timer_get_time();
+    const auto requested_revision = esphome_trial ? 0 : photo_source_revision.load(std::memory_order_acquire);
+    if constexpr (!esphome_trial) {
+      const auto levels = active_screen_brightness.load(std::memory_order_relaxed);
+      if (levels != brightness_levels) {
+        brightness_levels = levels;
+        manual_brightness.reset();
+      }
+      schedule.set_settings(ScreenScheduleSettings::unpack(active_screen_schedule.load(std::memory_order_relaxed)));
+      clock_dirty |= clock.set_shown(active_clock_visible.load(std::memory_order_relaxed));
+      if (const auto *next_zone = requested_clock_zone.load(std::memory_order_relaxed);
+          next_zone != clock_zone && configure_local_time(next_zone)) {
+        clock_zone = next_zone;
+        local_time_configured = true;
+        daylight.set_zone(clock_zone);
+        next_clock_poll = 0;
+        manual_brightness.reset();
+      }
+    }
     bool local_time_became_ready = false;
     if ((use_local_time || !esphome_trial) && local_time_configured && now >= next_clock_poll) {
       const auto local = local_clock_time(std::time(nullptr));
       local_time_became_ready = local && !local_time_ready;
       local_time_ready = local.has_value();
-      if (use_local_time) {
-        clock.set_twelve_hour(loader.twelve_hour_clock());
-        clock_dirty |= clock.update(local);
-        local_hour = local ? std::optional<int>{local->tm_hour} : std::nullopt;
-        const uint8_t scheduled_brightness = daylight.is_day(local) ? day_level : night_level;
-        if (scheduled_brightness != brightness)
-          manual_brightness.reset();
-        brightness = scheduled_brightness;
+      if (show_solar_times) {
+        const auto times = daylight.times(local);
+        if (times != published_solar_times) {
+          frame_status.set_solar_times(times);
+          published_solar_times = times;
+        }
       }
+      clock.set_twelve_hour(loader.twelve_hour_clock());
+      clock_dirty |= clock.update(local);
+      local_hour = local ? std::optional<int>{local->tm_hour} : std::nullopt;
+      daytime = daylight.is_day(local);
       next_clock_poll = now + 250'000;
     }
+    const uint8_t scheduled_brightness = daytime ? brightness_levels.day : brightness_levels.night;
+    if (scheduled_brightness != brightness) {
+      manual_brightness.reset();
+      brightness = scheduled_brightness;
+    }
     if (const auto scanout = display.poll_presented()) {
+      awaiting_rotation_frame = false;
       if constexpr (trial_replay_touch) {
         const auto presented = display.presented_position();
-        if (presented % slide_width == 0)
-          record_live_trial_touch_slide(presented / slide_width);
+        if (presented % viewport.width == 0)
+          record_live_trial_touch_slide(presented / viewport.width);
       }
       if constexpr (trial_detail_metrics) {
-        if (detail_submitted && display.presented_position() == detail_submitted->slide * slide_width) {
+        if (detail_submitted && display.presented_position() == detail_submitted->slide * viewport.width) {
           record_live_trial_detail_presented(detail_submitted->slide,
                                              static_cast<uint32_t>((*scanout - detail_submitted->requested_us) / 1000));
         }
@@ -695,7 +830,7 @@ void run(void *) {
         ESP_LOGI(tag, "Player ready (background %s preparation)", live && !trial_fixtures ? "Immich" : "fixture");
       }
       if constexpr (!esphome_trial) {
-        if (live && !showed_photo && display.presented_position() >= slide_width) {
+        if (live && !showed_photo && display.presented_position() >= viewport.width) {
           frame_status.presented_photo();
           showed_photo = true;
         }
@@ -719,16 +854,22 @@ void run(void *) {
     }
 
     const auto center = swipe.settled();
-    const auto requested_revision = esphome_trial ? 0 : photo_source_revision.load(std::memory_order_acquire);
-    const bool at_source_handoff = swipe.idle() && !input.engaged() && !fade.running() && !fade.held() &&
+    const auto wanted_rotation = esphome_trial ? rotation : requested_screen_rotation.load(std::memory_order_relaxed);
+    if (wanted_rotation != rotation && controls.target_open() && !input.engaged())
+      controls.animate(false, now);
+    bool at_source_handoff = !awaiting_rotation_frame && swipe.idle() && !input.engaged() && !fade.running() && !fade.held() &&
+                                   !controls.target_open() && last_control_progress == 0 &&
                                    !blend.pending() && !display.borrowing() &&
-                                   display.presented_position() == center * slide_width;
-    const bool discard_refresh = preparing_refresh && (loader.yield_requested() || requested_revision != source_revision);
+                                   display.presented_position() == center * viewport.width;
+    const bool discard_refresh = preparing_refresh &&
+        (loader.yield_requested() || (preparing_rotation ? (*preparing_rotation != wanted_rotation || preparing != center)
+                                                        : requested_revision != source_revision));
+    const bool can_accept_refresh = at_source_handoff && (!preparing_rotation || display.writable_buffer() != nullptr);
     bool refresh_waiting_captions = local_time_became_ready;
     SlideLoader::Completion completion{};
     // Leave a completed replacement in the queue while a gesture can still
     // see the old crop. A superseded replacement can be released immediately.
-    if ((!preparing_refresh || at_source_handoff || discard_refresh) && loader.poll(completion)) {
+    if ((!preparing_refresh || can_accept_refresh || discard_refresh) && loader.poll(completion)) {
       const bool ready = completion.result == SlideLoader::Result::Ready && !discard_refresh;
       const bool next_candidate = completion.result == SlideLoader::Result::NextCandidate;
       const bool caption_only = completion.preparation == Preparation::CaptionOnly;
@@ -755,6 +896,7 @@ void run(void *) {
       }
       if (ready) {
         captions[completion.lease.slot] = completion.presentation.caption;
+        paired_slots[completion.lease.slot] = completion.presentation.paired;
         if constexpr (trial_detail_metrics) {
           if (completion.presentation.thumbnail)
             record_live_trial_thumbnail_ready(completion.presentation.thumbnail_pair);
@@ -776,9 +918,27 @@ void run(void *) {
         source_status = completion.source_status;
       }
       if constexpr (!esphome_trial) {
+        if (ready && preparing_rotation) {
+          // No scanout borrows these slots here, and the old owned frame
+          // stays visible until the first frame in the new orientation latches.
+          rotation = *preparing_rotation;
+          viewport = Viewport{rotation};
+          swipe = Swipe{viewport.width, slide_count, center};
+          clock.set_rotation(rotation);
+          caption_fade = {};
+          last_caption = {};
+          input.wait_for_new_contact();
+          cache.discard_other_ready_slides(center);
+          if (completion.rotation_fallback && center > 0 && live)
+            cache.mark_ready_for_refresh();
+          prefetch = SlidePrefetch(center, cache_slots, viewport.width);
+          retries.fill({});
+          awaiting_rotation_frame = true;
+          at_source_handoff = false;
+        }
         if (live && slide > 0 && completed_source_work && !completion.cancelled) {
           frame_status.finish_preparation(ready ? PhotoSourceStatus::None : source_status, completion.response);
-          if (!showed_photo)
+          if (!showed_photo || source_anchor >= 0)
             initial_photo_timeout.observe(now, ready, completion.response);
         }
         if (completion.lease.replacement && !discard_refresh) {
@@ -797,6 +957,7 @@ void run(void *) {
       }
       preparing = -1;
       preparing_refresh = false;
+      preparing_rotation.reset();
       detail_request_us = 0;
     }
     if constexpr (!esphome_trial) {
@@ -804,9 +965,24 @@ void run(void *) {
         cache.mark_waiting_captions_for_refresh();
       if (local_time_became_ready && source_status == PhotoSourceStatus::WaitingForTime)
         retries.fill({});
-      if (source_anchor >= 0 && center != source_anchor && display.presented_position() == center * slide_width)
+      if (source_anchor >= 0 && center != source_anchor && display.presented_position() == center * viewport.width)
         source_anchor = -1;
-      if (live && requested_revision != source_revision && at_source_handoff && cache.find(center)) {
+      if (wanted_rotation != rotation && at_source_handoff) {
+        if (const auto slot = cache.ready_slot(center)) {
+          if (preparing >= 0) {
+            if (!preparing_rotation || *preparing_rotation != wanted_rotation)
+              loader.yield_to_swipe();
+          } else if (const auto lease = cache.reserve(center, center, center, true)) {
+            loader.submit(*lease, source_revision, false, Preparation::RotateCached, wanted_rotation,
+                          {cache.find(center), rotation, paired_slots[*slot]});
+            preparing = center;
+            preparing_refresh = true;
+            preparing_rotation = wanted_rotation;
+          }
+        }
+      }
+      if (live && wanted_rotation == rotation && requested_revision != source_revision &&
+          at_source_handoff && cache.find(center)) {
         if (preparing >= 0) {
           loader.yield_to_swipe();
         } else {
@@ -822,7 +998,7 @@ void run(void *) {
             cache.discard_other_ready_slides(center);
             source_anchor = center;
             first_photo = next_photo = center + 1;
-            prefetch = SlidePrefetch(center, cache_slots);
+            prefetch = SlidePrefetch(center, cache_slots, viewport.width);
           }
           source_status = PhotoSourceStatus::None;
           initial_photo_timeout = {};
@@ -835,7 +1011,7 @@ void run(void *) {
     // The boot scene may still be visible while the first photo's final frame
     // is pending. Keep its pixels available if the user interrupts that swap.
     const SlideIndex first = source_anchor >= 0 ? source_anchor
-                            : live && display.presented_position() >= slide_width ? first_photo : 0;
+                            : live && display.presented_position() >= viewport.width ? first_photo : 0;
     const SlideRange available{first, slide_count - 1};
     const auto [ready_first, ready_last] = cache.ready_range(center, available);
     if constexpr (trial_immich) {
@@ -851,10 +1027,10 @@ void run(void *) {
     const auto next_report = [&] {
 #if SWIPE_TRIAL_BENCHMARK
       // Keep the touch reader running at its normal cadence during this test.
-      while (touch.poll(report)) {
+      while (touch.poll(report, rotation)) {
       }
       const bool at_rest = backlight_ready && input.awake() && !input.engaged() && swipe.idle() &&
-                           !fade.running() && !fade.held() && display.presented_position() == center * slide_width;
+                           !fade.running() && !fade.held() && display.presented_position() == center * viewport.width;
       if (const auto sample =
               poll_live_trial_benchmark(network, esp_timer_get_time(), center, {ready_first, ready_last}, at_rest)) {
         report = *sample;
@@ -862,11 +1038,11 @@ void run(void *) {
       }
       return false;
 #else
-      return touch.poll(report);
+      return touch.poll(report, rotation);
 #endif
     };
     while (next_report()) {
-      if (!backlight_ready)
+      if (!backlight_ready || awaiting_rotation_frame)
         continue;
       if (report.valid) {
         if constexpr (!esphome_trial)
@@ -885,7 +1061,7 @@ void run(void *) {
                                        track_physical_drags ? &drag_end : nullptr);
       if constexpr (stage_at_edge) {
         if (swipe.dragging())
-          prefetch.note_drag(swipe.position() - swipe.origin_slide() * slide_width, report.sampled_us);
+          prefetch.note_drag(swipe.position() - swipe.origin_slide() * viewport.width, report.sampled_us);
       }
       if constexpr (track_physical_drags) {
         if (previous_contact != input.contact_started_us() && physical_landing.interrupt())
@@ -911,6 +1087,18 @@ void run(void *) {
       } else if (effect == SwipeInput::Effect::Wake) {
         manual_brightness.reset();
         schedule.wake(report.sampled_us);
+      }
+      if constexpr (!SWIPE_TRIAL_BENCHMARK) {
+        if (effect == SwipeInput::Effect::Tap && swipe.idle() && swipe.settled() > 0 &&
+            swipe.position() == display.handoff_position() && !fade.running() && !fade.held() && !blend.pending() &&
+            network.recovery_status() == NativeNetwork::RecoveryStatus::Off && !recovery_painted &&
+            cache.find(swipe.settled())) {
+          const bool opening = !controls.target_open();
+          if (opening || last_control_progress < PhotoControls::open || input.contact_y() >= PhotoControls::toolbar_bottom)
+            controls.animate(opening, esp_timer_get_time(), clock.visible() || last_caption.opacity != 0);
+        }
+        if (swipe.dragging() && !was_dragging && (controls.target_open() || last_control_progress != 0))
+          controls.animate(false, esp_timer_get_time());
       }
       if (swipe.dragging() && fade.held())
         fade.note_drag();
@@ -942,6 +1130,11 @@ void run(void *) {
       if (commanded)
         screen_control.completed();
     }
+    if ((controls.target_open() || last_control_progress != 0) &&
+        (!input.awake() || network.recovery_status() != NativeNetwork::RecoveryStatus::Off))
+      controls.reset();
+    const int control_progress = controls.progress(now);
+    const uint8_t text_opacity = controls.text_opacity(now);
 
     if (blend.poll_complete() && fade.running()) {
       // Touch is handled before this block so a superseded blend can never
@@ -954,7 +1147,7 @@ void run(void *) {
 
     const SlideRange ready{ready_first, ready_last};
     const auto edge_position = swipe.position();
-    if (swipe.dragging() || (swipe.settling() && missing_neighbor_at_edge(edge_position, ready, available)))
+    if (swipe.dragging() || (swipe.settling() && missing_neighbor_at_edge(edge_position, ready, available, viewport.width)))
       prefetch.request_at_edge(edge_position, ready, available);
     // Keep a cache miss urgent through the snap-back and into idle.
     if (const auto wanted = prefetch.requested(); wanted && (cache.find(*wanted) || !available.contains(*wanted)))
@@ -988,15 +1181,16 @@ void run(void *) {
                                  ? prefetch.can_defer_drag(ready, origin, swipe.position(),
                                                            drag == Swipe::DragActivity::Starting, first_motion_pending)
                                  : !contact_engaged && prefetch.can_defer_settle(ready, swipe.settle_destination());
-      pixel_work_deferred = user_motion && can_defer;
+      const bool scaling_at_rest = controls.animating(control_progress) && !swipe.dragging() && !swipe.settling();
+      pixel_work_deferred = (user_motion && can_defer) || scaling_at_rest;
       protect_cached_copy = drag == Swipe::DragActivity::Starting && !first_motion_pending && !can_defer &&
                             !prefetch.requested() && ready.contains(origin) && ready.last == origin + 1 &&
-                            swipe.position() > origin * slide_width;
+                            swipe.position() > origin * viewport.width;
       loader.defer_pixel_work(pixel_work_deferred);
     }
     if (preparing >= 0) {
       if (const auto wanted = prefetch.requested(); wanted && eligible(*wanted)) {
-        if (prefetch.can_yield(preparing, *wanted, preparing_refresh)) {
+        if ((!preparing_rotation || contact_engaged) && prefetch.can_yield(preparing, *wanted, preparing_refresh)) {
           loader.yield_to_swipe();
         } else if constexpr (stage_at_edge) {
           if (preparing == *wanted && source_anchor < 0 && requested_revision == source_revision &&
@@ -1007,7 +1201,7 @@ void run(void *) {
           }
         }
       }
-    } else if (!blend.pending() && (esphome_trial || !backlight_ready || input.awake())) {
+    } else if (!awaiting_rotation_frame && !blend.pending() && (esphome_trial || !backlight_ready || input.awake())) {
       // Until PPA finishes, its input slides must stay readable even if a
       // touch has moved the cache window in the other direction.
       const auto retained_during_motion = swipe.retain_for_motion(keep, display.handoff_position());
@@ -1019,7 +1213,7 @@ void run(void *) {
           return false;
         if constexpr (trace_enabled)
           refill_started_us = esp_timer_get_time();
-        loader.submit(*lease, source_revision, source_anchor >= 0, preparation);
+        loader.submit(*lease, source_revision, source_anchor >= 0, preparation, rotation, {});
         preparing = candidate;
         preparing_refresh = refresh;
         return true;
@@ -1094,7 +1288,9 @@ void run(void *) {
     if (live) {
       const bool first_photo = swipe.settled() == 0;
       const bool source_changed = source_anchor == swipe.settled();
-      const bool dwelling = visible_and_idle && !fade.running() && !fade.held();
+      const bool dwelling = wanted_rotation == rotation && visible_and_idle && !fade.running() && !fade.held() &&
+                            !controls.target_open() && control_progress == 0 && last_control_progress == 0 &&
+                            text_opacity == PhotoControls::opaque;
       // Keep the settled photo available for inspection during the touch replay.
       constexpr bool hold_photo = SWIPE_TRIAL_REPLAY_HISTORY || SWIPE_TRIAL_WIFI_OUTAGE || trial_replay_touch;
       if ((!hold_photo || first_photo) &&
@@ -1147,9 +1343,10 @@ void run(void *) {
     std::optional<SlideIndex> settled_caption;
     if (photo_at_rest && !swipe.dragging() && !swipe.settling() &&
         !fade.running() && !fade.held() && swipe.settled() > 0 &&
-        position == swipe.settled() * slide_width && position == display.presented_position())
+        position == swipe.settled() * viewport.width && position == display.presented_position())
       settled_caption = swipe.settled();
     auto caption_sample = caption_fade.update(now, settled_caption);
+    caption_sample.opacity = (caption_sample.opacity * text_opacity + 127) / 255;
     if (blend.pending()) {
       display.wait_for_frame_or_tick();
       continue;
@@ -1207,13 +1404,13 @@ void run(void *) {
       continue;
     }
 
-    const auto inside = std::clamp(position, ready_first * slide_width, ready_last * slide_width);
+    const auto inside = std::clamp(position, ready_first * viewport.width, ready_last * viewport.width);
     const bool use_edge = inside != position;
     const bool show_clock = live && swipe.settled() != 0;
     const bool show_notice = backlight_ready && input.awake() && !input.engaged() && swipe.idle() && !fade.held();
     const bool show_recovery = show_notice && network.recovery_status() != NativeNetwork::RecoveryStatus::Off;
     const bool show_source_notice = show_notice && !show_recovery && ready_last == center;
-    const auto connection_notice = !esphome_trial && live && show_source_notice && !showed_photo
+    const auto connection_notice = !esphome_trial && live && show_source_notice && (!showed_photo || source_anchor >= 0)
                                        ? initial_photo_timeout.notice(now, active_connection_timeout.load(std::memory_order_relaxed))
                                        : ImmichResponse::Pending;
     const auto source_notice = show_source_notice && connection_notice == ImmichResponse::Pending
@@ -1222,40 +1419,68 @@ void run(void *) {
                                source_notice != PhotoSourceStatus::None;
     const auto notice_language = paints_notice ? active_device_language.load(std::memory_order_relaxed) : uint8_t{0};
     const bool sliding = swipe.dragging() || swipe.settling();
+    const bool clock_changed = show_clock && (clock_dirty || (clock.visible() && text_opacity != last_text_opacity));
     const auto caption_slot = caption_sample.opacity && !show_recovery ? cache.ready_slot(caption_sample.slide)
                                                                       : std::nullopt;
-    const auto *caption = caption_slot && captions[*caption_slot].band_rows() ? &captions[*caption_slot] : nullptr;
+    const auto *caption = caption_slot && captions[*caption_slot].band_rows() &&
+                                  (!clock.visible() || captions[*caption_slot].fits_beside_clock(rotation))
+                              ? &captions[*caption_slot]
+                              : nullptr;
     if (!caption)
       caption_sample = {};
     if (auto *output = display.writable_buffer(); output != nullptr &&
-        (position != last_submitted || inside != last_inside || show_recovery != recovery_painted ||
-         source_notice != painted_source_status ||
-         connection_notice != painted_connection_notice || notice_language != painted_notice_language ||
-         (display.borrowing() && !sliding) || (show_clock && clock_dirty) || caption_sample != last_caption)) {
-      const auto index = inside / slide_width;
-      const int offset = inside % slide_width;
+        (position != last_submitted || inside != last_inside || control_progress != last_control_progress ||
+         (control_progress == 0 &&
+          (show_recovery != recovery_painted || source_notice != painted_source_status ||
+           connection_notice != painted_connection_notice || notice_language != painted_notice_language ||
+           (display.borrowing() && !sliding) || clock_changed || caption_sample != last_caption)))) {
+      const auto index = inside / viewport.width;
+      const int offset = inside % viewport.width;
       const auto slide_pixels = [&](SlideIndex slide) {
-        return snapshot != nullptr && slide == fade.anchor() ? snapshot : cache.find(slide);
+        return control_progress == 0 && snapshot != nullptr && slide == fade.anchor() ? snapshot : cache.find(slide);
       };
       const auto *left = slide_pixels(index);
       const auto *right = offset == 0 ? nullptr : slide_pixels(index + 1);
       if (left != nullptr && (offset == 0 || right != nullptr)) {
         const auto motion = input.take_first_motion();
         const auto started_render = motion != 0 ? esp_timer_get_time() : 0;
-        constexpr auto limit = PixelPosition{slide_width - 1};
+        const auto limit = PixelPosition{viewport.width - 1};
         const int pull = static_cast<int>(std::clamp(position - inside, -limit, limit)) * axis_direction(rotation);
-        const auto span = orient_slide_span(left, right, panel_height, offset, rotation);
+        const auto span = orient_slide_span(left, right, viewport.width, offset, rotation);
+        const auto finish_render = [&](int64_t started_submit) {
+          submitted_motion_us = motion;
+          motion_render_us = motion != 0 ? esp_timer_get_time() - started_render : 0;
+          if constexpr (capture_motion) {
+            if (motion != 0)
+              first_motion = {motion, input.contact_started_us(), motion_render_us,
+                              ready_at_motion(position, {ready_first, ready_last}, available, viewport.width), preparing >= 0,
+                              started_submit != 0 ? started_render + motion_render_us - started_submit : 0};
+          }
+          last_submitted = position;
+          last_inside = inside;
+          last_control_progress = control_progress;
+          last_text_opacity = text_opacity;
+        };
+        if (control_progress != 0) {
+          controls.prepare(output, span, pull, rotation, control_progress);
+          controls_renderer.draw();
+          const auto started_submit = trial_immich && motion != 0 ? esp_timer_get_time() : 0;
+          submit_frame(position, position != last_submitted, use_edge);
+          finish_render(started_submit);
+          display.wait_for_frame_or_tick();
+          continue;
+        }
         const auto render_owned = [&] {
           if (use_edge) {
-            blitter.edge(output, left, pull);
+            blitter.edge(output, left, pull, viewport.portrait);
             if (left == snapshot)
-              clock.restore_rows(output, std::max(0, pull), std::max(0, -pull), panel_height - std::abs(pull));
+              clock.restore_slide_slice(output, std::max(0, pull), std::max(0, -pull), viewport.width - std::abs(pull));
           } else {
-            blitter.slides(output, span);
+            blitter.slides(output, span, viewport.portrait);
             if (span.first == snapshot)
-              clock.restore_rows(output, span.offset, 0, panel_height - span.offset);
+              clock.restore_slide_slice(output, span.offset, 0, viewport.width - span.offset);
             if (span.offset != 0 && span.second == snapshot)
-              clock.restore_rows(output, 0, panel_height - span.offset, span.offset);
+              clock.restore_slide_slice(output, 0, viewport.width - span.offset, span.offset);
           }
         };
         const auto paint_caption = [&] {
@@ -1277,13 +1502,13 @@ void run(void *) {
         // Present the destination promptly. Once it is stationary, the
         // ordinary owned submission releases the source after its handoff.
         const bool landing = !use_edge && offset == 0 && position != last_submitted &&
-                             position == swipe.settle_destination() * slide_width &&
+                             position == swipe.settle_destination() * viewport.width &&
                              (swipe.settling() || (swipe.idle() && display.borrowing()));
-        if (linked_scanout_ok && input.awake() && snapshot == nullptr && !fade.held() && !paints_notice &&
+        if (linked_scanout_ok && !viewport.portrait && input.awake() && snapshot == nullptr && !fade.held() && !paints_notice &&
             ((sliding && (use_edge || offset != 0)) || landing)) {
           segment_started = esp_timer_get_time();
           const auto copy_rows = [&](auto *to, const auto *from, int rows) { blitter.copy_panel_rows(to, from, rows); };
-          const bool paint_clock = show_clock && clock.visible();
+          const bool paint_clock = show_clock && clock.visible() && text_opacity != 0;
           const int caption_rows = caption ? caption->band_rows() : 0;
           if (use_edge)
             segmented = prepare_edge_scanout(output, left, pull, paint_clock, rotation, copy_rows, caption_rows);
@@ -1296,7 +1521,7 @@ void run(void *) {
         if (pause_for_copy)
           loader.defer_pixel_work(false);
         if (show_clock) {
-          clock.draw(output);
+          clock.draw(output, false, text_opacity);
           clock_dirty = false;
         }
         paint_caption();
@@ -1322,7 +1547,7 @@ void run(void *) {
             linked_scanout_ok = false;
             render_owned();
             if (show_clock)
-              clock.draw(output);
+              clock.draw(output, false, text_opacity);
             paint_caption();
           }
         }
@@ -1330,16 +1555,7 @@ void run(void *) {
         if (!submitted)
           submit_frame(position, position != last_submitted, use_edge);
         last_caption = caption_sample;
-        submitted_motion_us = motion;
-        motion_render_us = motion != 0 ? esp_timer_get_time() - started_render : 0;
-        if constexpr (capture_motion) {
-          if (motion != 0)
-            first_motion = {motion, input.contact_started_us(), motion_render_us,
-                            ready_at_motion(position, {ready_first, ready_last}, available), preparing >= 0,
-                            started_submit != 0 ? started_render + motion_render_us - started_submit : 0};
-        }
-        last_submitted = position;
-        last_inside = inside;
+        finish_render(started_submit);
       }
     }
     display.wait_for_frame_or_tick();
@@ -1355,10 +1571,11 @@ void start_player() {
     if (!start_esphome_trial(trial_seconds))
       return;
   } else {
+    start_web_logs();
     start_usb_setup(network);
   }
-  // Live trials read ESPHome NVS while a candidate Settings record is on this stack.
-  constexpr uint32_t player_stack_bytes = trial_immich ? 6144 : 4096;
+  // The standalone player also loads and normalizes its saved configuration at startup.
+  constexpr uint32_t player_stack_bytes = !esphome_trial ? 8192 : trial_immich ? 6144 : 4096;
   const auto result = xTaskCreatePinnedToCore(run, "photo-player", player_stack_bytes, nullptr, player_priority, nullptr,
                                             player_core);
   ESP_ERROR_CHECK(result == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);

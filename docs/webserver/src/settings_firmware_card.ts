@@ -1,3 +1,5 @@
+  var nativeFirmware: { request(version: string): Promise<boolean>; isAvailable(): boolean };
+
   function parseFirmwareVersion(value) {
     var match = /^v([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/i.exec(String(value || "").trim());
     if (!match) return null;
@@ -142,6 +144,7 @@
   function c6FirmwareUpdateKnownAvailable() {
     var current = String(S.c6_current_firmware || "").trim();
     var latest = String(S.c6_available_firmware || "").trim();
+    if (nativeAdmin) return compareFirmwareVersions("v" + latest, "v" + current) > 0;
     return /\d/.test(current) && /\d/.test(latest) && !firmwareVersionsSame(current, latest);
   }
 
@@ -163,7 +166,8 @@
     S.firmware_selected_version = selected ? selected.version : "";
     els.fwVersionSelect.value = S.firmware_selected_version;
     els.fwPreviousPanel.style.display = S.firmware_versions_loaded && infos.length ? "" : "none";
-    var busy = !!(S.firmware_checking || S.firmware_installing || S.firmware_uploading);
+    var busy = !!(S.firmware_checking || S.firmware_installing || S.firmware_uploading) ||
+      (nativeAdmin && !nativeFirmware?.isAvailable());
     els.fwVersionSelect.disabled = busy;
     if (els.fwPreviousInstallBtn) {
       els.fwPreviousInstallBtn.disabled = busy || !selected;
@@ -192,7 +196,7 @@
     }
     if (els.fwActionBtn) {
       var busy = !!(S.firmware_checking || S.firmware_installing || S.firmware_uploading);
-      els.fwActionBtn.disabled = busy;
+      els.fwActionBtn.disabled = busy || (nativeAdmin && !nativeFirmware?.isAvailable());
       if (S.firmware_uploading) els.fwActionBtn.textContent = "Uploading\u2026";
       else if (S.firmware_installing) els.fwActionBtn.textContent = "Installing\u2026";
       else if (S.firmware_checking) els.fwActionBtn.textContent = "Checking\u2026";
@@ -294,6 +298,7 @@
   }
 
   function installPublicFirmware(info) {
+    if (nativeAdmin && info) return nativeFirmware.request(info.version);
     if (!info || !info.ota_url || S.firmware_uploading || S.firmware_installing) return Promise.resolve(false);
     S.firmware_install_error = "";
     S.firmware_uploading = true;
@@ -346,6 +351,7 @@
 
   function startFirmwareInstall() {
     if (!firmwareUpdateKnownAvailable()) return;
+    if (nativeAdmin) return installPublicFirmware(latestFirmwareInfo());
     S.firmware_install_error = "";
     S.firmware_installing = true;
     refreshFirmwareUi();
@@ -361,6 +367,7 @@
 
   function checkFirmwareUpdate(installAfterCheck) {
     if (S.firmware_checking || S.firmware_installing) return;
+    if (nativeAdmin) return nativeFirmware.request("");
     S.firmware_install_error = "";
     S.firmware_checking = true;
     refreshFirmwareUi();
@@ -412,6 +419,10 @@
   }
 
   function makeFirmwareCard() {
+    var showAppFirmware = !nativeAdmin || (hasWritableSetting("auto_update") && hasWritableSetting("update_frequency"));
+    var showWifiFirmware = !nativeAdmin || hasWritableSetting("c6_auto_update");
+    if (!showAppFirmware && !showWifiFirmware) return null;
+    var requestWifiFirmware = null;
     var fwBody = el("div", "fw-body");
     var subpanels = el("div", "fw-subpanels");
 
@@ -445,7 +456,7 @@
     els.fwStatus = updateStatus;
     var updateBadge = makeDisclosureBadge("Update available", "Firmware update available");
     els.firmwareUpdatesBadge = updateBadge;
-    subpanels.appendChild(makeInlineDisclosure("Firmware updates", updateBody, false, updateBadge));
+    if (showAppFirmware) subpanels.appendChild(makeInlineDisclosure("Firmware updates", updateBody, false, updateBadge));
 
     var autoBody = el("div");
     var autoBadge = makeDisclosureBadge("On", "Automatic firmware updates on");
@@ -469,7 +480,7 @@
     autoBody.appendChild(frequencyField);
     els.fwFrequencyField = frequencyField;
     els.autoUpdateBadge = autoBadge;
-    subpanels.appendChild(makeInlineDisclosure("Auto updates", autoBody, false, autoBadge));
+    if (showAppFirmware) subpanels.appendChild(makeInlineDisclosure("Auto updates", autoBody, false, autoBadge));
 
     var wifiBody = el("div");
     var c6CurrentRow = el("div", "fw-row");
@@ -499,6 +510,10 @@
     var c6Actions = el("div", "fw-actions");
     var c6Button = button("Check for Update", "btn btn-secondary btn-sm", function () {
       if (S.c6_firmware_checking || S.c6_firmware_installing) return;
+      if (nativeAdmin) {
+        if (requestWifiFirmware) requestWifiFirmware(c6FirmwareUpdateKnownAvailable());
+        return;
+      }
       if (c6FirmwareUpdateKnownAvailable()) {
         S.c6_firmware_installing = true;
         refreshC6FirmwareUi();
@@ -531,7 +546,7 @@
     els.c6FirmwareStatus = c6Status;
     var c6Badge = makeDisclosureBadge("Update available", "WiFi firmware update available");
     els.c6FirmwareBadge = c6Badge;
-    subpanels.appendChild(makeInlineDisclosure("WiFi firmware", wifiBody, false, c6Badge));
+    if (showWifiFirmware) subpanels.appendChild(makeInlineDisclosure("WiFi firmware", wifiBody, false, c6Badge));
 
     var previousBody = el("div");
     var versionField = field("Version");
@@ -552,16 +567,29 @@
     els.fwPreviousInstallBtn = previousInstall;
     var previousPanel = makeInlineDisclosure("Previous firmware", previousBody, false);
     els.fwPreviousPanel = previousPanel;
-    subpanels.appendChild(previousPanel);
+    if (showAppFirmware) subpanels.appendChild(previousPanel);
 
     fwBody.appendChild(subpanels);
     var cardBadge = makeBadge(false, "Update available", "Firmware update available");
     els.firmwareCardBadge = cardBadge;
     var firmwareCard = makeCollapsibleCard("Firmware", fwBody, true, cardBadge);
+    if (nativeAdmin) {
+      if (showAppFirmware)
+        nativeFirmware = window["espframeNativeFirmware"](firmwareCard, S, refreshFirmwareUi, compareFirmwareVersions, showBanner);
+      if (showWifiFirmware) {
+        requestWifiFirmware = window["espframeNativeWifiFirmware"](firmwareCard, S, refreshC6FirmwareUi, showBanner);
+        refreshC6FirmwareUi();
+      }
+    } else {
+      refreshC6FirmwareUi();
+      fetchPublicFirmwareVersions();
+    }
     refreshFirmwareUi();
-    refreshC6FirmwareUi();
-    fetchPublicFirmwareVersions();
     return firmwareCard;
+  }
+
+  function rebootFrame() {
+    return post(nativeAdmin ? "/espframe/api/v1/reboot" : endpoints.reboot_screen + "/press");
   }
 
   function makeDeviceRebootCard() {
@@ -570,7 +598,7 @@
     var rebootBtn = button("Reboot Screen", "btn btn-secondary btn-sm", function () {
       rebootBtn.disabled = true;
       rebootBtn.textContent = "Rebooting...";
-      post(endpoints.reboot_screen + "/press")
+      rebootFrame()
         .catch(function () {
           // Shared request helpers already surface failures in the UI.
         })
@@ -687,7 +715,8 @@
         try {
           await apiClient.waitForWrites();
           await apiClient.reset(mode);
-          showBanner("Reset accepted. The frame is restarting into first-time Wi-Fi setup.", "info");
+          if (nativeAdmin) window["espframeNativeAfterReset"](mode, frameIdentity?.ip_address, showBanner);
+          else showBanner("Reset accepted. The frame is restarting into first-time Wi-Fi setup.", "info");
         } catch (_) {
           action.disabled = false;
           action.textContent = title;

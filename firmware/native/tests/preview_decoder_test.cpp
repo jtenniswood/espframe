@@ -119,6 +119,23 @@ void verify(const char *path) {
   assert((at(panel, 0, 650) & 0x001f) >= 0x001e);
   assert(at(panel, slide_width - 1, 650) >= 0xf7de);
   expect_flipped(panel, decoded, nullptr, DisplayMode::Fill);
+  for (const auto mode : {DisplayMode::Fit, DisplayMode::Fill}) {
+    for (const auto rotation : {ScreenRotation::Clockwise, ScreenRotation::Counterclockwise}) {
+      const Viewport viewport{rotation};
+      assert(decoded.decode(photo.data(), photo.size(), {PreviewTarget::Slide, mode, mode, rotation}) == Decode::Ready);
+      std::fill(panel.begin() + 1, panel.end() - 1, guard);
+      assert(decoded.render(panel.data() + 1, nullptr, mode, rotation));
+      const auto pixel = [&](int x, int y) { return panel[1 + viewport.offset(x, y)]; };
+      const auto framing = frame_photo(32, 32, viewport.width, viewport.height, mode);
+      const int top = (viewport.height - framing.height) / 2;
+      const int upper = top + framing.height / 4;
+      const int lower = top + 3 * framing.height / 4;
+      assert(panel.front() == guard && panel.back() == guard);
+      assert((pixel(100, upper) & 0xf800) >= 0xf000 && (pixel(700, upper) & 0x07e0) >= 0x07c0);
+      assert((pixel(100, lower) & 0x001f) >= 0x001e && pixel(700, lower) >= 0xf7de);
+      assert((pixel(400, 0) == 0) == (mode == DisplayMode::Fit));
+    }
+  }
   assert(decoded.decode(photo.data(), photo.size() / 2) == Decode::Invalid);
 }
 
@@ -429,6 +446,37 @@ void verify_orientation(const char *square_jpeg, const char *square_webp, const 
                         PhotoOrientation::Portrait) == Decode::Ready && decoded.portrait());
 }
 
+void verify_rotation_when_the_encoded_preview_is_gone() {
+  constexpr auto normal = ScreenRotation::Normal;
+  constexpr auto inverted = ScreenRotation::UpsideDown;
+  constexpr uint16_t guard = 0xaaaa;
+  const Viewport old{normal};
+  std::vector<uint16_t> source(pixel_count);
+  std::vector<uint16_t> destination(pixel_count + 2, guard);
+  constexpr uint16_t colors[2][2]{{0xf800, 0x07e0}, {0x001f, 0xffff}};
+  for (int y = 0; y < old.height; ++y) {
+    for (int x = 0; x < old.width; ++x)
+      source[old.offset(x, y)] = colors[y >= old.height / 2][x >= old.width / 2];
+  }
+  auto *output = destination.data() + 1;
+  assert(reframe_cached_photo(output, source.data(), normal, inverted, false, DisplayMode::Fit, {}));
+  assert(std::equal(source.rbegin(), source.rend(), output));
+  for (auto rotation : {ScreenRotation::Clockwise, ScreenRotation::Counterclockwise}) {
+    const Viewport next{rotation};
+    const auto pixel = [&](int x, int y) { return output[next.offset(x, y)]; };
+    assert(reframe_cached_photo(output, source.data(), normal, rotation, false, DisplayMode::Fit, {}));
+    assert(pixel(100, 0) == 0 && pixel(100, next.height - 1) == 0);
+    assert(pixel(100, 450) == colors[0][0] && pixel(700, 450) == colors[0][1]);
+    assert(pixel(100, 850) == colors[1][0] && pixel(700, 850) == colors[1][1]);
+    assert(reframe_cached_photo(output, source.data(), normal, rotation, true, DisplayMode::Fill, {}));
+    assert(pixel(100, 0) == colors[0][0] && pixel(700, 0) == colors[0][0]);
+    assert(pixel(100, next.height - 1) == colors[1][0] && pixel(700, next.height - 1) == colors[1][0]);
+    assert(destination.front() == guard && destination.back() == guard);
+  }
+  const PreparationCheckpoint interrupted{nullptr, [](void *) { return false; }};
+  assert(!reframe_cached_photo(output, source.data(), inverted, normal, false, DisplayMode::Fill, interrupted));
+}
+
 int main(int argc, char **argv) {
   assert(argc == 10);
   const auto wide = frame_photo(1600, 900, slide_width, slide_height, DisplayMode::Fill);
@@ -447,6 +495,7 @@ int main(int argc, char **argv) {
   verify_scaled_jpeg(argv[8]);
   verify_scaled_jpeg(argv[9]);
   verify_orientation(argv[1], argv[3], argv[4]);
+  verify_rotation_when_the_encoded_preview_is_gone();
   const uint8_t unsupported[]{0, 1, 2, 3};
   DecodedPreview decoded;
   assert(decoded.decode(unsupported, sizeof(unsupported)) == Decode::Invalid);

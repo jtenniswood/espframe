@@ -36,3 +36,5 @@ CONFIG_LWIP_TCP_RECVMBOX_SIZE=14
 CONFIG_LWIP_SNTP_MAX_SERVERS=3
 # Run the TCP/IP task on the photo worker core, away from touch and LCD updates.
 CONFIG_LWIP_TCPIP_TASK_AFFINITY_CPU0=y
+# WireGuard uses the lwIP PPP input support for its point-to-point interface.
+CONFIG_LWIP_PPP_SUPPORT=y

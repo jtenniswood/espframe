@@ -13,11 +13,11 @@ class FrameBlitter {
   static constexpr unsigned burst_bytes = 128;
 
   void init();
-  void slides(uint16_t *output, SlideSpan span);
+  void slides(uint16_t *output, SlideSpan span, bool across_columns = false);
   void copy_panel_rows(uint16_t *output, const uint16_t *source, int rows) {
     copy_rows_(output, source, panel_width, rows);
   }
-  void edge(uint16_t *output, const uint16_t *photo, int pull);
+  void edge(uint16_t *output, const uint16_t *photo, int pull, bool across_columns = false);
   void push(uint16_t *output, const uint16_t *from, const uint16_t *to, int dx, int dy, uint8_t progress,
             ScreenRotation rotation);
 

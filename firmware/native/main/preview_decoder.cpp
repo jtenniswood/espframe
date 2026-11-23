@@ -27,22 +27,23 @@ using Decode = DecodedPreview::Result;
 constexpr int row_batch = 16;
 
 bool clear_region(uint16_t *panel, int left, int top, int width, int height,
-                  ScreenRotation rotation, PreparationCheckpoint checkpoint) {
+                  Viewport viewport, PreparationCheckpoint checkpoint) {
   if (width == 0 || height == 0)
     return true;
-  // A logical column is stored as one scanline on the panel.
-  const bool flipped = rotation == ScreenRotation::UpsideDown;
-  const int start_column = flipped ? slide_height - 1 - top : slide_height - top - height;
-  for (int x = left; x < left + width; x += row_batch) {
+  const int first = viewport.offset(left + (viewport.x_stride < 0 ? width - 1 : 0),
+                                    top + (viewport.y_stride < 0 ? height - 1 : 0));
+  const int stride_width = viewport.portrait ? width : height;
+  const int rows = viewport.portrait ? height : width;
+  for (int row = 0; row < rows; row += row_batch) {
     if (!checkpoint())
       return false;
-    const int count = std::min(row_batch, left + width - x);
-    if (height == slide_height) {
-      const int first_x = flipped ? x + count - 1 : x;
-      std::fill_n(panel + panel_offset(first_x, start_column, rotation), count * height, 0);
+    const int count = std::min(row_batch, rows - row);
+    auto *start = panel + first + row * panel_width;
+    if (stride_width == panel_width) {
+      std::fill_n(start, count * panel_width, 0);
     } else {
-      for (int column = x; column < x + count; ++column)
-        std::fill_n(panel + panel_offset(column, start_column, rotation), height, 0);
+      for (int i = 0; i < count; ++i)
+        std::fill_n(start + i * panel_width, stride_width, 0);
     }
   }
   return true;
@@ -53,6 +54,9 @@ bool supported(unsigned width, unsigned height) {
 }
 
 PhotoFraming framing(int width, int height, PreviewLayout layout) {
+  const Viewport viewport{layout.rotation};
+  if (viewport.portrait)
+    return frame_photo(width, height, viewport.width, viewport.height, layout.photo);
   const bool portrait = height > width;
   if (layout.target == PreviewTarget::PairPane || (layout.target == PreviewTarget::RequiredPair && portrait))
     return frame_photo(width, height, portrait_pair_width, slide_height, layout.pair);
@@ -329,39 +333,89 @@ Decode decode_webp(const uint8_t *encoded, size_t length, uint16_t *&pixels, Pho
 
 }  // namespace
 
+bool reframe_cached_photo(uint16_t *destination, const uint16_t *source, ScreenRotation from,
+                          ScreenRotation to, bool paired, DisplayMode mode, PreparationCheckpoint checkpoint) {
+  const Viewport previous{from};
+  const Viewport next{to};
+  const int source_width = paired && next.portrait ? portrait_pair_width : previous.width;
+  const auto framing = frame_photo(source_width, previous.height, next.width, next.height, mode);
+  const int left = (next.width - framing.width) / 2;
+  const int top = (next.height - framing.height) / 2;
+  if (!clear_region(destination, 0, 0, next.width, top, next, checkpoint) ||
+      !clear_region(destination, 0, top + framing.height, next.width, next.height - top - framing.height, next, checkpoint) ||
+      !clear_region(destination, 0, top, left, framing.height, next, checkpoint) ||
+      !clear_region(destination, left + framing.width, top, next.width - left - framing.width, framing.height, next,
+                    checkpoint))
+    return false;
+
+  const auto &crop = framing.source;
+  const uint32_t step_x = (static_cast<uint32_t>(crop.width) << 16) / framing.width;
+  const uint32_t step_y = (static_cast<uint32_t>(crop.height) << 16) / framing.height;
+  // Walk the native rows in both orientations so the writes stay contiguous.
+  const int rows = next.portrait ? framing.height : framing.width;
+  const int columns = next.portrait ? framing.width : framing.height;
+  const uint32_t row_step = next.portrait ? step_y : step_x;
+  const uint32_t column_step = next.portrait ? step_x : step_y;
+  const int old_row_stride = next.portrait ? previous.y_stride : previous.x_stride;
+  const int old_column_stride = next.portrait ? previous.x_stride : previous.y_stride;
+  const int new_column_stride = next.portrait ? next.x_stride : next.y_stride;
+  const auto *cropped = source + previous.offset(crop.x, crop.y);
+  for (int row = 0; row < rows; ++row) {
+    if (row % 8 == 0 && !checkpoint())
+      return false;
+    const auto *input = cropped + static_cast<int>((row * row_step) >> 16) * old_row_stride;
+    auto *output = destination + (next.portrait ? next.offset(left, top + row) : next.offset(left + row, top));
+    for (int column = 0; column < columns; ++column)
+      output[column * new_column_stride] = input[static_cast<int>((column * column_step) >> 16) * old_column_stride];
+  }
+  return true;
+}
+
 DecodedPreview::~DecodedPreview() { heap_caps_free(this->pixels_); }
 
 bool DecodedPreview::paint_(uint16_t *panel, int left, int max_width, DisplayMode mode, HorizontalAlignment alignment,
                             ScreenRotation rotation, PreparationCheckpoint checkpoint) const {
+  const Viewport viewport{rotation};
   // An existing fit can be placed as-is. Avoid a second rounding step on
   // images already scaled to the destination before rotating the pixels.
-  const auto size = mode == DisplayMode::Fit && this->width_ <= max_width
+  const auto size = mode == DisplayMode::Fit && this->width_ <= max_width && this->height_ <= viewport.height
                         ? PhotoFraming{{0, 0, this->width_, this->height_}, this->width_, this->height_, this->portrait_}
-                        : frame_photo(this->width_, this->height_, max_width, slide_height, mode);
+                        : frame_photo(this->width_, this->height_, max_width, viewport.height, mode);
   const int horizontal_space = max_width - size.width;
   int side = 0;
   if (alignment == HorizontalAlignment::Right)
     side = horizontal_space;
   else if (alignment == HorizontalAlignment::Center)
     side = horizontal_space / 2;
-  const int top = (slide_height - size.height) / 2;
+  const int top = (viewport.height - size.height) / 2;
   const int photo_left = left + side;
   const int photo_right = photo_left + size.width;
   const int photo_bottom = top + size.height;
   if (size.width != max_width &&
-      (!clear_region(panel, left, 0, side, slide_height, rotation, checkpoint) ||
-       !clear_region(panel, photo_right, 0, left + max_width - photo_right, slide_height, rotation, checkpoint)))
+      (!clear_region(panel, left, 0, side, viewport.height, viewport, checkpoint) ||
+       !clear_region(panel, photo_right, 0, left + max_width - photo_right, viewport.height, viewport, checkpoint)))
     return false;
-  if (size.height != slide_height &&
-      (!clear_region(panel, photo_left, 0, size.width, top, rotation, checkpoint) ||
-       !clear_region(panel, photo_left, photo_bottom, size.width, slide_height - photo_bottom, rotation, checkpoint)))
+  if (size.height != viewport.height &&
+      (!clear_region(panel, photo_left, 0, size.width, top, viewport, checkpoint) ||
+       !clear_region(panel, photo_left, photo_bottom, size.width, viewport.height - photo_bottom, viewport, checkpoint)))
     return false;
   // Refit an already decoded portrait to a half-screen without divisions
   // in the pixel loop. A 1:1 fit keeps the original integer coordinates.
   const auto &crop = size.source;
   const uint32_t scale_x = (static_cast<uint32_t>(crop.width) << 16) / size.width;
   const uint32_t scale_y = (static_cast<uint32_t>(crop.height) << 16) / size.height;
-  const int column_step = -axis_direction(rotation);
+  if (viewport.portrait) {
+    for (int y = 0; y < size.height; ++y) {
+      if (y % 8 == 0 && !checkpoint())
+        return false;
+      const int source_y = crop.y + ((y * scale_y) >> 16);
+      const auto *source = this->pixels_ + source_y * this->width_ + crop.x;
+      auto *row = panel + viewport.offset(photo_left, top + y);
+      for (int x = 0; x < size.width; ++x)
+        row[x * viewport.x_stride] = source[(x * scale_x) >> 16];
+    }
+    return true;
+  }
   // A longer run of RGB565 pixels lets each rotated column fill more of a
   // PSRAM cache line before moving on. Check for touch work between groups
   // of columns so a wider band does not delay a swipe or cancellation.
@@ -379,10 +433,10 @@ bool DecodedPreview::paint_(uint16_t *panel, int left, int max_width, DisplayMod
         return false;
       const int x_end = std::min(x0 + columns_per_checkpoint, size.width);
       for (int x = x0; x < x_end; ++x) {
-        auto *column = panel + panel_offset(x + photo_left, panel_width - 1 - top - y0, rotation);
+        auto *column = panel + viewport.offset(x + photo_left, top + y0);
         const int source_x = crop.x + ((x * scale_x) >> 16);
         for (int row = 0; row < rows; ++row)
-          column[row * column_step] = source_rows[row][source_x];
+          column[row * viewport.y_stride] = source_rows[row][source_x];
       }
     }
   }
@@ -426,11 +480,12 @@ DecodedPreview::Result DecodedPreview::decode(const uint8_t *encoded, size_t len
 
 bool DecodedPreview::render(uint16_t *panel, const DecodedPreview *companion, DisplayMode pair_mode,
                             ScreenRotation rotation, PreparationCheckpoint checkpoint) const {
-  const bool pair = companion != nullptr && this->portrait() && companion->portrait();
+  const Viewport viewport{rotation};
+  const bool pair = !viewport.portrait && companion != nullptr && this->portrait() && companion->portrait();
   if (this->width_ == 0)
-    return clear_region(panel, 0, 0, slide_width, slide_height, rotation, checkpoint);
+    return clear_region(panel, 0, 0, viewport.width, viewport.height, viewport, checkpoint);
   // Keep Fit's side margins outside the pair so the two inner edges meet.
-  return this->paint_(panel, 0, pair ? portrait_pair_width : slide_width, pair ? pair_mode : this->display_mode_,
+  return this->paint_(panel, 0, pair ? portrait_pair_width : viewport.width, pair ? pair_mode : this->display_mode_,
                       pair ? HorizontalAlignment::Right : HorizontalAlignment::Center, rotation, checkpoint) &&
          (!pair || companion->paint_(panel, portrait_pair_width, portrait_pair_width, pair_mode,
                                      HorizontalAlignment::Left, rotation, checkpoint));

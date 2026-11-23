@@ -1,5 +1,7 @@
   // --- Import / Export ---
 
+  if (nativeAdmin) window["espframeNativeBackupSchema"](BACKUP_SCHEMA);
+
   function backupExportFieldValue(entry) {
     if (!entry || !Array.isArray(entry.state_keys) || !entry.state_keys.length) return "";
     if (entry.group === "screen" && entry.field === "schedule_wake_timeout") {
@@ -19,7 +21,8 @@
       exported_at: new Date().toISOString()
     };
     BACKUP_SCHEMA.forEach(function (entry) {
-      if (!entry || !entry.group || !entry.field) return;
+      if (!entry || !entry.group || !entry.field ||
+          (nativeAdmin && !entry.state_keys.every(key => nativeSettings.has(key)))) return;
       if (!data[entry.group]) data[entry.group] = {};
       data[entry.group][entry.field] = backupExportFieldValue(entry);
     });
@@ -106,7 +109,8 @@
   }
 
   function migrateBackupConfig(data) {
-    return BACKUP_VERSION_MIGRATIONS[data.version](data);
+    var migrated = BACKUP_VERSION_MIGRATIONS[data.version](data);
+    return nativeAdmin ? window["espframeNativeBackupDefaults"](data, migrated) : migrated;
   }
 
   function downloadBackup() {
@@ -131,7 +135,8 @@
   }
 
   function exportConfig() {
-    if (!frameIdentityLoaded) return;
+    if (nativeAdmin) return fetchDeviceSettingsState().then(downloadBackup)
+      .catch(function () { showBanner("Could not read the settings to export.", "error"); });
     downloadBackup();
   }
 
@@ -160,6 +165,7 @@
 
   function queueBackupImportSetting(key, value) {
     if (!backupImportValues) return false;
+    if (nativeAdmin && !nativeSettings.has(key)) return skipBackupImportField(key.replace(/_/g, " ") + " is unavailable");
     backupImportValues[key] = value;
     return true;
   }
@@ -213,7 +219,7 @@
 
   function backupImportCanRetrySmaller(error) {
     return error && (error.status === 413 || error.status === 422 ||
-      (error.status === 400 && (!error.code || error.code === "invalid_json")));
+      (error.status === 400 && (!error.code || error.code === "invalid_json" || error.code === "invalid_configuration")));
   }
 
   function saveBackupImportBatch(values, requestedRotation) {
@@ -240,7 +246,7 @@
   }
 
   function saveBackupImportSettings(values) {
-    var batches = backupImportSettingsBatches(values);
+    var batches = nativeAdmin ? [values] : backupImportSettingsBatches(values);
     return batches.reduce(function (chain, batch) {
       return chain.then(function (result) {
         return saveBackupImportBatch(batch, values.screen_rotation).then(function (batchResult) {
@@ -287,7 +293,7 @@
   function validateProductSettingBackupImport(entry, value) {
     var stateKey = backupImportStateKey(entry);
     var spec = backupImportSettingSpec(entry);
-    if (!stateKey || !endpoints[stateKey]) {
+    if (!hasWritableSetting(stateKey)) {
       return backupImportValidation(false, value, backupImportFieldLabel(entry) + " is not supported");
     }
     if (!spec || !spec.domain) return backupImportValidation(true, value);
@@ -380,11 +386,10 @@
     }
     switch (backupEntryKey(entry)) {
       case "connection.immich_url":
-        var importUrl = normalizeImmichUrl(value);
+        var importUrl = normalizeConnectionUrl(value);
         if (importUrl.length > 255) return skipBackupImportField("Immich URL exceeds 255 characters - not imported");
         if (importUrl && !isValidHttpUrl(importUrl)) return skipBackupImportField("Immich URL was invalid - not imported");
         return queueBackupImportSetting("immich_url", importUrl);
-        return true;
       case "photos.album_ids":
         var importAlbum = String(value).trim();
         if (photoIdFieldTooLong(importAlbum)) {
@@ -392,17 +397,15 @@
         } else if (!isValidUuidList(importAlbum)) {
           return skipBackupImportField("Import skipped invalid album IDs");
         } else {
-          queueBackupImportSetting("album_ids", importAlbum);
+          return queueBackupImportSetting("album_ids", importAlbum);
         }
-        return true;
       case "photos.album_labels":
         var importAlbumLabels = String(value).trim();
         if (photoLabelFieldTooLong(importAlbumLabels)) {
           return skipBackupImportField("Album labels exceed 255 characters - not imported");
         } else {
-          queueBackupImportSetting("album_labels", importAlbumLabels);
+          return queueBackupImportSetting("album_labels", importAlbumLabels);
         }
-        return true;
       case "photos.person_ids":
         var importPerson = String(value).trim();
         if (photoIdFieldTooLong(importPerson)) {
@@ -410,17 +413,15 @@
         } else if (!isValidUuidList(importPerson)) {
           return skipBackupImportField("Import skipped invalid person IDs");
         } else {
-          queueBackupImportSetting("person_ids", importPerson);
+          return queueBackupImportSetting("person_ids", importPerson);
         }
-        return true;
       case "photos.person_labels":
         var importPersonLabels = String(value).trim();
         if (photoLabelFieldTooLong(importPersonLabels)) {
           return skipBackupImportField("Person labels exceed 255 characters - not imported");
         } else {
-          queueBackupImportSetting("person_labels", importPersonLabels);
+          return queueBackupImportSetting("person_labels", importPersonLabels);
         }
-        return true;
       case "photos.tag_ids":
         var importTag = String(value).trim();
         if (photoIdFieldTooLong(importTag)) {
@@ -428,17 +429,15 @@
         } else if (!isValidUuidList(importTag)) {
           return skipBackupImportField("Import skipped invalid tag IDs");
         } else {
-          queueBackupImportSetting("tag_ids", importTag);
+          return queueBackupImportSetting("tag_ids", importTag);
         }
-        return true;
       case "photos.tag_labels":
         var importTagLabels = String(value).trim();
         if (photoLabelFieldTooLong(importTagLabels)) {
           return skipBackupImportField("Tag labels exceed 255 characters - not imported");
         } else {
-          queueBackupImportSetting("tag_labels", importTagLabels);
+          return queueBackupImportSetting("tag_labels", importTagLabels);
         }
-        return true;
       case "clock.timezone":
         var importedTimezone = normalizeTimezoneOption(value);
         if (TIMEZONES.indexOf(importedTimezone) === -1) {
@@ -542,12 +541,11 @@
 
           queuedCount = Object.keys(backupImportValues).length;
 
-          if (Object.keys(backupImportValues).length) {
-            trackBackupImportSave(saveBackupImportSettings(backupImportValues), Object.keys(backupImportValues).length);
-          }
+          var restore = queuedCount ? saveBackupImportSettings(backupImportValues) : Promise.resolve();
+          if (queuedCount) trackBackupImportSave(restore, queuedCount);
           if (restoreName) {
             queuedCount += 1;
-            trackBackupImportSave(saveFrameName(data.identity.name).then(function () { return { ok: true }; }));
+            trackBackupImportSave(restore.then(function () { return saveFrameName(data.identity.name); }));
           }
 
           Promise.all(backupImportSaveTasks)
@@ -557,7 +555,7 @@
               }, 0);
               var appliedCount = queuedCount - failedCount;
               if (needsPhotoSourceApply && appliedCount) {
-                return post(endpoints.apply_photo_source + "/press")
+                return applyPhotoSource()
                   .then(function () {
                     return { appliedCount: appliedCount, failedCount: failedCount };
                   })

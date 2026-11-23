@@ -3,6 +3,7 @@
 #include "photo_framing.h"
 #include "photo_history.h"
 #include "photo_orientation.h"
+#include "slide_geometry.h"
 
 #include "esp_heap_caps.h"
 
@@ -25,6 +26,7 @@ class RecentPreviews {
     AssetId companion;
     DisplayMode framing{DisplayMode::Fit};
     PhotoOrientation orientation{PhotoOrientation::Any};
+    ScreenRotation rotation{ScreenRotation::Normal};
     bool operator==(const PreparedKey &) const = default;
   };
   using Key = std::variant<AssetId, PreparedKey>;
@@ -60,6 +62,13 @@ class RecentPreviews {
   void discard(const Key &key) {
     if (auto *entry = this->find_(key))
       this->remove_(*entry);
+  }
+
+  void clear() {
+    for (auto &entry : entries_)
+      remove_(entry);
+    clock_ = 0;
+    byte_limit_ = byte_budget;
   }
 
  private:

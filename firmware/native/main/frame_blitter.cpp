@@ -121,7 +121,13 @@ bool FrameBlitter::copy_split_(uint16_t *output, SlideSpan span) {
   return false;
 }
 
-void FrameBlitter::slides(uint16_t *output, SlideSpan span) {
+void FrameBlitter::slides(uint16_t *output, SlideSpan span, bool across_columns) {
+  if (across_columns && span.offset != 0) {
+    const int first_width = panel_width - span.offset;
+    copy_block_(output, span.first, panel_width, panel_height, 0, span.offset, first_width);
+    copy_block_(output, span.second, panel_width, panel_height, first_width, 0, span.offset);
+    return;
+  }
 #if SWIPE_TRIAL_IMMICH
   const auto started = span.offset != 0 ? esp_timer_get_time() : 0;
 #endif
@@ -141,26 +147,32 @@ void FrameBlitter::slides(uint16_t *output, SlideSpan span) {
 #endif
 }
 
-void FrameBlitter::edge(uint16_t *output, const uint16_t *photo, int pull) {
+void FrameBlitter::edge(uint16_t *output, const uint16_t *photo, int pull, bool across_columns) {
+  if (across_columns && pull != 0) {
+    const int repeated = std::abs(pull);
+    const int retained = panel_width - repeated;
+    const int destination = std::max(0, -pull);
+    const int source = std::max(0, pull);
+    copy_block_(output, photo, panel_width, panel_height, destination, source, retained);
+    const int strip = pull > 0 ? retained : 0;
+    const int edge = pull > 0 ? panel_width - 1 : 0;
+    for (int row = 0; row < panel_height; ++row)
+      std::fill_n(output + row * panel_width + strip, repeated, photo[row * panel_width + edge]);
+    return;
+  }
   blit_slide_edge(output, photo, panel_width, panel_height, pull,
                   [this](auto *to, const auto *from, int width, int rows) { copy_rows_(to, from, width, rows); });
 }
 
 void FrameBlitter::push(uint16_t *output, const uint16_t *from, const uint16_t *to,
                         int dx, int dy, uint8_t progress, ScreenRotation rotation) {
-  const int extent = dx != 0 ? panel_height : panel_width;
+  const Viewport viewport{rotation};
+  const int extent = dx != 0 ? viewport.width : viewport.height;
   const int distance = std::clamp((extent * progress + 127) / 255, 1, extent - 1);
-  const int orientation = axis_direction(rotation);
-  if (dx != 0) {
-    slides(output, dx * orientation < 0 ? SlideSpan{from, to, distance}
-                                       : SlideSpan{to, from, extent - distance});
-  } else if (dy * orientation > 0) {
-    copy_block_(output, from, panel_width, panel_height, 0, distance, extent - distance);
-    copy_block_(output, to, panel_width, panel_height, extent - distance, 0, distance);
-  } else {
-    copy_block_(output, to, panel_width, panel_height, 0, extent - distance, distance);
-    copy_block_(output, from, panel_width, panel_height, distance, 0, extent - distance);
-  }
+  const int direction = dx != 0 ? dx * viewport.x_stride : dy * viewport.y_stride;
+  const bool across_columns = dx != 0 ? viewport.portrait : !viewport.portrait;
+  slides(output, direction < 0 ? SlideSpan{from, to, distance} : SlideSpan{to, from, extent - distance},
+         across_columns);
 }
 
 }  // namespace espframe::native

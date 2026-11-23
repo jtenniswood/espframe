@@ -160,7 +160,8 @@
     });
     els.immichPage.className = "sp-page" + (tab === "immich" ? " active" : "");
     els.settingsPage.className = "sp-page" + (tab === "settings" ? " active" : "");
-    els.logsPage.className = "sp-page" + (tab === "logs" ? " active" : "");
+    if (els.logsPage) els.logsPage.className = "sp-page" + (tab === "logs" ? " active" : "");
+    if (nativeAdmin) window["espframeShowLogs"](tab === "logs", appendLog);
   }
 
   function openImmichConnectionForApiKey() {

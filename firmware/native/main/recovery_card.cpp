@@ -72,17 +72,17 @@ int ascii_width(const uint8_t *atlas, std::string_view value) {
 }
 
 void ascii_text(uint16_t *frame, const uint8_t *atlas, ScreenRotation rotation, int x, int y, std::string_view value) {
-  const int step = -axis_direction(rotation);
+  const Viewport viewport{rotation};
   for (const unsigned char character : value) {
     const auto *glyph = ascii_glyph(atlas, character);
     const int advance = *glyph++;
-    for (int column = 0; column < glyph_width; ++column) {
-      auto *pixels = frame + panel_offset(x + column, panel_width - 1 - y, rotation);
+    for (int column = 0; column < std::min(glyph_width, viewport.width - x); ++column) {
+      auto *pixels = frame + viewport.offset(x + column, y);
       for (int row = 0; row < glyph_height; ++row) {
         const auto mask = glyph[row * (glyph_width / 2) + column / 2];
         const unsigned opacity = column % 2 ? mask & 15 : mask >> 4;
         if (opacity)
-          pixels[row * step] = masked(white, opacity);
+          pixels[row * viewport.y_stride] = masked(white, opacity);
       }
     }
     x += advance;
@@ -90,7 +90,8 @@ void ascii_text(uint16_t *frame, const uint8_t *atlas, ScreenRotation rotation, 
 }
 
 void localized_text(uint16_t *frame, Line line, ScreenRotation rotation, int x, int y, uint16_t color) {
-  if (line.width <= 0 || x < 0 || x + line.width > slide_width || y < 0 || y + glyph_height > slide_height)
+  const Viewport viewport{rotation};
+  if (line.width <= 0 || x < 0 || x + line.width > viewport.width || y < 0 || y + glyph_height > viewport.height)
     return;
   size_t pixel = 0;
   const size_t pixel_count = line.width * glyph_height;
@@ -105,15 +106,22 @@ void localized_text(uint16_t *frame, Line line, ScreenRotation rotation, int x, 
     for (; pixel < end; ++pixel) {
       const int column = pixel % line.width;
       const int row = pixel / line.width;
-      frame[panel_offset(x + column, panel_width - 1 - y - row, rotation)] = value;
+      frame[viewport.offset(x + column, y + row)] = value;
     }
   }
 }
 
 void card(uint16_t *frame, ScreenRotation rotation, int left, int top, int width, int height) {
+  const Viewport viewport{rotation};
+  if (viewport.portrait) {
+    const int x = viewport.x_stride < 0 ? left + width - 1 : left;
+    for (int row = top; row < top + height; ++row)
+      std::fill_n(frame + viewport.offset(x, row), width, background);
+    return;
+  }
   for (int column = left; column < left + width; ++column) {
-    const int first = panel_offset(column, panel_width - top - height, rotation);
-    const int last = panel_offset(column, panel_width - 1 - top, rotation);
+    const int first = viewport.offset(column, top);
+    const int last = viewport.offset(column, top + height - 1);
     std::fill_n(frame + std::min(first, last), height, background);
   }
 }
@@ -123,7 +131,7 @@ void source_notice(uint16_t *frame, StatusText text, StatusLabel key, ScreenRota
   if (message.width == 0)
     return;
   constexpr int left = 48;
-  constexpr int top = 612;
+  const int top = Viewport{rotation}.height - 188;
   constexpr int inset = 20;
   const int width = std::max(396, message.width + 2 * inset);
   card(frame, rotation, left, top, width, 60);
@@ -136,9 +144,8 @@ void source_notice(uint16_t *frame, StatusText text, StatusLabel key, ScreenRota
 void draw_recovery_card(uint16_t *frame, const uint8_t *atlas, StatusText text, const RecoveryNetwork &network,
                         ScreenRotation rotation) {
   constexpr int left = 48;
-  constexpr int height = 184;
-  constexpr int top = panel_width - height - 48;
   constexpr int inset = 24;
+  const Viewport viewport{rotation};
   const auto title = line(text, StatusLabel::wifi_setup);
   const Line labels[]{line(text, StatusLabel::wifi_network), line(text, StatusLabel::wifi_password),
                       line(text, StatusLabel::recovery_address)};
@@ -146,15 +153,21 @@ void draw_recovery_card(uint16_t *frame, const uint8_t *atlas, StatusText text, 
   const int label_width = std::max({labels[0].width, labels[1].width, labels[2].width});
   const int value_width = std::max({ascii_width(atlas, values[0]), ascii_width(atlas, values[1]), ascii_width(atlas, values[2])});
   const int label_column = std::max(139, label_width + 22);
-  const int width = std::max({504, title.width + 2 * inset, label_column + value_width + 2 * inset});
+  const bool stacked = viewport.portrait;
+  const int height = stacked ? 296 : 184;
+  const int top = viewport.height - height - 48;
+  const int content_width = stacked ? std::max({title.width, label_width, value_width})
+                                    : std::max(title.width, label_column + value_width);
+  const int width = std::min(viewport.width - left, std::max(504, content_width + 2 * inset));
   const bool right_to_left = rtl(text);
   const int end = left + width - inset;
   card(frame, rotation, left, top, width, height);
   localized_text(frame, title, rotation, right_to_left ? end - title.width : left + inset, top + 12, white);
   for (size_t i = 0; i < std::size(labels); ++i) {
-    const int y = top + 52 + 38 * static_cast<int>(i);
+    const int y = top + 52 + (stacked ? 76 : 38) * static_cast<int>(i);
     localized_text(frame, labels[i], rotation, right_to_left ? end - labels[i].width : left + inset, y, muted);
-    ascii_text(frame, atlas, rotation, right_to_left ? left + inset : left + inset + label_column, y, values[i]);
+    const int value_x = stacked || right_to_left ? left + inset : left + inset + label_column;
+    ascii_text(frame, atlas, rotation, value_x, stacked ? y + 36 : y, values[i]);
   }
 }
 

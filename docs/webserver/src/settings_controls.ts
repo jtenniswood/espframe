@@ -37,7 +37,8 @@
     var renderers = settingsCardRenderers();
     if (!Array.isArray(WEB_UI_CARDS) || !WEB_UI_CARDS.length) return [];
     return WEB_UI_CARDS.filter(function (card) {
-      return card && card.tab === tabId;
+      return card && card.tab === tabId &&
+        (!nativeAdmin || window["espframeNativeCards"]?.[card.function]?.every(function (key) { return nativeSettings.has(key); }));
     }).map(function (card) {
       var renderer = renderers[card.function];
       return renderer ? { section: card.section || "", element: renderer() } : null;
@@ -77,7 +78,7 @@
 
     var immichCards = renderSettingsCardsForTab("immich");
     var settingsCardEntries = renderSettingsCardEntriesForTab("settings");
-    if (!immichCards.length) immichCards = [
+    if (!immichCards.length && !nativeAdmin) immichCards = [
       makeConnectionCard(),
       makeWireguardCard(),
       makeFrequencyCard(),
@@ -90,7 +91,7 @@
     appendCards(immichWrap, immichCards);
     immichApp.appendChild(immichWrap);
 
-    if (!settingsCardEntries.length) settingsCardEntries = [
+    if (!settingsCardEntries.length && !nativeAdmin) settingsCardEntries = [
       { section: "Display", element: makeScreenBrightnessCard() },
       { section: "Display", element: makeScreenToneCard() },
       { section: "Display", element: makeRotationCard() },
@@ -105,6 +106,13 @@
       { section: "System", element: makeDeveloperCard() }
     ];
     appendSettingsSections(wrap, settingsCardEntries);
+    if (nativeAdmin) {
+      var tools = document.createElement("a");
+      tools.className = "btn btn-secondary btn-sm";
+      tools.href = "/settings";
+      tools.textContent = "Photo sources & device tools";
+      wrap.appendChild(tools);
+    }
     app.appendChild(wrap);
     connectFieldLabels(app);
     connectFieldLabels(immichApp);

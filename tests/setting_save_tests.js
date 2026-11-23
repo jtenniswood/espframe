@@ -19,6 +19,7 @@ async function legacyConnectionRollback(status) {
     S: state,
     settingSaves: saves,
     rendered: false,
+    nativeAdmin: false,
     renderAttemptInFlight: false,
     renderTimer: null,
     wizardActive: false,
@@ -135,6 +136,7 @@ async function rotationPreservesPairing() {
   const template = fs.readFileSync("docs/webserver/src/app.template.ts", "utf8");
   const writes = [];
   const runtime = {
+    nativeAdmin: false,
     screenRotationOptionsForUi: () => ["0", "90", "180", "270"],
     isPortraitScreenRotation: value => value === "90" || value === "270",
     saveSettingValues: async values => { writes.push({ ...values }); },
@@ -199,6 +201,7 @@ async function confirmAppliedRotationPolicy(atomic) {
   const saves = new SettingSaveCoordinator(key => state[key], (key, value) => { state[key] = value; });
   const runtime = {
     S: state,
+    nativeAdmin: false,
     settingSaves: saves,
     isPortraitScreenRotation: value => value === "90" || value === "270",
     legacySettingWrite: (key, value) => ({ key, value }),

@@ -26,7 +26,7 @@ constexpr UBaseType_t touch_priority = 5;
 class Touch {
  public:
   void init();
-  esp_err_t read(TouchReport &report, ScreenRotation rotation) const;
+  esp_err_t read(TouchReport &report) const;
 
  private:
   esp_err_t write_(uint8_t address, uint32_t value, bool one_byte = false) const;
@@ -108,7 +108,7 @@ void Touch::init() {
   gsl_DataInit(esphome::gsl3680::gsl_config_data_id);
 }
 
-esp_err_t Touch::read(TouchReport &sample, ScreenRotation rotation) const {
+esp_err_t Touch::read(TouchReport &sample) const {
   std::array<uint8_t, 24> report{};
   const esp_err_t status = this->read_(0x80, report.data(), report.size());
   if (status != ESP_OK)
@@ -134,23 +134,28 @@ esp_err_t Touch::read(TouchReport &sample, ScreenRotation rotation) const {
   }
 
   sample.contacts = static_cast<uint8_t>(std::clamp(info.finger_num, 0, 2));
-  if (sample.contacts != 0)
-    map_gsl_touch(sample, info.x[0], info.y[0], rotation);
+  if (sample.contacts != 0) {
+    sample.x = info.x[0];
+    sample.y = info.y[0];
+  }
   return ESP_OK;
 }
 
 }  // namespace
 
-void TouchReader::start(ScreenRotation rotation) {
-  this->rotation_ = rotation;
+void TouchReader::start() {
   this->reports_ = xQueueCreate(8, sizeof(TouchReport));
   ESP_ERROR_CHECK(this->reports_ != nullptr ? ESP_OK : ESP_ERR_NO_MEM);
   const auto result = xTaskCreatePinnedToCore(run_, "touch-reader", 3072, this, touch_priority, nullptr, touch_core);
   ESP_ERROR_CHECK(result == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
 }
 
-bool TouchReader::poll(TouchReport &report) const {
-  return xQueueReceive(this->reports_, &report, 0) == pdTRUE;
+bool TouchReader::poll(TouchReport &report, ScreenRotation rotation) const {
+  if (xQueueReceive(this->reports_, &report, 0) != pdTRUE)
+    return false;
+  if (report.valid && report.contacts != 0)
+    map_gsl_touch(report, report.x, report.y, rotation);
+  return true;
 }
 
 void TouchReader::run_(void *context) {
@@ -161,7 +166,7 @@ void TouchReader::run_(void *context) {
   while (true) {
     auto started = xTaskGetTickCount();
     TouchReport report;
-    report.valid = touch.read(report, reader.rotation_) == ESP_OK;
+    report.valid = touch.read(report) == ESP_OK;
     report.sequence = ++sequence;
     report.sampled_us = esp_timer_get_time();
     if (xQueueSend(reader.reports_, &report, 0) != pdPASS) {

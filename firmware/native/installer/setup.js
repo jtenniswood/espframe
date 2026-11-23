@@ -8,10 +8,12 @@ const revision = document.querySelector('#revision')
 const install = document.querySelector('esp-web-install-button')
 const installButton = install.querySelector('button')
 const form = document.querySelector('#settings')
-const submit = form.querySelector('button')
+const submit = form.querySelector('button[type="submit"]')
 const status = document.querySelector('#status')
 const find = document.querySelector('#find-frame')
 const networkStatus = document.querySelector('#network-status')
+const webAdminAccess = document.querySelector('#web-admin-access')
+const clearWebPassword = document.querySelector('#clear-web-password')
 const repairWifi = document.querySelector('#repair-wifi')
 const wifiRepairForm = document.querySelector('#wifi-repair')
 const connectWifi = wifiRepairForm.querySelector('button')
@@ -25,9 +27,6 @@ const backupStatus = document.querySelector('#backup-status')
 const playback = document.querySelector('#playback')
 const schedule = document.querySelector('#screen-schedule')
 const homeAssistant = document.querySelector('#home-assistant')
-const preparedSlides = document.querySelector('#prepared-slides')
-const preparedUrl = form.elements.prepared_slide_url
-const preparedToken = form.elements.prepared_slide_token
 const homeAssistantKey = form.elements.home_assistant_key
 const keepStockPairing = document.querySelector('#keep-stock-pairing')
 const removeHomeAssistantKey = document.querySelector('#remove-home-assistant-key')
@@ -74,14 +73,6 @@ removeHomeAssistantKey.addEventListener('change', () => {
   refreshHomeAssistant()
 })
 homeAssistantKey.addEventListener('input', () => homeAssistantKey.setCustomValidity(''))
-const clearPreparedErrors = () => {
-  preparedUrl.setCustomValidity('')
-  preparedToken.setCustomValidity('')
-}
-preparedUrl.addEventListener('input', clearPreparedErrors)
-preparedToken.addEventListener('input', clearPreparedErrors)
-form.elements.immich_key.addEventListener('input', clearPreparedErrors)
-keepStockImmich.addEventListener('change', clearPreparedErrors)
 const showPercentages = () => {
   for (const name of percentageFields) {
     form.querySelector(`output[for="${name}"]`).value = `${form.elements[name].value}%`
@@ -162,7 +153,6 @@ backup.addEventListener('change', async () => {
 form.addEventListener('invalid', event => {
   if (playback.contains(event.target)) playback.open = true
   if (schedule.contains(event.target)) schedule.open = true
-  if (preparedSlides.contains(event.target)) preparedSlides.open = true
 }, true)
 
 const embeddedFirmware = document.querySelector('#embedded-firmware')
@@ -190,19 +180,23 @@ revision.addEventListener('change', () => {
   if (revision.value) install.manifest = manifestFor(revision.value)
 })
 
-function showFrameAddress(frame) {
+function showFrameAddress(frame, passwordSet = false) {
   if (!frame) {
     networkStatus.textContent = 'The frame is waiting for Wi-Fi. Use Change Wi-Fi over USB to update the connection details.'
     repairWifi.open = true
   } else if (frame.web === 'disabled') {
-    networkStatus.textContent = `Connected at ${frame.address}. Set a web settings password to open the frame’s settings.`
+    const link = document.createElement('a')
+    link.href = '#web-admin-password'
+    link.textContent = 'Set a web admin password'
+    link.addEventListener('click', () => { webAdminAccess.open = true })
+    networkStatus.replaceChildren(`Connected at ${frame.address}. `, link, ' and save settings to enable the admin.')
   } else if (frame.web === 'starting') {
     networkStatus.textContent = `Connected at ${frame.address}. The settings page is starting. Try again in a moment.`
   } else {
     const link = document.createElement('a')
     link.href = `http://${frame.address}/`
     link.textContent = 'Open frame settings'
-    networkStatus.replaceChildren(`Connected at ${frame.address}. `, link)
+    networkStatus.replaceChildren(`Connected at ${frame.address}. `, link, passwordSet ? ' and sign in as espframe.' : '.')
   }
 }
 
@@ -226,28 +220,17 @@ async function provisionWifi(port, ssid, password) {
   }
 }
 
-function addPreparedSlides(data) {
-  if (!data.prepared_slide_url && !data.prepared_slide_token) {
-    delete data.prepared_slide_url
-    delete data.prepared_slide_token
-    return true
-  }
-  preparedUrl.setCustomValidity(!preparedUrl.value || /[?#@\\]/.test(preparedUrl.value) ?
-    'Enter the HTTP or HTTPS service URL without credentials, a query, or a fragment.' : '')
-  preparedToken.setCustomValidity(!/^[!-~]{32,256}$/.test(preparedToken.value) || preparedToken.value === data.immich_key ?
-    'Enter a separate service token of 32 to 256 characters without spaces.' : '')
-  return preparedUrl.reportValidity() && preparedToken.reportValidity()
-}
-
 if ('serial' in navigator) {
   submit.disabled = false
   find.disabled = false
   repairWifi.hidden = false
   connectWifi.disabled = false
+  clearWebPassword.disabled = false
   const setSerialBusy = busy => {
     submit.disabled = busy
     find.disabled = busy
     connectWifi.disabled = busy
+    clearWebPassword.disabled = busy
     backup.disabled = busy
     revision.disabled = busy
     installButton.disabled = busy
@@ -304,6 +287,22 @@ if ('serial' in navigator) {
       setSerialBusy(false)
     }
   })
+  clearWebPassword.addEventListener('click', async () => {
+    setSerialBusy(true)
+    networkStatus.textContent = 'Removing the web admin password…'
+    try {
+      const port = await navigator.serial.requestPort()
+      await configure(port, { web_password: '' })
+      form.elements.web_password.value = ''
+      const frame = await waitForFrame(port)
+      if (frame) showFrameAddress(frame)
+      else networkStatus.textContent = 'Password removed. Choose Find frame on Wi-Fi to check its address.'
+    } catch (error) {
+      networkStatus.textContent = error.name === 'NotFoundError' ? 'Choose the frame’s USB port to continue.' : error.message
+    } finally {
+      setSerialBusy(false)
+    }
+  })
   form.addEventListener('submit', async event => {
     event.preventDefault()
     if (submit.disabled) return
@@ -312,6 +311,7 @@ if ('serial' in navigator) {
       return
     }
     const data = Object.fromEntries(new FormData(form))
+    if (!data.web_password) delete data.web_password
     if (importedFirmwareUpdates) data.firmware_updates = importedFirmwareUpdates
     const keepPairing = keepStockPairing.checked
     const keepWifi = keepStockWifi.checked
@@ -331,7 +331,7 @@ if ('serial' in navigator) {
       homeAssistantKey.reportValidity()
       return
     }
-    if (!addPreparedSlides(data) || !validateAlbum(form, data) || !addCaptureDates(form, data) || !addPhotoFilters(form, data)) return
+    if (!validateAlbum(form, data) || !addCaptureDates(form, data) || !addPhotoFilters(form, data)) return
     if (data.photo_source === 'custom' && importedPreset) data.legacy_photo_preset = importedPreset
     data.slide_seconds = Number(data.slide_seconds)
     if (!data.conn_timeout) delete data.conn_timeout
@@ -377,7 +377,7 @@ if ('serial' in navigator) {
       status.textContent = keepPairing ? 'Settings saved. Home Assistant pairing kept.' : 'Settings saved.'
       networkStatus.textContent = 'Waiting for the frame to restart and reconnect to Wi-Fi…'
       const frame = await waitForFrame(port)
-      if (frame) showFrameAddress(frame)
+      if (frame) showFrameAddress(frame, Boolean(data.web_password))
       else showFrameAddress(null)
     } catch (error) {
       status.textContent = error.name === 'NotFoundError' ? 'Choose the frame’s USB port to continue.' : error.message
