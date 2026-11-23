@@ -180,6 +180,7 @@ const verify = `
       throw new Error('USB setup accepted a photo preparation service without a token')
     preparedToken.value = serviceToken
     preparedToken.dispatchEvent(new Event('input'))
+    form.elements.web_password.value = 'test-admin-password'
     const saved = waitFor(document.querySelector('#status'), 'Settings saved.')
     const find = document.querySelector('#find-frame')
     const networkStatus = document.querySelector('#network-status')
@@ -190,9 +191,11 @@ const verify = `
       throw new Error('A second USB action was available while waiting for the restart')
     await foundAfterSave
     if (attempts !== 1 || writes !== 1 || addressChecks !== 3 || find.disabled ||
-      networkStatus.querySelector('a')?.href !== 'http://192.168.50.10/')
+      networkStatus.querySelector('a')?.href !== 'http://192.168.50.10/' ||
+      !networkStatus.textContent.includes('sign in as espframe'))
       throw new Error('Setup did not automatically find the same frame after it restarted')
     if (attempts !== 1 || received.immich_key !== 'entered-api-key' || received.ssid !== 'Test Wi-Fi'
+      || received.web_password !== 'test-admin-password'
       || received.photo_source !== 'memories' || received.album_id !== '${album}' || received.slide_seconds !== 86400
       || received.memories_window !== 'Within 7 Days' || received.memories_fallback !== false
       || received.portrait_pairing !== false || received.portrait_pairs_only !== true
@@ -251,6 +254,7 @@ const verify = `
     if (attempts !== 4 || received.immich_key !== 'after-improv'
       || Object.hasOwn(received, 'ssid') || Object.hasOwn(received, 'password') || Object.hasOwn(received, 'frame_name')
       || Object.hasOwn(received, 'home_assistant_key') || Object.hasOwn(received, 'display_mode')
+      || Object.hasOwn(received, 'web_password')
       || Object.hasOwn(received, 'portrait_pair_framing')
       || Object.hasOwn(received, 'prepared_slide_url')
       || Object.hasOwn(received, 'prepared_slide_token'))

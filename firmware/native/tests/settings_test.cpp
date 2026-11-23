@@ -1308,6 +1308,13 @@ int main() {
   assert(Settings::reset(ResetMode::Factory));
   assert(current.read() && !current.stock_update_preferences.frequency && !current.stock_update_preferences.auto_update);
 
+  assert(Settings::save(R"({"ssid":"Test Wi-Fi","password":"test-wifi-key","immich_url":"https://photos.test",
+      "immich_key":"test-immich-key","web_password":"test-admin-password"})"));
+  assert(Settings::save(R"({"immich_url":"https://photos.test","immich_key":"test-immich-key","slide_seconds":30})"));
+  assert(current.read() && current.web_password == "test-admin-password" && current.slide_seconds == 30);
+  assert(Settings::save(R"({"immich_url":"https://photos.test","immich_key":"test-immich-key","web_password":"replacement-admin"})"));
+  assert(current.read() && current.web_password == "replacement-admin");
+
   verify_stock_pairing_migration();
   verify_stock_connection_migration();
   verify_setup_framing();

@@ -52,8 +52,8 @@
           <label>Service access token <input name="prepared_slide_token" type="password" minlength="32" maxlength="256" autocomplete="off" aria-describedby="prepared-slides-help"></label>
           <small id="prepared-slides-help">Optional. Enter both values if you run the photo preparation service alongside Immich.</small>
         </details>
-        <label>Web settings password <input name="web_password" type="password" minlength="8" maxlength="64" aria-describedby="web-password"></label>
-        <small id="web-password">Optional. Set a password to enable settings on your local network.</small>
+        <label>Web admin password <input id="web-admin-password" name="web_password" type="password" minlength="8" maxlength="64" autocomplete="new-password" aria-describedby="web-password"></label>
+        <small id="web-password">Set a password to enable the frame’s web admin. Sign in as <strong>espframe</strong>. Leave this field blank to keep an existing password.</small>
         <details id="home-assistant">
           <summary>Home Assistant</summary>
           <label>ESPHome encryption key <input name="home_assistant_key" type="password" maxlength="44" aria-describedby="home-assistant-key"></label>

@@ -195,14 +195,17 @@ function showFrameAddress(frame) {
     networkStatus.textContent = 'The frame is waiting for Wi-Fi. Use Change Wi-Fi over USB to update the connection details.'
     repairWifi.open = true
   } else if (frame.web === 'disabled') {
-    networkStatus.textContent = `Connected at ${frame.address}. Set a web settings password to open the frame’s settings.`
+    const link = document.createElement('a')
+    link.href = '#web-admin-password'
+    link.textContent = 'Set a web admin password'
+    networkStatus.replaceChildren(`Connected at ${frame.address}. `, link, ' and save settings to enable the admin.')
   } else if (frame.web === 'starting') {
     networkStatus.textContent = `Connected at ${frame.address}. The settings page is starting. Try again in a moment.`
   } else {
     const link = document.createElement('a')
     link.href = `http://${frame.address}/`
     link.textContent = 'Open frame settings'
-    networkStatus.replaceChildren(`Connected at ${frame.address}. `, link)
+    networkStatus.replaceChildren(`Connected at ${frame.address}. `, link, ' and sign in as espframe.')
   }
 }
 
@@ -312,6 +315,7 @@ if ('serial' in navigator) {
       return
     }
     const data = Object.fromEntries(new FormData(form))
+    if (!data.web_password) delete data.web_password
     if (importedFirmwareUpdates) data.firmware_updates = importedFirmwareUpdates
     const keepPairing = keepStockPairing.checked
     const keepWifi = keepStockWifi.checked

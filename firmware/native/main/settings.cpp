@@ -777,6 +777,9 @@ Settings::UsbSaveResult Settings::save_usb(const char *json, std::optional<uint3
     name = &saved.frame_name;
   if (!provided("frame_name") && name && !cJSON_AddStringToObject(document.get(), "frame_name", name->c_str()))
     return Result::Rejected;
+  if (configured && !provided("web_password") && !saved.web_password.empty() &&
+      !cJSON_AddStringToObject(document.get(), "web_password", saved.web_password.c_str()))
+    return Result::Rejected;
   if (!new_key && saved.home_assistant_key_set &&
       !cJSON_AddStringToObject(document.get(), "home_assistant_key", saved.home_assistant_key.c_str()))
     return Result::Rejected;
