@@ -130,7 +130,7 @@ int64_t interval(const StockUpdatePreferences &prefs) {
 void run(void *context) {
   auto &network = *static_cast<NativeNetwork *>(context);
   const auto installed = *parse_preview_version(esp_app_get_description()->version);
-  auto next = esp_timer_get_time() + 30 * second;
+  int64_t next{};
   int64_t previous_interval = 0;
   int64_t refresh_preferences = 0;
   int64_t cadence = 0;
@@ -141,8 +141,8 @@ void run(void *context) {
       Settings prefs;
       auto_update = prefs.read() && prefs.stock_update_preferences.auto_update.value_or(true);
       cadence = interval(prefs.stock_update_preferences);
-      if (previous_interval != 0 && auto_update && cadence != previous_interval)
-        next = std::min(next, now + cadence);
+      if (cadence != previous_interval)
+        next = now + cadence;
       previous_interval = cadence;
       refresh_preferences = now + 15 * second;
     }
