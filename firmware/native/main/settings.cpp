@@ -1228,6 +1228,7 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   if (!previous || !next || !settings.add_playback_fields(previous.get()))
     return UpdateResult::Failed;
   const bool was_configured = settings.has_immich();
+  const auto previous_updates = settings.stock_update_preferences;
   const auto previous_night_brightness = settings.brightness_night;
   const auto previous_prepared_url = settings.prepared_slide_url;
   const auto previous_labels = settings.photo_filters.labels;
@@ -1241,7 +1242,8 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
       !read_field(update, "immich_key", replacement_key, true) ||
       !read_field(update, "frame_name", settings.frame_name, true) ||
       !read_field(update, "prepared_slide_url", settings.prepared_slide_url, true) ||
-      !read_field(update, "prepared_slide_token", replacement_token, true) || !read_playback(update, settings))
+      !read_field(update, "prepared_slide_token", replacement_token, true) || !read_playback(update, settings) ||
+      !read_stock_update_preferences(update, settings.stock_update_preferences))
     return UpdateResult::Invalid;
   if (cJSON_HasObjectItem(update, "screen_rotation") && portrait_screen(settings.screen_rotation) &&
       !settings.developer_features_enabled)
@@ -1270,8 +1272,9 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   const bool fixed_night_brightness = previous_night_brightness != settings.brightness_night;
   // The device-tools form sends a full snapshot. Classify the actual changes
   // after validation, including an explicitly pinned night brightness.
-  bool changed = connection_secret_changed || fixed_night_brightness;
   bool restart = connection_secret_changed || !was_configured;
+  bool changed = connection_secret_changed || fixed_night_brightness ||
+                 settings.stock_update_preferences != previous_updates;
   bool selection_changed = false;
   bool photo_changed = false;
   bool live_presentation_changed = false;

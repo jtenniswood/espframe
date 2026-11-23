@@ -289,6 +289,83 @@
     return n;
   }
 
+  // docs/webserver/src/native_firmware.ts
+  var S = "/api/firmware/releases";
+  var _ = /^v\d+\.\d+\.\d+-preview\.\d+$/;
+  var P = {
+    checking: "Checking for updates\u2026",
+    unavailable: "Could not check for Native Preview releases.",
+    installing: "Downloading and installing firmware\u2026",
+    restarting: "Waiting for the frame to restart\u2026",
+    failed: "The frame could not install that release."
+  };
+  function j(i, c2) {
+    if (!_.test(c2)) return false;
+    const b = (e) => e.match(/\d+/g).map(Number), m = b(c2);
+    for (const [e, a] of b(i).entries())
+      if (a !== m[e]) return a > m[e];
+    return false;
+  }
+  function nativeFirmwarePanel() {
+    const i = el("div", "native-firmware"), c2 = (t) => {
+      const n = el("div", "fw-row"), s2 = el("span", "fw-label");
+      return s2.textContent = "\u2014", n.append(t, s2), i.append(n), s2;
+    }, b = c2("Current"), m = c2("Available"), e = el("p", "fw-status");
+    e.setAttribute("role", "status");
+    const a = button("Check for Update", "btn btn-secondary btn-sm"), d = button("Install Update", "btn btn-primary btn-sm"), h = button("Install version", "btn btn-secondary btn-sm"), T = el("div", "fw-actions");
+    T.append(a, d), i.append(T);
+    const v = field("Previous versions"), u2 = el("select", "select");
+    u2.setAttribute("aria-label", "Previous versions"), v.append(u2, h), i.append(v, e);
+    const C = el("a");
+    C.href = "/settings#firmware", C.textContent = "Install firmware from a file", i.append(C);
+    let o = "", f2 = false, w, p2 = "";
+    function k() {
+      a.disabled = true, d.hidden = true, v.hidden = true;
+    }
+    function R(t) {
+      b.textContent = t.current || "Unknown", o = t.versions[0] || "", m.textContent = o || "\u2014";
+      const n = ["checking", "installing", "restarting"].includes(t.status), s2 = o && j(o, t.current);
+      a.disabled = !t.available || n || f2, d.hidden = !s2, d.disabled = a.disabled;
+      const x = t.versions.filter((l) => l !== t.current && !(s2 && l === o)), q = Array.from(u2.options, (l) => l.value);
+      x.join("|") !== q.join("|") && u2.replaceChildren(...x.map((l) => new Option(l))), v.hidden = !x.length, h.disabled = a.disabled, p2 && p2 === t.current ? (e.textContent = "Firmware updated.", p2 = "") : e.textContent = P[t.status] || (t.available ? "" : "Release updates require a versioned Native Preview.");
+    }
+    async function g() {
+      try {
+        const t = await fetch(S, { cache: "no-store", signal: AbortSignal.timeout(2500) });
+        if (!t.ok) throw new Error("release_status_unavailable");
+        const n = await t.json();
+        n.versions = Array.isArray(n.versions) ? n.versions.filter((s2) => _.test(s2)) : [], R(n);
+      } catch (t) {
+        k(), e.textContent = p2 ? "Waiting for the frame to come back\u2026" : "Firmware release information is unavailable.";
+      } finally {
+        window.clearTimeout(w), i.isConnected && (w = window.setTimeout(g, 3e3));
+      }
+    }
+    async function y(t) {
+      if (!f2) {
+        f2 = true, window.clearTimeout(w), k(), e.textContent = t ? P.installing : P.checking;
+        try {
+          if (!(await fetch(S, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: t,
+            signal: AbortSignal.timeout(4e3)
+          })).ok) throw new Error("release_request_failed");
+          p2 = t, f2 = false, await g();
+        } catch (n) {
+          f2 = false, e.textContent = "Could not start the request. Check the frame connection and try again.", w = window.setTimeout(g, 3e3);
+        }
+      }
+    }
+    return a.onclick = () => {
+      y("");
+    }, d.onclick = () => {
+      y(o);
+    }, h.onclick = () => {
+      y(u2.value);
+    }, k(), g(), i;
+  }
+
   // docs/webserver/src/app.ts
   var PRODUCT_SETTINGS = { "photo_source": { "entity": "select/Photos: Source", "domain": "select", "default": "All Photos", "options": ["All Photos", "Favorites", "Album", "Person", "Tag", "Memories", "Custom"] }, "memories_window": { "entity": "select/Photos: Memories Window", "domain": "select", "default": "Within 2 Days", "options": ["Same Day", "Within 1 Day", "Within 2 Days", "Within 3 Days", "Within 7 Days"] }, "memories_fallback": { "entity": "switch/Photos: Memories Fallback", "domain": "switch", "default": true, "options": [] }, "album_order": { "entity": "select/Photos: Album Order", "domain": "select", "default": "Random albums", "options": ["Random albums", "Album list order"] }, "tag_matching": { "entity": "select/Photos: Tag Matching", "domain": "select", "default": "Any selected tag", "options": ["Any selected tag", "All selected tags"] }, "date_filter_mode": { "entity": "select/Photos: Date Filter Mode", "domain": "select", "default": "Fixed Range", "options": ["Fixed Range", "Relative Range"] }, "relative_unit": { "entity": "select/Photos: Relative Unit", "domain": "select", "default": "Years", "options": ["Months", "Years"] }, "photo_orientation": { "entity": "select/Photos: Orientation", "domain": "select", "default": "Any", "options": ["Any", "Portrait Only", "Landscape Only"] }, "display_mode": { "entity": "select/Photos: Display Mode", "domain": "select", "default": "Fill", "options": ["Fill", "Fit"] }, "transition": { "entity": "select/Photos: Transition", "domain": "select", "default": "Cross Fade", "options": ["None", "Cross Fade", "Fade to Black", "Fade to White", "Slide Left", "Slide Right", "Slide Up", "Slide Down", "Random"] }, "transition_speed": { "entity": "select/Photos: Transition Speed", "domain": "select", "default": "Fast", "options": ["Fast", "Normal", "Slow"] }, "interval": { "entity": "select/Photos: Slideshow Interval", "domain": "select", "default": "15 seconds", "options": ["10 seconds", "15 seconds", "20 seconds", "30 seconds", "45 seconds", "1 minute", "2 minutes", "3 minutes", "5 minutes", "10 minutes", "15 minutes", "30 minutes", "1 hour", "2 hours", "4 hours", "8 hours", "16 hours", "24 hours"] }, "conn_timeout": { "entity": "select/Screen: Connection Timeout", "domain": "select", "default": "10 minutes", "options": ["30 seconds", "45 seconds", "1 minute", "2 minutes", "3 minutes", "5 minutes", "10 minutes", "15 minutes", "20 minutes", "30 minutes"] }, "screen_rotation": { "entity": "select/Screen: Rotation", "domain": "select", "default": "0", "options": ["0", "180"], "developerOptions": ["90", "270"] }, "photo_metadata_date_format": { "entity": "select/Device: Metadata Date Format", "domain": "select", "default": "Date Taken", "options": ["Relative Date", "Date Taken"] }, "photo_metadata_date_taken_format": { "entity": "select/Device: Metadata Date Taken Format", "domain": "select", "default": "1 January, 2026", "options": ["1 January, 2026", "January 1, 2026"] }, "clock_format": { "entity": "select/Clock: Format", "domain": "select", "default": "24 Hour", "options": ["24 Hour", "12 Hour"] }, "update_frequency": { "entity": "select/Firmware: Update Frequency", "domain": "select", "default": "Daily", "options": ["Hourly", "Daily", "Weekly", "Monthly"] }, "auto_update": { "entity": "switch/Firmware: Auto Update", "domain": "switch", "default": true, "options": [] }, "c6_auto_update": { "entity": "switch/WiFi Firmware: Auto Update", "domain": "switch", "default": true, "options": [] }, "date_filter_enabled": { "entity": "switch/Photos: Date Filter", "domain": "switch", "default": false, "options": [] }, "date_from": { "entity": "text/Photos: Date From", "domain": "text", "default": "", "options": [], "maxLength": 10 }, "date_to": { "entity": "text/Photos: Date To", "domain": "text", "default": "", "options": [], "maxLength": 10 }, "relative_amount": { "entity": "number/Photos: Relative Amount", "domain": "number", "default": 1, "options": [], "min": 1, "max": 120, "step": 1 }, "schedule_enabled": { "entity": "switch/Screen: Schedule Enabled", "domain": "switch", "default": false, "options": [] }, "schedule_on_hour": { "entity": "number/Screen: Schedule On Hour", "domain": "number", "default": 6, "options": [], "min": 0, "max": 23, "step": 1 }, "schedule_off_hour": { "entity": "number/Screen: Schedule Off Hour", "domain": "number", "default": 23, "options": [], "min": 0, "max": 23, "step": 1 }, "schedule_wake_timeout": { "entity": "number/Screen: Schedule Wake Timeout", "domain": "number", "default": 60, "options": [], "min": 10, "max": 3600, "step": 10 }, "brightness_day": { "entity": "number/Screen: Daytime Brightness", "domain": "number", "default": 100, "options": [], "min": 10, "max": 100, "step": 5 }, "brightness_night": { "entity": "number/Screen: Nighttime Brightness", "domain": "number", "default": 75, "options": [], "min": 10, "max": 100, "step": 5 }, "base_tone_enabled": { "entity": "switch/Screen: Tone Adjustment", "domain": "switch", "default": false, "options": [] }, "base_tone": { "entity": "number/Screen: Display Tone", "domain": "number", "default": 0, "options": [], "min": 0, "max": 100, "step": 5 }, "warm_tones_enabled": { "entity": "switch/Screen: Night Tone Adjustment", "domain": "switch", "default": false, "options": [] }, "warm_tone_intensity": { "entity": "number/Screen: Warm Tone Intensity", "domain": "number", "default": 50, "options": [], "min": 10, "max": 100, "step": 5 }, "warm_tone_override": { "entity": "switch/Screen: Warm Tone Override", "domain": "switch", "default": false, "options": [] }, "portrait_pairing": { "entity": "switch/Photos: Portrait Pairing", "domain": "switch", "default": true, "options": [] }, "portrait_pairing_range": { "entity": "select/Photos: Portrait Pairing Range", "domain": "select", "default": "Same Day", "options": ["Same Day", "Within 1 Day", "Within 2 Days"] }, "portrait_pairs_only": { "entity": "switch/Photos: Paired Portraits Only", "domain": "switch", "default": false, "options": [] }, "photo_metadata_date_enabled": { "entity": "switch/Device: Metadata Date", "domain": "switch", "default": true, "options": [] }, "photo_metadata_location_enabled": { "entity": "switch/Device: Metadata Location", "domain": "switch", "default": true, "options": [] }, "albums_enabled": { "entity": "switch/Photos: Albums Enabled", "domain": "switch", "default": false, "options": [] }, "people_enabled": { "entity": "switch/Photos: People Enabled", "domain": "switch", "default": false, "options": [] }, "tags_enabled": { "entity": "switch/Photos: Tags Enabled", "domain": "switch", "default": false, "options": [] }, "favorites_enabled": { "entity": "switch/Photos: Favorites Enabled", "domain": "switch", "default": false, "options": [] }, "rating_enabled": { "entity": "switch/Photos: Rating Enabled", "domain": "switch", "default": false, "options": [] }, "location_enabled": { "entity": "switch/Photos: Location Enabled", "domain": "switch", "default": false, "options": [] }, "inclusion_matching": { "entity": "select/Photos: Inclusion Groups", "domain": "select", "default": "Match all enabled groups", "options": ["Match all enabled groups", "Match any enabled group"] }, "album_matching": { "entity": "select/Photos: Album Matching", "domain": "select", "default": "Any selected album", "options": ["Any selected album", "All selected albums"] }, "person_matching": { "entity": "select/Photos: Person Matching", "domain": "select", "default": "Any selected person", "options": ["Any selected person", "All selected people"] }, "favorite_mode": { "entity": "select/Photos: Favorites", "domain": "select", "default": "Any", "options": ["Any", "Favorites only", "Exclude favorites"] }, "minimum_rating": { "entity": "select/Photos: Minimum Rating", "domain": "select", "default": "Any", "options": ["Any", "1+", "2+", "3+", "4+", "5+"] }, "filter_country": { "entity": "text/Photos: Country", "domain": "text", "default": "", "options": [], "maxLength": 96 }, "filter_state": { "entity": "text/Photos: State or Province", "domain": "text", "default": "", "options": [], "maxLength": 96 }, "filter_city": { "entity": "text/Photos: City", "domain": "text", "default": "", "options": [], "maxLength": 96 }, "device_language": { "entity": "select/Device: Language", "domain": "select", "default": "en", "options": ["en", "cs", "da", "de", "es", "fi", "fr", "he", "hu", "it", "nb", "nl", "pl", "pt", "pt-br", "ro", "ru", "sk", "sl", "sv", "tr", "uk"] } };
   var TIMEZONES = ["Pacific/Midway (GMT-11)", "Pacific/Pago_Pago (GMT-11)", "Pacific/Honolulu (GMT-10)", "America/Adak (GMT-10)", "America/Anchorage (GMT-9)", "America/Juneau (GMT-9)", "America/Los_Angeles (GMT-8)", "America/Vancouver (GMT-8)", "America/Tijuana (GMT-8)", "America/Denver (GMT-7)", "America/Phoenix (GMT-7)", "America/Edmonton (GMT-7)", "America/Boise (GMT-7)", "America/Chicago (GMT-6)", "America/Mexico_City (GMT-6)", "America/Winnipeg (GMT-6)", "America/Guatemala (GMT-6)", "America/Costa_Rica (GMT-6)", "America/New_York (GMT-5)", "America/Toronto (GMT-5)", "America/Detroit (GMT-5)", "America/Havana (GMT-5)", "America/Bogota (GMT-5)", "America/Lima (GMT-5)", "America/Jamaica (GMT-5)", "America/Panama (GMT-5)", "America/Halifax (GMT-4)", "America/Caracas (GMT-4)", "America/Santiago (GMT-4)", "America/La_Paz (GMT-4)", "America/Manaus (GMT-4)", "America/Barbados (GMT-4)", "America/Puerto_Rico (GMT-4)", "America/Santo_Domingo (GMT-4)", "America/St_Johns (GMT-3:30)", "America/Sao_Paulo (GMT-3)", "America/Argentina/Buenos_Aires (GMT-3)", "America/Montevideo (GMT-3)", "America/Paramaribo (GMT-3)", "Atlantic/South_Georgia (GMT-2)", "Atlantic/Azores (GMT-1)", "Atlantic/Cape_Verde (GMT-1)", "UTC (GMT+0)", "Europe/London (GMT+0)", "Europe/Dublin (GMT+0)", "Europe/Lisbon (GMT+0)", "Africa/Casablanca (GMT+1)", "Africa/Accra (GMT+0)", "Atlantic/Reykjavik (GMT+0)", "Europe/Paris (GMT+1)", "Europe/Berlin (GMT+1)", "Europe/Rome (GMT+1)", "Europe/Madrid (GMT+1)", "Europe/Amsterdam (GMT+1)", "Europe/Brussels (GMT+1)", "Europe/Vienna (GMT+1)", "Europe/Zurich (GMT+1)", "Europe/Stockholm (GMT+1)", "Europe/Oslo (GMT+1)", "Europe/Copenhagen (GMT+1)", "Europe/Warsaw (GMT+1)", "Europe/Prague (GMT+1)", "Europe/Budapest (GMT+1)", "Europe/Belgrade (GMT+1)", "Africa/Lagos (GMT+1)", "Africa/Tunis (GMT+1)", "Africa/Cairo (GMT+2)", "Europe/Athens (GMT+2)", "Europe/Bucharest (GMT+2)", "Europe/Helsinki (GMT+2)", "Europe/Kyiv (GMT+2)", "Europe/Istanbul (GMT+3)", "Africa/Johannesburg (GMT+2)", "Africa/Nairobi (GMT+3)", "Asia/Jerusalem (GMT+2)", "Asia/Amman (GMT+3)", "Asia/Beirut (GMT+2)", "Europe/Moscow (GMT+3)", "Asia/Baghdad (GMT+3)", "Asia/Riyadh (GMT+3)", "Asia/Kuwait (GMT+3)", "Asia/Qatar (GMT+3)", "Africa/Addis_Ababa (GMT+3)", "Asia/Tehran (GMT+3:30)", "Asia/Dubai (GMT+4)", "Asia/Muscat (GMT+4)", "Asia/Baku (GMT+4)", "Asia/Tbilisi (GMT+4)", "Indian/Mauritius (GMT+4)", "Asia/Kabul (GMT+4:30)", "Asia/Karachi (GMT+5)", "Asia/Tashkent (GMT+5)", "Asia/Yekaterinburg (GMT+5)", "Asia/Kolkata (GMT+5:30)", "Asia/Colombo (GMT+5:30)", "Asia/Kathmandu (GMT+5:45)", "Asia/Dhaka (GMT+6)", "Asia/Almaty (GMT+5)", "Asia/Rangoon (GMT+6:30)", "Asia/Bangkok (GMT+7)", "Asia/Jakarta (GMT+7)", "Asia/Ho_Chi_Minh (GMT+7)", "Asia/Singapore (GMT+8)", "Asia/Kuala_Lumpur (GMT+8)", "Asia/Shanghai (GMT+8)", "Asia/Hong_Kong (GMT+8)", "Asia/Taipei (GMT+8)", "Asia/Manila (GMT+8)", "Australia/Perth (GMT+8)", "Asia/Tokyo (GMT+9)", "Asia/Seoul (GMT+9)", "Asia/Pyongyang (GMT+9)", "Australia/Adelaide (GMT+9:30)", "Australia/Darwin (GMT+9:30)", "Australia/Sydney (GMT+10)", "Australia/Melbourne (GMT+10)", "Australia/Brisbane (GMT+10)", "Australia/Hobart (GMT+10)", "Pacific/Guam (GMT+10)", "Pacific/Port_Moresby (GMT+10)", "Asia/Vladivostok (GMT+10)", "Pacific/Noumea (GMT+11)", "Pacific/Norfolk (GMT+11)", "Asia/Magadan (GMT+11)", "Pacific/Auckland (GMT+12)", "Pacific/Fiji (GMT+12)", "Pacific/Chatham (GMT+12:45)", "Pacific/Tongatapu (GMT+13)", "Pacific/Apia (GMT+13)", "Pacific/Kiritimati (GMT+14)"];
@@ -401,7 +478,7 @@
           return;
         }
         render(status);
-      } catch (_) {
+      } catch (_2) {
         values.hidden = true;
         setNotice("The frame is unavailable. Waiting to reconnect.");
       } finally {
@@ -460,6 +537,7 @@
       ["warm_tone_intensity", "Nighttime warmth (%)"],
       ["warm_tone_override", "Warm tone until sunrise"]
     ]],
+    ["Firmware", [["auto_update", "Auto Update"], ["update_frequency", "Update Frequency"]]],
     ["Clock", [["show_clock", "Show clock"], ["clock_format", "Time format"], ["timezone", "Timezone"]]],
     ["Sleep schedule", [
       ["schedule_enabled", "Schedule screen off"],
@@ -554,6 +632,7 @@
         controls.set(key, { element: control, value });
         body.appendChild(row);
       }
+      if (title === "Firmware" && body.childElementCount) body.prepend(nativeFirmwarePanel());
       const openConnection = title === "Immich connection" && !snapshot.api_key_configured;
       if (body.childElementCount) fields.appendChild(makeCollapsibleCard(title, body, title !== "Playback" && !openConnection));
     }
@@ -639,7 +718,7 @@
       if (!restartRequired) {
         try {
           form.replaceWith(nativeSettingsForm(await apiClient.getConfigurationSnapshot(), "Settings saved."));
-        } catch (_) {
+        } catch (_2) {
           setStatus(status, "Settings saved. Reload this page to see the current values.");
           setSaving(false);
         }
@@ -659,7 +738,7 @@
         try {
           form.replaceWith(nativeSettingsForm(await apiClient.getConfigurationSnapshot()));
           return;
-        } catch (_) {
+        } catch (_2) {
           await delayMs(1500);
         }
       }
@@ -677,7 +756,7 @@
     content.replaceChildren(status);
     try {
       content.replaceChildren(nativeSettingsForm(await apiClient.getConfigurationSnapshot()));
-    } catch (_) {
+    } catch (_2) {
       status.textContent = "The frame settings could not be loaded.";
       content.appendChild(button("Try again", "btn btn-secondary", initNativeSettings));
     }

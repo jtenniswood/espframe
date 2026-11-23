@@ -111,6 +111,40 @@ node firmware/native/tools/package_installer.mjs firmware/native/build firmware/
 The package also includes `index.html` and its assets for serving the same
 installer over HTTPS or localhost.
 
+### Prepare a versioned Native Preview
+
+Run the **Native Swipe Prototype** workflow on the intended source commit
+with `preview_version` set to a version such as `v0.1.0-preview.1`. The
+`preview_v1_linked_scanout` option selects the experimental V1 renderer
+for a hands-on comparison. It defaults to off. The workflow produces the
+`espframe-native-v0.1.0-preview.1` artifact with the standalone browser
+installer, factory and OTA images, SHA-256 checksums, and the source commit.
+
+For a local build set `-D NATIVE_PREVIEW_VERSION=v0.1.0-preview.1` in each
+native factory build. Pass the same version as the third argument to
+`package_installer.mjs`. The packager checks that every image embeds the
+requested version before creating the installer.
+
+Open **Espframe Native Installer.html** in desktop Chrome or Edge. The
+stable ESPHome installer provides the return path. Keep a backup and leave
+**Erase device** unchecked when switching firmware to retain the saved
+ESPHome preferences.
+
+### Firmware releases and automatic updates
+
+Open **Firmware** in the frame settings to see the installed Native Preview,
+check for a release, install an available version, or choose a previous one.
+Enable **Auto Update** and choose **Update Frequency** to install newer releases
+from the frame itself. The frame verifies the board and download checksum before
+restarting into the update. The native startup check can return to the previous
+firmware if startup fails.
+
+To publish a preview, prepare a GitHub draft prerelease on the matching
+`native-v0.1.0-preview.N` tag. Dispatch **Native Swipe Prototype** on that tag
+with `preview_version` set to `v0.1.0-preview.N` and **Publish a verified draft**
+enabled. A successful publish updates the Native Preview feed on GitHub Pages.
+The feed serves the most recent five published previews for each board.
+
 ### Open the frame's web settings
 
 Use **Find frame on Wi-Fi** in the browser installer or open the IP address

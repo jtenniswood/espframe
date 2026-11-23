@@ -2771,6 +2771,8 @@ def test_candidate_only_runs_do_not_deploy_docs() -> None:
     docs = (ROOT / ".github" / "workflows" / "docs.yml").read_text()
     assert "inputs.publish && github.ref_type == 'tag' && format('Publish firmware {0}'" in release
     assert docs.count("startsWith(github.event.workflow_run.display_title, 'Publish firmware ')") == 2
+    assert docs.count("startsWith(github.event.workflow_run.display_title, 'Publish native preview ')") == 2
+    assert docs.count("github.event.workflow_run.event == 'workflow_dispatch'") == 2
 
 
 def main() -> int:

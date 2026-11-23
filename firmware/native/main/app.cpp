@@ -5,6 +5,7 @@
 #include "display.h"
 #include "esphome_trial.h"
 #include "firmware_update.h"
+#include "native_release_updates.h"
 #include "frame_blend.h"
 #include "frame_blitter.h"
 #include "immich.h"
@@ -567,8 +568,10 @@ class SlideLoader {
 };
 
 void run(void *) {
-  if constexpr (!esphome_trial)
+  if constexpr (!esphome_trial) {
     start_firmware_boot_check();
+    start_native_release_updates(network);
+  }
   static SlideLoader loader;
   if (!loader.start()) {
     vTaskDelete(nullptr);

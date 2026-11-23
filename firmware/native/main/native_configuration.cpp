@@ -171,7 +171,9 @@ cJSON *configuration_snapshot(const Settings &settings, std::optional<SolarTimes
                                                              search_api == ImmichSearchApi::Legacy ? "legacy" : "unknown") ||
       !cJSON_AddStringToObject(values, "portrait_pair_framing", pair_framing_name(settings.pair_framing)) ||
       !cJSON_AddStringToObject(values, "prepared_slide_url", settings.prepared_slide_url.c_str()) ||
-      !cJSON_AddBoolToObject(values, "prepared_slide_token_configured", settings.has_prepared_slides()))
+      !cJSON_AddBoolToObject(values, "prepared_slide_token_configured", settings.has_prepared_slides()) ||
+      !cJSON_AddBoolToObject(values, "auto_update", settings.stock_update_preferences.auto_update.value_or(true)) ||
+      !cJSON_AddStringToObject(values, "update_frequency", settings.stock_update_preferences.frequency.value_or("Daily").c_str()))
     return nullptr;
   const auto sunrise = solar_times ? format_time_12h(solar_times->sunrise / 60, solar_times->sunrise % 60) : "";
   const auto sunset = solar_times ? format_time_12h(solar_times->sunset / 60, solar_times->sunset % 60) : "";
@@ -179,7 +181,8 @@ cJSON *configuration_snapshot(const Settings &settings, std::optional<SolarTimes
       !cJSON_AddStringToObject(values, "sunset", sunset.c_str()))
     return nullptr;
   for (const auto &field : contract::CONFIGURATION_FIELDS) {
-    if (field.secret || std::string_view(field.key) == "interval")
+    if (field.secret || std::string_view(field.key) == "interval" ||
+        std::string_view(field.key) == "auto_update" || std::string_view(field.key) == "update_frequency")
       continue;
     if (const auto *setting = cJSON_GetObjectItemCaseSensitive(playback.get(), field.key)) {
       if (!add_copy(values, field.key, setting))
@@ -306,6 +309,15 @@ ConfigurationUpdate update_configuration(const char *json) {
       if (!cJSON_AddStringToObject(update.get(), "frame_name", name.c_str()))
         return {"500 Internal Server Error", "settings_unavailable", {}};
       frame_name = std::move(name);
+      ++count;
+      continue;
+    }
+    if (requested_key == "auto_update" || requested_key == "update_frequency") {
+      auto *preferences = cJSON_GetObjectItemCaseSensitive(update.get(), "firmware_updates");
+      if (!preferences)
+        preferences = cJSON_AddObjectToObject(update.get(), "firmware_updates");
+      if (!preferences || cJSON_HasObjectItem(preferences, value->string) || !add_copy(preferences, value->string, value))
+        return {"422 Unprocessable Entity", "invalid_value", value->string};
       ++count;
       continue;
     }

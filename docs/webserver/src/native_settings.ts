@@ -1,4 +1,5 @@
 import { EspframeApiClient, EspframeApiError } from "./api_client";
+import { nativeFirmwarePanel } from "./native_firmware";
 import type { ConfigurationSnapshot, ConfigurationValue, ConfigurationValues } from "./web_contracts";
 import { button, connectFieldLabels, el, field, makeCollapsibleCard, selectFromOptions, setStatus } from "./shared_controls";
 
@@ -162,6 +163,7 @@ const nativeSettingGroups: [string, [string, string][]][] = [
     ["base_tone", "Display warmth (%)"], ["warm_tones_enabled", "Use warmer tones at night"],
     ["warm_tone_intensity", "Nighttime warmth (%)"], ["warm_tone_override", "Warm tone until sunrise"],
   ]],
+  ["Firmware", [["auto_update", "Auto Update"], ["update_frequency", "Update Frequency"]]],
   ["Clock", [["show_clock", "Show clock"], ["clock_format", "Time format"], ["timezone", "Timezone"]]],
   ["Sleep schedule", [
     ["schedule_enabled", "Schedule screen off"], ["schedule_on_hour", "On hour (0–23)"],
@@ -262,6 +264,7 @@ function nativeSettingsForm(snapshot: ConfigurationSnapshot, savedNotice = ""): 
       controls.set(key, { element: control, value });
       body.appendChild(row);
     }
+    if (title === "Firmware" && body.childElementCount) body.prepend(nativeFirmwarePanel());
     const openConnection = title === "Immich connection" && !snapshot.api_key_configured;
     if (body.childElementCount) fields.appendChild(makeCollapsibleCard(title, body, title !== "Playback" && !openConnection));
   }
