@@ -628,27 +628,6 @@
       ]
     },
     {
-      "id": "wireguard",
-      "label": "WireGuard VPN",
-      "tab": "immich",
-      "function": "makeWireguardCard",
-      "static_entities": [
-        "wireguard_enabled",
-        "wireguard_endpoint",
-        "wireguard_port",
-        "wireguard_address",
-        "wireguard_netmask",
-        "wireguard_allowed_ips",
-        "wireguard_peer_public_key",
-        "wireguard_connected",
-        "wireguard_tunnel_enabled",
-        "wireguard_handshake_age"
-      ],
-      "manual_entities": [
-        "wireguard_private_key"
-      ]
-    },
-    {
       "id": "frequency",
       "label": "Frequency",
       "tab": "immich",
@@ -913,6 +892,28 @@
       "function": "makeDeveloperCard",
       "static_entities": [
         "developer_features_enabled"
+      ]
+    },
+    {
+      "id": "wireguard",
+      "label": "WireGuard VPN",
+      "tab": "settings",
+      "section": "System",
+      "function": "makeWireguardCard",
+      "static_entities": [
+        "wireguard_enabled",
+        "wireguard_endpoint",
+        "wireguard_port",
+        "wireguard_address",
+        "wireguard_netmask",
+        "wireguard_allowed_ips",
+        "wireguard_peer_public_key",
+        "wireguard_connected",
+        "wireguard_tunnel_enabled",
+        "wireguard_handshake_age"
+      ],
+      "manual_entities": [
+        "wireguard_private_key"
       ]
     }
   ],

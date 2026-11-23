@@ -1260,8 +1260,12 @@ function smokeAssertionsForScenario(scenario) {
         }, 8000, "screen tone and schedule saves");
       }
       async function requireWireguardCard() {
-        clickTab("Immich");
+        clickTab("Device");
         const card = expandCard("WireGuard VPN");
+        const system = document.querySelector('#sp-settings .settings-section[aria-labelledby="settings-section-system"]');
+        if (!system || system.lastElementChild !== card || document.querySelector("#sp-immich #wireguard-status")) {
+          throw new Error("WireGuard VPN should appear only at the bottom of Device > System");
+        }
         const privateKey = "YBk6X3pP8KjUnS4VvXG0Zk1d3b0Qn0q9yYQe2jqk0Gs=";
         const peerKey = "n6XQ3yS2m0b5y4Vf8qkq1Qn0q9yYQe2jqk0GsYBk6X0=";
         function setField(label, value) {

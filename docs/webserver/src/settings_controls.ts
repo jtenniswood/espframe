@@ -79,7 +79,6 @@
     var settingsCardEntries = renderSettingsCardEntriesForTab("settings");
     if (!immichCards.length) immichCards = [
       makeConnectionCard(),
-      makeWireguardCard(),
       makeFrequencyCard(),
       makePortraitPairingCard(),
       makeMemoriesCard(),
@@ -102,7 +101,8 @@
       { section: "System", element: makeFirmwareCard() },
       { section: "System", element: makeDeviceRebootCard() },
       { section: "System", element: makeResetCard() },
-      { section: "System", element: makeDeveloperCard() }
+      { section: "System", element: makeDeveloperCard() },
+      { section: "System", element: makeWireguardCard() }
     ];
     appendSettingsSections(wrap, settingsCardEntries);
     app.appendChild(wrap);
