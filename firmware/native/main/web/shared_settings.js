@@ -345,7 +345,6 @@
   var TIMEZONES = ["Pacific/Midway (GMT-11)", "Pacific/Pago_Pago (GMT-11)", "Pacific/Honolulu (GMT-10)", "America/Adak (GMT-10)", "America/Anchorage (GMT-9)", "America/Juneau (GMT-9)", "America/Los_Angeles (GMT-8)", "America/Vancouver (GMT-8)", "America/Tijuana (GMT-8)", "America/Denver (GMT-7)", "America/Phoenix (GMT-7)", "America/Edmonton (GMT-7)", "America/Boise (GMT-7)", "America/Chicago (GMT-6)", "America/Mexico_City (GMT-6)", "America/Winnipeg (GMT-6)", "America/Guatemala (GMT-6)", "America/Costa_Rica (GMT-6)", "America/New_York (GMT-5)", "America/Toronto (GMT-5)", "America/Detroit (GMT-5)", "America/Havana (GMT-5)", "America/Bogota (GMT-5)", "America/Lima (GMT-5)", "America/Jamaica (GMT-5)", "America/Panama (GMT-5)", "America/Halifax (GMT-4)", "America/Caracas (GMT-4)", "America/Santiago (GMT-4)", "America/La_Paz (GMT-4)", "America/Manaus (GMT-4)", "America/Barbados (GMT-4)", "America/Puerto_Rico (GMT-4)", "America/Santo_Domingo (GMT-4)", "America/St_Johns (GMT-3:30)", "America/Sao_Paulo (GMT-3)", "America/Argentina/Buenos_Aires (GMT-3)", "America/Montevideo (GMT-3)", "America/Paramaribo (GMT-3)", "Atlantic/South_Georgia (GMT-2)", "Atlantic/Azores (GMT-1)", "Atlantic/Cape_Verde (GMT-1)", "UTC (GMT+0)", "Europe/London (GMT+0)", "Europe/Dublin (GMT+0)", "Europe/Lisbon (GMT+0)", "Africa/Casablanca (GMT+1)", "Africa/Accra (GMT+0)", "Atlantic/Reykjavik (GMT+0)", "Europe/Paris (GMT+1)", "Europe/Berlin (GMT+1)", "Europe/Rome (GMT+1)", "Europe/Madrid (GMT+1)", "Europe/Amsterdam (GMT+1)", "Europe/Brussels (GMT+1)", "Europe/Vienna (GMT+1)", "Europe/Zurich (GMT+1)", "Europe/Stockholm (GMT+1)", "Europe/Oslo (GMT+1)", "Europe/Copenhagen (GMT+1)", "Europe/Warsaw (GMT+1)", "Europe/Prague (GMT+1)", "Europe/Budapest (GMT+1)", "Europe/Belgrade (GMT+1)", "Africa/Lagos (GMT+1)", "Africa/Tunis (GMT+1)", "Africa/Cairo (GMT+2)", "Europe/Athens (GMT+2)", "Europe/Bucharest (GMT+2)", "Europe/Helsinki (GMT+2)", "Europe/Kyiv (GMT+2)", "Europe/Istanbul (GMT+3)", "Africa/Johannesburg (GMT+2)", "Africa/Nairobi (GMT+3)", "Asia/Jerusalem (GMT+2)", "Asia/Amman (GMT+3)", "Asia/Beirut (GMT+2)", "Europe/Moscow (GMT+3)", "Asia/Baghdad (GMT+3)", "Asia/Riyadh (GMT+3)", "Asia/Kuwait (GMT+3)", "Asia/Qatar (GMT+3)", "Africa/Addis_Ababa (GMT+3)", "Asia/Tehran (GMT+3:30)", "Asia/Dubai (GMT+4)", "Asia/Muscat (GMT+4)", "Asia/Baku (GMT+4)", "Asia/Tbilisi (GMT+4)", "Indian/Mauritius (GMT+4)", "Asia/Kabul (GMT+4:30)", "Asia/Karachi (GMT+5)", "Asia/Tashkent (GMT+5)", "Asia/Yekaterinburg (GMT+5)", "Asia/Kolkata (GMT+5:30)", "Asia/Colombo (GMT+5:30)", "Asia/Kathmandu (GMT+5:45)", "Asia/Dhaka (GMT+6)", "Asia/Almaty (GMT+5)", "Asia/Rangoon (GMT+6:30)", "Asia/Bangkok (GMT+7)", "Asia/Jakarta (GMT+7)", "Asia/Ho_Chi_Minh (GMT+7)", "Asia/Singapore (GMT+8)", "Asia/Kuala_Lumpur (GMT+8)", "Asia/Shanghai (GMT+8)", "Asia/Hong_Kong (GMT+8)", "Asia/Taipei (GMT+8)", "Asia/Manila (GMT+8)", "Australia/Perth (GMT+8)", "Asia/Tokyo (GMT+9)", "Asia/Seoul (GMT+9)", "Asia/Pyongyang (GMT+9)", "Australia/Adelaide (GMT+9:30)", "Australia/Darwin (GMT+9:30)", "Australia/Sydney (GMT+10)", "Australia/Melbourne (GMT+10)", "Australia/Brisbane (GMT+10)", "Australia/Hobart (GMT+10)", "Pacific/Guam (GMT+10)", "Pacific/Port_Moresby (GMT+10)", "Asia/Vladivostok (GMT+10)", "Pacific/Noumea (GMT+11)", "Pacific/Norfolk (GMT+11)", "Asia/Magadan (GMT+11)", "Pacific/Auckland (GMT+12)", "Pacific/Fiji (GMT+12)", "Pacific/Chatham (GMT+12:45)", "Pacific/Tongatapu (GMT+13)", "Pacific/Apia (GMT+13)", "Pacific/Kiritimati (GMT+14)"];
   var TIMEZONE_LABELS = { "Pacific/Midway (GMT-11)": "Pacific/Midway (GMT-11)", "Pacific/Pago_Pago (GMT-11)": "Pacific/Pago_Pago (GMT-11)", "Pacific/Honolulu (GMT-10)": "Pacific/Honolulu (GMT-10)", "America/Adak (GMT-10)": "America/Adak (GMT-10; daylight GMT-9)", "America/Anchorage (GMT-9)": "America/Anchorage (GMT-9; daylight GMT-8)", "America/Juneau (GMT-9)": "America/Juneau (GMT-9; daylight GMT-8)", "America/Los_Angeles (GMT-8)": "America/Los_Angeles (GMT-8; daylight GMT-7)", "America/Vancouver (GMT-8)": "America/Vancouver (GMT-8; active GMT-7)", "America/Tijuana (GMT-8)": "America/Tijuana (GMT-8; daylight GMT-7)", "America/Denver (GMT-7)": "America/Denver (GMT-7; daylight GMT-6)", "America/Phoenix (GMT-7)": "America/Phoenix (GMT-7)", "America/Edmonton (GMT-7)": "America/Edmonton (GMT-7; active GMT-6)", "America/Boise (GMT-7)": "America/Boise (GMT-7; daylight GMT-6)", "America/Chicago (GMT-6)": "America/Chicago (GMT-6; daylight GMT-5)", "America/Mexico_City (GMT-6)": "America/Mexico_City (GMT-6)", "America/Winnipeg (GMT-6)": "America/Winnipeg (GMT-6; daylight GMT-5)", "America/Guatemala (GMT-6)": "America/Guatemala (GMT-6)", "America/Costa_Rica (GMT-6)": "America/Costa_Rica (GMT-6)", "America/New_York (GMT-5)": "America/New_York (GMT-5; daylight GMT-4)", "America/Toronto (GMT-5)": "America/Toronto (GMT-5; daylight GMT-4)", "America/Detroit (GMT-5)": "America/Detroit (GMT-5; daylight GMT-4)", "America/Havana (GMT-5)": "America/Havana (GMT-5; daylight GMT-4)", "America/Bogota (GMT-5)": "America/Bogota (GMT-5)", "America/Lima (GMT-5)": "America/Lima (GMT-5)", "America/Jamaica (GMT-5)": "America/Jamaica (GMT-5)", "America/Panama (GMT-5)": "America/Panama (GMT-5)", "America/Halifax (GMT-4)": "America/Halifax (GMT-4; daylight GMT-3)", "America/Caracas (GMT-4)": "America/Caracas (GMT-4)", "America/Santiago (GMT-4)": "America/Santiago (GMT-4; daylight GMT-3)", "America/La_Paz (GMT-4)": "America/La_Paz (GMT-4)", "America/Manaus (GMT-4)": "America/Manaus (GMT-4)", "America/Barbados (GMT-4)": "America/Barbados (GMT-4)", "America/Puerto_Rico (GMT-4)": "America/Puerto_Rico (GMT-4)", "America/Santo_Domingo (GMT-4)": "America/Santo_Domingo (GMT-4)", "America/St_Johns (GMT-3:30)": "America/St_Johns (GMT-3:30; daylight GMT-2:30)", "America/Sao_Paulo (GMT-3)": "America/Sao_Paulo (GMT-3)", "America/Argentina/Buenos_Aires (GMT-3)": "America/Argentina/Buenos_Aires (GMT-3)", "America/Montevideo (GMT-3)": "America/Montevideo (GMT-3)", "America/Paramaribo (GMT-3)": "America/Paramaribo (GMT-3)", "Atlantic/South_Georgia (GMT-2)": "Atlantic/South_Georgia (GMT-2)", "Atlantic/Azores (GMT-1)": "Atlantic/Azores (GMT-1; daylight GMT+0)", "Atlantic/Cape_Verde (GMT-1)": "Atlantic/Cape_Verde (GMT-1)", "UTC (GMT+0)": "UTC (GMT+0)", "Europe/London (GMT+0)": "Europe/London (GMT+0; daylight GMT+1)", "Europe/Dublin (GMT+0)": "Europe/Dublin (GMT+0; daylight GMT+1)", "Europe/Lisbon (GMT+0)": "Europe/Lisbon (GMT+0; daylight GMT+1)", "Africa/Casablanca (GMT+1)": "Africa/Casablanca (GMT+1)", "Africa/Accra (GMT+0)": "Africa/Accra (GMT+0)", "Atlantic/Reykjavik (GMT+0)": "Atlantic/Reykjavik (GMT+0)", "Europe/Paris (GMT+1)": "Europe/Paris (GMT+1; daylight GMT+2)", "Europe/Berlin (GMT+1)": "Europe/Berlin (GMT+1; daylight GMT+2)", "Europe/Rome (GMT+1)": "Europe/Rome (GMT+1; daylight GMT+2)", "Europe/Madrid (GMT+1)": "Europe/Madrid (GMT+1; daylight GMT+2)", "Europe/Amsterdam (GMT+1)": "Europe/Amsterdam (GMT+1; daylight GMT+2)", "Europe/Brussels (GMT+1)": "Europe/Brussels (GMT+1; daylight GMT+2)", "Europe/Vienna (GMT+1)": "Europe/Vienna (GMT+1; daylight GMT+2)", "Europe/Zurich (GMT+1)": "Europe/Zurich (GMT+1; daylight GMT+2)", "Europe/Stockholm (GMT+1)": "Europe/Stockholm (GMT+1; daylight GMT+2)", "Europe/Oslo (GMT+1)": "Europe/Oslo (GMT+1; daylight GMT+2)", "Europe/Copenhagen (GMT+1)": "Europe/Copenhagen (GMT+1; daylight GMT+2)", "Europe/Warsaw (GMT+1)": "Europe/Warsaw (GMT+1; daylight GMT+2)", "Europe/Prague (GMT+1)": "Europe/Prague (GMT+1; daylight GMT+2)", "Europe/Budapest (GMT+1)": "Europe/Budapest (GMT+1; daylight GMT+2)", "Europe/Belgrade (GMT+1)": "Europe/Belgrade (GMT+1; daylight GMT+2)", "Africa/Lagos (GMT+1)": "Africa/Lagos (GMT+1)", "Africa/Tunis (GMT+1)": "Africa/Tunis (GMT+1)", "Africa/Cairo (GMT+2)": "Africa/Cairo (GMT+2; daylight GMT+3)", "Europe/Athens (GMT+2)": "Europe/Athens (GMT+2; daylight GMT+3)", "Europe/Bucharest (GMT+2)": "Europe/Bucharest (GMT+2; daylight GMT+3)", "Europe/Helsinki (GMT+2)": "Europe/Helsinki (GMT+2; daylight GMT+3)", "Europe/Kyiv (GMT+2)": "Europe/Kyiv (GMT+2; daylight GMT+3)", "Europe/Istanbul (GMT+3)": "Europe/Istanbul (GMT+3)", "Africa/Johannesburg (GMT+2)": "Africa/Johannesburg (GMT+2)", "Africa/Nairobi (GMT+3)": "Africa/Nairobi (GMT+3)", "Asia/Jerusalem (GMT+2)": "Asia/Jerusalem (GMT+2; daylight GMT+3)", "Asia/Amman (GMT+3)": "Asia/Amman (GMT+3)", "Asia/Beirut (GMT+2)": "Asia/Beirut (GMT+2; daylight GMT+3)", "Europe/Moscow (GMT+3)": "Europe/Moscow (GMT+3)", "Asia/Baghdad (GMT+3)": "Asia/Baghdad (GMT+3)", "Asia/Riyadh (GMT+3)": "Asia/Riyadh (GMT+3)", "Asia/Kuwait (GMT+3)": "Asia/Kuwait (GMT+3)", "Asia/Qatar (GMT+3)": "Asia/Qatar (GMT+3)", "Africa/Addis_Ababa (GMT+3)": "Africa/Addis_Ababa (GMT+3)", "Asia/Tehran (GMT+3:30)": "Asia/Tehran (GMT+3:30)", "Asia/Dubai (GMT+4)": "Asia/Dubai (GMT+4)", "Asia/Muscat (GMT+4)": "Asia/Muscat (GMT+4)", "Asia/Baku (GMT+4)": "Asia/Baku (GMT+4)", "Asia/Tbilisi (GMT+4)": "Asia/Tbilisi (GMT+4)", "Indian/Mauritius (GMT+4)": "Indian/Mauritius (GMT+4)", "Asia/Kabul (GMT+4:30)": "Asia/Kabul (GMT+4:30)", "Asia/Karachi (GMT+5)": "Asia/Karachi (GMT+5)", "Asia/Tashkent (GMT+5)": "Asia/Tashkent (GMT+5)", "Asia/Yekaterinburg (GMT+5)": "Asia/Yekaterinburg (GMT+5)", "Asia/Kolkata (GMT+5:30)": "Asia/Kolkata (GMT+5:30)", "Asia/Colombo (GMT+5:30)": "Asia/Colombo (GMT+5:30)", "Asia/Kathmandu (GMT+5:45)": "Asia/Kathmandu (GMT+5:45)", "Asia/Dhaka (GMT+6)": "Asia/Dhaka (GMT+6)", "Asia/Almaty (GMT+5)": "Asia/Almaty (GMT+5)", "Asia/Rangoon (GMT+6:30)": "Asia/Rangoon (GMT+6:30)", "Asia/Bangkok (GMT+7)": "Asia/Bangkok (GMT+7)", "Asia/Jakarta (GMT+7)": "Asia/Jakarta (GMT+7)", "Asia/Ho_Chi_Minh (GMT+7)": "Asia/Ho_Chi_Minh (GMT+7)", "Asia/Singapore (GMT+8)": "Asia/Singapore (GMT+8)", "Asia/Kuala_Lumpur (GMT+8)": "Asia/Kuala_Lumpur (GMT+8)", "Asia/Shanghai (GMT+8)": "Asia/Shanghai (GMT+8)", "Asia/Hong_Kong (GMT+8)": "Asia/Hong_Kong (GMT+8)", "Asia/Taipei (GMT+8)": "Asia/Taipei (GMT+8)", "Asia/Manila (GMT+8)": "Asia/Manila (GMT+8)", "Australia/Perth (GMT+8)": "Australia/Perth (GMT+8)", "Asia/Tokyo (GMT+9)": "Asia/Tokyo (GMT+9)", "Asia/Seoul (GMT+9)": "Asia/Seoul (GMT+9)", "Asia/Pyongyang (GMT+9)": "Asia/Pyongyang (GMT+9)", "Australia/Adelaide (GMT+9:30)": "Australia/Adelaide (GMT+9:30; daylight GMT+10:30)", "Australia/Darwin (GMT+9:30)": "Australia/Darwin (GMT+9:30)", "Australia/Sydney (GMT+10)": "Australia/Sydney (GMT+10; daylight GMT+11)", "Australia/Melbourne (GMT+10)": "Australia/Melbourne (GMT+10; daylight GMT+11)", "Australia/Brisbane (GMT+10)": "Australia/Brisbane (GMT+10)", "Australia/Hobart (GMT+10)": "Australia/Hobart (GMT+10; daylight GMT+11)", "Pacific/Guam (GMT+10)": "Pacific/Guam (GMT+10)", "Pacific/Port_Moresby (GMT+10)": "Pacific/Port_Moresby (GMT+10)", "Asia/Vladivostok (GMT+10)": "Asia/Vladivostok (GMT+10)", "Pacific/Noumea (GMT+11)": "Pacific/Noumea (GMT+11)", "Pacific/Norfolk (GMT+11)": "Pacific/Norfolk (GMT+11; daylight GMT+12)", "Asia/Magadan (GMT+11)": "Asia/Magadan (GMT+11)", "Pacific/Auckland (GMT+12)": "Pacific/Auckland (GMT+12; daylight GMT+13)", "Pacific/Fiji (GMT+12)": "Pacific/Fiji (GMT+12)", "Pacific/Chatham (GMT+12:45)": "Pacific/Chatham (GMT+12:45; daylight GMT+13:45)", "Pacific/Tongatapu (GMT+13)": "Pacific/Tongatapu (GMT+13)", "Pacific/Apia (GMT+13)": "Pacific/Apia (GMT+13)", "Pacific/Kiritimati (GMT+14)": "Pacific/Kiritimati (GMT+14)" };
   var frameStatusPath = "/espframe/api/v1/status";
-  var screenControlPath = "/espframe/api/v1/screen";
   var NativeSettingsApi = class extends EspframeApiClient {
     async getFrameStatus() {
       const capabilities = await this.negotiate();
@@ -353,19 +352,8 @@
       const payload = await this.requestJson(frameStatusPath, { cache: "no-store" }, "frame_status_failed");
       if (!payload || typeof payload !== "object") throw new Error("invalid_frame_status");
       const status = payload;
-      const controlsScreen = capabilities.screen_control_path === screenControlPath;
-      if (status.api_version !== capabilities.api_version || typeof status.restarting !== "boolean" || typeof status.screen !== "string" || typeof status.playback !== "string" || typeof status.source !== "string" || typeof status.immich !== "string" || typeof status.notice !== "string" || controlsScreen && typeof status.screen_pending !== "boolean") throw new Error("invalid_frame_status");
-      return { ...status, screenPending: controlsScreen ? status.screen_pending : null };
-    }
-    async changeScreen(action) {
-      const payload = await this.requestJson(screenControlPath, {
-        method: "POST",
-        cache: "no-store",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ action })
-      }, "screen_control_failed");
-      if (!payload || typeof payload !== "object" || payload.status !== "accepted")
-        throw new Error("screen_control_failed");
+      if (status.api_version !== capabilities.api_version || typeof status.restarting !== "boolean" || typeof status.screen !== "string" || typeof status.playback !== "string" || typeof status.source !== "string" || typeof status.immich !== "string" || typeof status.notice !== "string") throw new Error("invalid_frame_status");
+      return status;
     }
   };
   var apiClient = new NativeSettingsApi("/espframe/api/v1/capabilities");
@@ -423,32 +411,15 @@
     const notice = el("p", "native-frame-notice");
     notice.setAttribute("role", "status");
     notice.hidden = true;
-    const screenButton = button("Sleep screen");
-    screenButton.id = "native-screen-action";
-    const actionStatus = el("span");
-    actionStatus.setAttribute("role", "status");
-    const controls = el("div", "native-screen-controls");
-    controls.hidden = true;
-    controls.append(screenButton, actionStatus);
-    panel.append(values, notice, controls);
+    panel.append(values, notice);
     let timer;
     let busy = false;
     let supported = true;
-    let commanding = false;
-    let commandVersion = 0;
-    let latest = null;
     const setNotice = (message) => {
       if (notice.textContent !== message) notice.textContent = message;
       notice.hidden = !message;
     };
-    const renderControl = () => {
-      controls.hidden = !latest || latest.restarting || latest.screenPending === null || latest.screen !== "awake" && latest.screen !== "asleep";
-      screenButton.disabled = commanding || (latest == null ? void 0 : latest.screenPending) === true;
-      const label = (latest == null ? void 0 : latest.screen) === "asleep" ? "Wake screen" : "Sleep screen";
-      if (screenButton.textContent !== label) screenButton.textContent = label;
-    };
     const render = (status) => {
-      latest = status;
       for (const [key, value] of Object.entries(status)) {
         const field2 = fields.get(key);
         if (!field2 || typeof value !== "string") continue;
@@ -460,23 +431,20 @@
       setNotice(status.restarting ? "The frame is restarting." : status.immich === "rejected" ? "Check the Immich API key and its permissions." : typeof detail === "string" ? detail : "");
       values.hidden = status.restarting;
       panel.hidden = false;
-      renderControl();
     };
     const scheduleRefresh = (delay = 5e3) => {
       window.clearTimeout(timer);
-      if (supported && !document.hidden && !commanding) timer = window.setTimeout(refresh, delay);
+      if (supported && !document.hidden) timer = window.setTimeout(refresh, delay);
     };
     const visibilityChanged = () => {
       window.clearTimeout(timer);
       if (!document.hidden) void refresh();
     };
     const refresh = async () => {
-      if (document.hidden || busy || commanding || !supported) return;
+      if (document.hidden || busy || !supported) return;
       busy = true;
-      const version = commandVersion;
       try {
         const status = await apiClient.getFrameStatus();
-        if (version !== commandVersion) return;
         if (!status) {
           supported = false;
           panel.hidden = true;
@@ -485,45 +453,11 @@
         }
         render(status);
       } catch (_) {
-        if (version !== commandVersion) return;
-        latest = null;
         values.hidden = true;
         setNotice("The frame is unavailable. Waiting to reconnect.");
-        renderControl();
       } finally {
         busy = false;
         scheduleRefresh();
-      }
-    };
-    screenButton.onclick = async () => {
-      if (commanding || screenButton.disabled || controls.hidden || !latest) return;
-      const action = latest.screen === "asleep" ? "wake" : "sleep";
-      const expected = action === "wake" ? "awake" : "asleep";
-      commanding = true;
-      commandVersion++;
-      window.clearTimeout(timer);
-      renderControl();
-      actionStatus.textContent = action === "wake" ? "Waking screen\u2026" : "Putting screen to sleep\u2026";
-      let confirmed = false;
-      try {
-        await apiClient.changeScreen(action);
-        for (let attempt = 0; attempt < 10; ++attempt) {
-          const status = await apiClient.getFrameStatus();
-          if (!status || status.restarting || status.screenPending === null) break;
-          render(status);
-          if (!status.screenPending) {
-            confirmed = status.screen === expected;
-            break;
-          }
-          await delayMs(125);
-        }
-        actionStatus.textContent = confirmed ? "" : "Couldn\u2019t confirm the screen change.";
-      } catch (error) {
-        actionStatus.textContent = error instanceof EspframeApiError && error.kind === "conflict" ? "The frame is busy. Try again when it\u2019s ready." : "Couldn\u2019t confirm the screen change.";
-      } finally {
-        commanding = false;
-        renderControl();
-        scheduleRefresh(confirmed ? 5e3 : 0);
       }
     };
     document.addEventListener("visibilitychange", visibilityChanged);
