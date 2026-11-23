@@ -27,11 +27,13 @@ struct PhotoCaption {
   PhotoCaptionLine date;
 
   int band_rows() const;
+  bool fits_beside_clock(ScreenRotation rotation) const;
 };
 
 PhotoCaption prepare_photo_caption(std::span<const uint8_t> locations, std::span<const uint8_t> dates,
                                    const PhotoMetadata &metadata, const PhotoMetadataSettings &settings,
-                                   bool show_clock, const std::optional<std::tm> &local = {});
+                                   bool show_clock, const std::optional<std::tm> &local = {},
+                                   ScreenRotation rotation = ScreenRotation::Normal);
 void paint_photo_caption(uint16_t *frame, std::span<const uint8_t> locations, std::span<const uint8_t> dates,
                          const PhotoCaption &caption, ScreenRotation rotation, uint8_t opacity);
 

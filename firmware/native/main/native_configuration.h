@@ -1,5 +1,7 @@
 #pragma once
 
+#include "daylight.h"
+
 #include <cstddef>
 #include <optional>
 #include <string>
@@ -23,7 +25,7 @@ struct ConfigurationUpdate {
 };
 
 cJSON *configuration_capabilities();
-cJSON *configuration_snapshot(const Settings &settings);
+cJSON *configuration_snapshot(const Settings &settings, std::optional<SolarTimes> solar_times = {});
 cJSON *frame_status_snapshot(const FrameStatus &status, bool network_ready, bool restarting, bool screen_pending);
 std::optional<std::string> decode_configuration_form(std::string_view form);
 std::optional<std::string> decode_identity_form(std::string_view form);

@@ -1,6 +1,7 @@
 #include "native_network.h"
 
 #include "live_trial.h"
+#include "native_wireguard.h"
 #include "ntp_server_names.h"
 #include "settings.h"
 #include "station_retry.h"
@@ -54,7 +55,8 @@ FrameMac read_frame_mac() {
 
 void NativeNetwork::start(const Settings &settings) {
   settings_ = &settings;
-  if (!settings.web_password.empty())
+  photo_needs_time_.store(settings.immich_url.starts_with("https://"), std::memory_order_relaxed);
+  if constexpr (!trial_immich)
     web_status_.store(WebStatus::Starting, std::memory_order_relaxed);
   if (xTaskCreatePinnedToCore(run_, "native-network", 6144, this, 2, nullptr, network_core) != pdPASS)
     ESP_LOGW(tag, "Could not allocate the Wi-Fi task");
@@ -75,12 +77,23 @@ uint32_t NativeNetwork::station_lease() const {
 }
 
 uint32_t NativeNetwork::photo_connection() const {
-  return photo_time_ready_.load(std::memory_order_acquire) ? station_lease() : 0;
+  const bool ready = !photo_needs_time_.load(std::memory_order_relaxed) ||
+                     photo_time_ready_.load(std::memory_order_acquire);
+  return ready ? station_lease() : 0;
+}
+
+void NativeNetwork::use_photo_connection(const PhotoConnectionSettings &connection) {
+  const bool https = connection.immich_url.starts_with("https://");
+  photo_needs_time_.store(https, std::memory_order_relaxed);
+  set_wireguard_photo_url(connection.immich_url);
+  if (https || connection.prepared_slides_need_time())
+    request_time_sync();
 }
 
 void NativeNetwork::request_time_sync() {
   // Latch the request even if the Wi-Fi task is still starting.
-  if (!time_sync_requested_.exchange(true, std::memory_order_acq_rel) && available())
+  time_sync_requested_.store(true, std::memory_order_release);
+  if (available())
     xTaskNotify(task_, time_sync_requested, eSetBits);
 }
 
@@ -366,9 +379,11 @@ void NativeNetwork::handle_(const Command &command, WifiCredentials &saved) {
 
 void NativeNetwork::connect_loop_(WifiCredentials saved) {
   const auto &configured_servers = settings_->clock.ntp_servers;
-  const auto ntp_servers = espframe_normalize_ntp_servers(configured_servers[0], configured_servers[1], configured_servers[2]);
+  auto ntp_servers = espframe_normalize_ntp_servers(configured_servers[0], configured_servers[1], configured_servers[2]);
+  uint32_t ntp_revision = 0;
   const bool https = settings_->immich_url.starts_with("https://");
-  const bool need_time_at_boot = https || settings_->prepared_slides_need_time() || settings_->clock.show ||
+  const bool wireguard_enabled = !SWIPE_ESPHOME_TRIAL && configure_wireguard(settings_->wireguard, settings_->immich_url);
+  const bool need_time_at_boot = https || wireguard_enabled || settings_->prepared_slides_need_time() || settings_->clock.show ||
                                  settings_->schedule.enabled || settings_->brightness_day != settings_->night_brightness() ||
                                  settings_->tone.needs_time() || settings_->needs_local_date();
   bool sntp_started = false;
@@ -384,9 +399,20 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
 #if SWIPE_TRIAL_WIFI_OUTAGE
   int64_t trial_deadline = 0;
 #endif
-  photo_time_ready_.store(!https || clock_time_is_valid(std::time(nullptr)), std::memory_order_release);
+  photo_time_ready_.store(clock_time_is_valid(std::time(nullptr)), std::memory_order_release);
 
   while (true) {
+    if constexpr (!SWIPE_ESPHOME_TRIAL) {
+      if (const auto updated = updated_ntp_servers(ntp_revision)) {
+        auto servers = espframe_normalize_ntp_servers((*updated)[0], (*updated)[1], (*updated)[2]);
+        if (servers != ntp_servers) {
+          if (sntp_started)
+            esp_netif_sntp_deinit();
+          sntp_started = false;
+          ntp_servers = std::move(servers);
+        }
+      }
+    }
     if constexpr (!trial_immich) {
       Command command{};
       if (xQueueReceive(commands_, &command, 0) == pdPASS) {
@@ -471,8 +497,8 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
         if constexpr (trial_immich) {
           web_started = start_live_trial_status(*this);
         } else {
-          web_started = settings_->web_password.empty() || start_web_settings(*settings_, *this);
-          if (web_started && !settings_->web_password.empty())
+          web_started = start_web_settings(*settings_, *this);
+          if (web_started)
             web_status_.store(WebStatus::Ready, std::memory_order_release);
         }
       }
@@ -491,9 +517,12 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
             config.servers[config.num_of_servers++] = server.c_str();
         }
         sntp_started = esp_netif_sntp_init(&config) == ESP_OK;
+        if (sntp_started)
+          ESP_LOGI(tag, "Time sync configured (%u servers)", static_cast<unsigned>(config.num_of_servers));
       }
-      const bool time_ready = !https || clock_time_is_valid(std::time(nullptr));
-      photo_time_ready_.store(time_ready, std::memory_order_release);
+      const bool clock_ready = clock_time_is_valid(std::time(nullptr));
+      photo_time_ready_.store(clock_ready, std::memory_order_release);
+      const bool time_ready = !photo_needs_time_.load(std::memory_order_relaxed) || clock_ready;
       const bool services_ready = web_started && (!need_time || sntp_started);
       wait = services_ready ? (time_ready ? portMAX_DELAY : pdMS_TO_TICKS(250)) : pdMS_TO_TICKS(2000);
 #if !SWIPE_ESPHOME_TRIAL
@@ -520,6 +549,11 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
       wait = std::min(wait, pdMS_TO_TICKS(std::max<int64_t>(1, (remaining_us + 999) / 1000)));
     }
 #endif
+    if (wireguard_enabled) {
+      const bool ready = connected && !hotspot && clock_time_is_valid(std::time(nullptr));
+      poll_wireguard(ready ? station_lease() : 0);
+      wait = std::min(wait, pdMS_TO_TICKS(2000));
+    }
     last_lease = lease;
     events = 0;
     xTaskNotifyWait(0, UINT32_MAX, &events, wait);

@@ -54,10 +54,10 @@ struct CacheSample {
   SlideIndex missing_slide{-1};
 };
 
-inline CacheSample ready_at_motion(PixelPosition position, SlideRange ready, SlideRange available) {
-  if (const auto missing = missing_neighbor_at_edge(position, ready, available))
+inline CacheSample ready_at_motion(PixelPosition position, SlideRange ready, SlideRange available, int width = slide_width) {
+  if (const auto missing = missing_neighbor_at_edge(position, ready, available, width))
     return {CacheRead::Miss, *missing};
-  if (position < ready.first * slide_width || position > ready.last * slide_width)
+  if (position < ready.first * width || position > ready.last * width)
     return {CacheRead::Edge};
   return {CacheRead::Hit};
 }

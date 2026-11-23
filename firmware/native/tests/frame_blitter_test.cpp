@@ -1,5 +1,6 @@
 #include "frame_blitter.h"
 #include "freertos/semphr.h"
+#include "touch_report.h"
 
 #include <algorithm>
 #include <cassert>
@@ -123,30 +124,70 @@ int main() {
   blit_slide_edge(expected.data(), left.data(), panel_width, panel_height, edge_offset);
   assert(output == expected && requests == 3);
 
-  for (auto rotation : {ScreenRotation::Normal, ScreenRotation::UpsideDown}) {
+  for (auto rotation : {ScreenRotation::Normal, ScreenRotation::UpsideDown,
+                        ScreenRotation::Clockwise, ScreenRotation::Counterclockwise}) {
+    const Viewport viewport{rotation};
+    const auto panel = [rotation](int x, int y) {
+      switch (rotation) {
+        case ScreenRotation::Normal: return x * panel_width + panel_width - 1 - y;
+        case ScreenRotation::UpsideDown: return (panel_height - 1 - x) * panel_width + y;
+        case ScreenRotation::Clockwise: return pixel_count - 1 - (y * panel_width + x);
+        case ScreenRotation::Counterclockwise: return y * panel_width + x;
+      }
+      return -1;
+    };
+    for (int y : {0, 101, viewport.height - 1}) {
+      for (int x : {0, 527, viewport.width - 1}) {
+        const int physical = panel(x, y);
+        assert(viewport.offset(x, y) == physical);
+        TouchReport report;
+        map_gsl_touch(report, panel_width - 1 - physical % panel_width, physical / panel_width, rotation);
+        assert(report.x == x && report.y == y);
+      }
+    }
     for (const auto &direction : {std::pair{-1, 0}, std::pair{1, 0}, std::pair{0, -1}, std::pair{0, 1}}) {
       const auto [dx, dy] = direction;
-      const int extent = dx ? slide_width : slide_height;
+      const int extent = dx ? viewport.width : viewport.height;
       constexpr uint8_t progress = 51;  // One fifth of the screen.
       const int distance = extent / 5;
-      const auto panel = [rotation](int x, int y) { return panel_offset(x, slide_height - 1 - y, rotation); };
-      for (int y = 0; y < slide_height; ++y) {
-        for (int x = 0; x < slide_width; ++x) {
+      for (int y = 0; y < viewport.height; ++y) {
+        for (int x = 0; x < viewport.width; ++x) {
           int source_x = x - dx * distance;
           int source_y = y - dy * distance;
-          const bool incoming = source_x < 0 || source_x >= slide_width || source_y < 0 || source_y >= slide_height;
+          const bool incoming = source_x < 0 || source_x >= viewport.width || source_y < 0 || source_y >= viewport.height;
           if (incoming) {
-            source_x += dx * slide_width;
-            source_y += dy * slide_height;
+            source_x += dx * viewport.width;
+            source_y += dy * viewport.height;
           }
           expected[panel(x, y)] = (incoming ? right : left)[panel(source_x, source_y)];
         }
       }
       const int before = requests;
-      if (dy)
+      if (viewport.portrait ? dx != 0 : dy != 0)
         reject_request = before + 2;
       dma.push(output.data(), left.data(), right.data(), dx, dy, progress, rotation);
       assert(output == expected && requests == before + 2 && releases == 0);
+    }
+    if (viewport.portrait) {
+      constexpr int offset = 167;
+      const auto span = orient_slide_span(left.data(), right.data(), viewport.width, offset, rotation);
+      dma.slides(output.data(), span, true);
+      for (int y = 0; y < viewport.height; ++y) {
+        for (int x = 0; x < viewport.width; ++x) {
+          const int source_x = x + offset;
+          const auto &source = source_x < viewport.width ? left : right;
+          assert(output[panel(x, y)] == source[panel(source_x % viewport.width, y)]);
+        }
+      }
+      for (int pull : {-36, 36}) {
+        dma.edge(output.data(), left.data(), pull * axis_direction(rotation), true);
+        for (int y = 0; y < viewport.height; ++y) {
+          for (int x = 0; x < viewport.width; ++x) {
+            const int source_x = std::clamp(x + pull, 0, viewport.width - 1);
+            assert(output[panel(x, y)] == left[panel(source_x, y)]);
+          }
+        }
+      }
     }
   }
 

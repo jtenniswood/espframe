@@ -63,8 +63,8 @@ and fill in Wi-Fi and Immich together. If you used Improv Serial to connect
 Wi-Fi in the dialog, select **Use Wi-Fi already saved on the frame** and fill
 in only the remaining settings. Select the frame's USB port to save.
 Keep the USB cable connected while the frame restarts. The installer
-shows the frame's address and an **Open frame settings** link if you set a web
-settings password. Use **Find frame on Wi-Fi** to retry the address check.
+shows the frame's address and an **Open frame settings** link.
+Use **Find frame on Wi-Fi** to retry the address check.
 If the frame stays offline or you change routers, open **Change Wi-Fi over USB**.
 This updates the network and keeps your saved Immich and playback settings.
 
@@ -111,15 +111,51 @@ node firmware/native/tools/package_installer.mjs firmware/native/build firmware/
 The package also includes `index.html` and its assets for serving the same
 installer over HTTPS or localhost.
 
+### Prepare a versioned Native Preview
+
+Run the **Native Swipe Prototype** workflow on the intended source commit
+with `preview_version` set to a version such as `v0.1.0-preview.1`. The
+`preview_v1_linked_scanout` option selects the experimental V1 renderer
+for a hands-on comparison. It defaults to off. The workflow produces the
+`espframe-native-v0.1.0-preview.1` artifact with the standalone browser
+installer, factory and OTA images, SHA-256 checksums, and the source commit.
+
+For a local build set `-D NATIVE_PREVIEW_VERSION=v0.1.0-preview.1` in each
+native factory build. Pass the same version as the third argument to
+`package_installer.mjs`. The packager checks that every image embeds the
+requested version before creating the installer.
+
+Open **Espframe Native Installer.html** in desktop Chrome or Edge. The
+stable ESPHome installer provides the return path. Keep a backup and leave
+**Erase device** unchecked when switching firmware to retain the saved
+ESPHome preferences.
+
+### Firmware releases and automatic updates
+
+Open **Firmware** in the frame settings to see the installed Native Preview,
+check for a release, install an available version, or choose a previous one.
+Enable **Auto Update** and choose **Update Frequency** to install newer releases
+from the frame itself. Turning **Auto Update** back on checks for a release
+immediately. **Check for Update** refreshes the list and leaves installation to
+you. The frame verifies the board and download checksum before
+restarting into the update. The native startup check can return to the previous
+firmware if startup fails.
+
+To publish a preview, prepare a GitHub draft prerelease on the matching
+`native-v0.1.0-preview.N` tag. Dispatch **Native Swipe Prototype** on that tag
+with `preview_version` set to `v0.1.0-preview.N` and **Publish a verified draft**
+enabled. A successful publish updates the Native Preview feed on GitHub Pages.
+The feed serves the most recent five published previews for each board.
+
 ### Open the frame's web settings
 
-Set a web settings password when saving over USB to enable the frame's
-settings page. Use **Find frame on Wi-Fi** in the browser installer or open
-the IP address shown in the USB logs. The frame uses its stock board hostname
-when its name is blank. Sign in as `espframe`
-with the password you chose. The settings page uses Espframe's shared web
-controls and configuration client. It shows the settings supported by the
-running native firmware.
+Use **Find frame on Wi-Fi** in the browser installer or open the IP address
+shown in the USB logs. The frame uses its stock board hostname when its name
+is blank. The settings page opens without a password by default. If you set
+an optional password over USB, sign in as `espframe` with the password you
+chose. **Remove saved web admin password over USB** clears a saved password
+and returns to direct access. The settings page uses Espframe's shared web
+controls and shows the settings supported by the running native firmware.
 Edit the Immich connection, display mode, time per photo, and other
 playback and screen settings, then choose **Save settings**. Changes limited
 to framing or captions redraw the current photo or portrait pair and keep
@@ -127,15 +163,18 @@ its place in the slideshow. Cached neighbors stay swipeable while their
 framing and captions refresh in the background. Changing photo selection or
 pairing rules keeps the current photo visible until the first slide from
 the new feed is ready.
-Changing the clock format redraws the clock in place. The next automatic
+Clock visibility, format and timezone update in place. A timezone change
+also updates sunrise, sunset and the screen schedule. The next automatic
 photo change uses the saved transition and speed.
 The connection timeout applies immediately. It controls when an Immich
-connection or API key warning appears if the frame has yet to load its
-first photo. Once playback starts, the frame keeps the last ready photo.
+connection or API key warning appears while the frame waits for its first
+photo or reconnects with new settings. The last ready photo stays visible
+during reconnection.
 Screen tone changes refresh visible and cached photos through the same path
 as framing. **Warm tone until sunrise** applies the configured nighttime warmth
 and turns off once the frame's clock and timezone place it in daylight.
-Saves that also change connection or device settings apply after a restart.
+Immich URL and API key changes reconnect during playback. Device settings
+such as the frame name apply after a restart.
 If you change **Frame name**, it also shows the new `.local` address.
 The frame adds its own four-character MAC suffix to the hostname.
 Under **Clock**, choose whether to show the local time and select the timezone
@@ -145,9 +184,22 @@ default. Older native settings keep it hidden until enabled. Under **Time
 servers**, set up to three NTP hosts in preference order. Backups carry the
 clock settings and time servers. Existing native setups use `pool.ntp.org`
 until you set a server. Leaving all three fields blank selects the same
-default time-server pool as ESPHome. Changes apply after restart.
-Open **Photo sources & device tools** to change the Immich photo source,
-download a settings backup, or install a native firmware update.
+default time-server pool as ESPHome. Changing the servers restarts time
+synchronization while the frame keeps running.
+The frame address opens the **Immich**, **Device**, and **Logs** tabs.
+Use **Backup** in the **Device** tab to export or restore your settings.
+Open **Photo sources & device tools** at the bottom of the **Device** tab
+for manual firmware upload and detailed native configuration.
+Under **Firmware → WiFi firmware**, see the current and latest compatible
+Wi-Fi chip firmware, check manually, or install an available update. The
+separate **Auto Update** switch applies to the Wi-Fi chip and is included
+in settings backups. The frame checks the ESPHome Wi-Fi firmware feed after
+connecting and then daily.
+
+The **WireGuard VPN** card on the **Immich** tab uses the existing
+[WireGuard setup](../../docs/wireguard.md). Save the tunnel settings and
+choose **Restart now** to apply them. The frame keeps the private key
+write-only and excludes WireGuard settings from web backups.
 The page uses HTTP on the local network. Keep it on a trusted network.
 
 The native player also answers the shared configuration API at
@@ -232,7 +284,8 @@ files. The prototype checks image integrity and board identity and accepts
 unsigned firmware.
 
 The installer preserves ESPHome's update preferences in native settings
-exports for a future restore to ESPHome. Native updates use this manual upload flow.
+exports for a future restore to ESPHome. Manual upload also works with local
+builds and when the release feed is unavailable.
 
 The frame writes to an inactive slot and restarts after validating the image.
 The first boot must initialize the display, submit a frame and read the touch
@@ -409,9 +462,14 @@ Set **Portrait pair framing** to **Fill each half** to crop both portraits
 independently of single-photo framing. **Fit both full photos** keeps both
 portraits intact. **Follow photo framing** retains the previous behavior.
 Set **Mounting orientation** to **Upside down (180°)** when the frame is
-mounted the other way round. After restart, photos, portrait pairs, the clock,
+mounted the other way round. Photos, portrait pairs, the clock,
 and touch follow the new orientation together. Espframe backups carry the
 landscape mounting choice.
+
+To mount the frame vertically, open the admin with `?developer=experimental`
+and enable in-development features under **Device**. The **Rotation** card
+then offers 90 and 270 degrees. Portrait rotation uses one photo per slide.
+Turning off in-development features restores the default landscape orientation.
 
 Under **Photo captions**, enable the capture date, location, or both. The
 frame uses the photo's local capture day and the city and country supplied by

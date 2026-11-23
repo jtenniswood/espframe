@@ -2474,14 +2474,12 @@ def check_workflows(product: dict, errors: list[str]) -> None:
     workflow_names = project.get("github_workflow_names", {})
     if isinstance(workflow_names, dict):
         check_workflow_names(workflow_names, workflow_texts, errors)
-        release_workflow_name = str(workflow_names.get("release", "")).strip()
-        if release_workflow_name:
-            check_workflow_run_targets(
-                [release_workflow_name],
-                ".github/workflows/docs.yml",
-                docs_workflow,
-                errors,
-            )
+        check_workflow_run_targets(
+            project.get("github_docs_workflow_run_targets", []),
+            ".github/workflows/docs.yml",
+            docs_workflow,
+            errors,
+        )
     check_workflow_permissions(workflow_permissions, workflow_texts, errors)
     for label, text in (
         (".github/workflows/docs.yml", docs_workflow),

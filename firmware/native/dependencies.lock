@@ -17,6 +17,17 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 0.1.31
+  esphome/wireguard:
+    component_hash: 61a9bf2cd1c61c13acafe2f31ae48f17d692dccd4d4e2b8fc86ff2e1774eb6b4
+    dependencies:
+    - name: esphome/libsodium
+      registry_url: https://components.espressif.com
+      require: private
+      version: ^1.10021.1
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 0.4.8
   espressif/cjson:
     component_hash: e788323270d90738662d66fffa910bfe1fba019bba087f01557e70c40485b469
     dependencies:
@@ -153,10 +164,11 @@ dependencies:
     version: 6.1.1
 direct_dependencies:
 - esphome/noise-c
+- esphome/wireguard
 - espressif/cjson
 - espressif/esp_hosted
 - espressif/esp_wifi_remote
 - espressif/mdns
-manifest_hash: 583103cd60b3c2bdba1565197785f6f23d531171193a0cabf62eaaec72679e61
+manifest_hash: 72655dc93500ae402a907152a2077a02b2c4e1d8667f38d8243b5594e16353b6
 target: esp32p4
 version: 3.0.0

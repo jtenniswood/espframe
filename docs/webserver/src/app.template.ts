@@ -36,6 +36,8 @@ import {
   var SUPPORT_BUTTON_IMAGE_DATA_URI = __ESPFRAME_SUPPORT_BUTTON_IMAGE_DATA_URI__;
   var CONFIGURATION_CAPABILITIES_PATH: string = __ESPFRAME_CONFIGURATION_CAPABILITIES_PATH__;
   var highlightApiKeyAfterRestore = false;
+  var nativeAdmin = document.documentElement.hasAttribute("data-native-admin");
+  var nativeSettings = new Set<string>();
 
   var S: AppState = {
     tz_options: TIMEZONES,
@@ -132,9 +134,11 @@ import {
   var CSS = __ESPFRAME_CSS__;
   var FAVICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" id="mdi-home-automation" viewBox="0 0 24 24"><path fill="#5c73e7" d="M12,3L2,12H5V20H19V12H22L12,3M12,8.5C14.34,8.5 16.46,9.43 18,10.94L16.8,12.12C15.58,10.91 13.88,10.17 12,10.17C10.12,10.17 8.42,10.91 7.2,12.12L6,10.94C7.54,9.43 9.66,8.5 12,8.5M12,11.83C13.4,11.83 14.67,12.39 15.6,13.3L14.4,14.47C13.79,13.87 12.94,13.5 12,13.5C11.06,13.5 10.21,13.87 9.6,14.47L8.4,13.3C9.33,12.39 10.6,11.83 12,11.83M12,15.17C12.94,15.17 13.7,15.91 13.7,16.83C13.7,17.75 12.94,18.5 12,18.5C11.06,18.5 10.3,17.75 10.3,16.83C10.3,15.91 11.06,15.17 12,15.17Z"/></svg>';
 
-  var style = document.createElement("style");
-  style.textContent = CSS;
-  document.head.appendChild(style);
+  if (!nativeAdmin) {
+    var style = document.createElement("style");
+    style.textContent = CSS;
+    document.head.appendChild(style);
+  }
   ensureFavicon();
 
   var els: Record<string, any> = {};
@@ -153,94 +157,65 @@ import {
   var PHOTO_LABEL_FIELD_TOO_LONG =
     "Labels exceed 255 characters (device limit). Shorten or remove labels.";
 
-  function postTextValueSet(url, value, useQueryFallback?) {
-    return apiClient.postText(url, value == null ? "" : String(value), useQueryFallback).catch(function (err) {
-      console.error("POST " + url + " error:", err);
-      showBanner("Failed to save setting", "error");
-      throw err;
-    });
-  }
-
   function delayMs(ms) {
     return new Promise(function (resolve) { setTimeout(resolve, ms); });
-  }
-
-  function saveConnectionValue(path, value, useQueryFallback) {
-    // Legacy adapter compatibility: saveConnectionValue(endpoints.immich_url, ...)
-    // and saveConnectionValue(endpoints.api_key, ...) remain the per-entity form.
-    return postTextValueSet(path + "/set", value, useQueryFallback).then(function (r) {
-      if (!r || !r.ok) throw new Error("save_failed");
-      return delayMs(1200);
-    });
   }
 
   function connectionResponseValue(resp) {
     return (resp && (resp.value || resp.state)) || "";
   }
 
-  function saveAndVerifyConnectionValue(path, value, useQueryFallback, isSaved) {
-    if (path === endpoints.api_key) return saveAndVerifyApiKey(value);
-    return settingSaves.save({ immich_url: value }, function () {
-      return saveConnectionValue(path, value, useQueryFallback)
-        .then(function () {
-          return safeGet(path);
-        })
-        .then(function (resp) {
-          var saved = connectionResponseValue(resp);
-          if (isSaved && !isSaved(saved)) throw Error("verify_failed");
-          return saved;
-        });
+  function normalizeConnectionUrl(value) {
+    var url = normalizeImmichUrl(value);
+    return nativeAdmin ? window["espframeNativeUrl"](url) : url;
+  }
+
+  function saveAndVerifyConnectionUrl(value) {
+    if (nativeAdmin) return saveAndVerifyConnection({ immich_url: value });
+    return settingSaves.save({ immich_url: value }, async function () {
+      var path = endpoints.immich_url;
+      await apiClient.postText(path + "/set", value, true).catch(function (err) {
+        console.error("POST " + path + "/set error:", err);
+        showBanner("Failed to save setting", "error");
+        throw err;
+      });
+      await delayMs(1200);
+      if (normalizeImmichUrl(connectionResponseValue(await safeGet(path))) !== value) throw Error("verify_failed");
     });
   }
 
   function saveAndVerifyApiKey(value) {
     var apiKey = String(value || "").trim();
     if (!apiKey) return Promise.reject(Error("missing_api_key"));
-    return settingSaves.save({ api_key_configured: true }, function () {
-      return apiClient.updateSettings({ api_key: apiKey }, [legacySettingWrite("api_key", apiKey)])
-        .then(function () { return delayMs(150); })
-        .then(function () { return getConfigurationSnapshot(); })
-        .then(function (snapshot) {
-          if (!snapshot.api_key_configured) throw Error("verify_failed");
-        })
-        .catch(function (error) {
-          if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
-          return safeGet(endpoints.api_key).then(function (resp) {
-            if (!resp || (!resp.api_key_configured && !connectionResponseValue(resp))) {
-              throw Error("verify_failed");
-            }
-          });
-        });
-    });
+    return saveAndVerifyConnection({ api_key: apiKey });
   }
 
-  function saveAndVerifyConnection(url, key) {
-    var normalizedUrl = normalizeImmichUrl(url);
-    var apiKey = String(key || "").trim();
-    if (!normalizedUrl || !apiKey) return Promise.reject(new Error("missing_connection"));
-    return settingSaves.save({ immich_url: normalizedUrl, api_key_configured: true }, function () {
-      return apiClient.updateSettings(
-        { immich_url: normalizedUrl, api_key: apiKey },
-        [legacySettingWrite("immich_url", normalizedUrl), legacySettingWrite("api_key", apiKey)]
-      )
-        .then(function () { return delayMs(150); })
-        .then(function () { return getConfigurationSnapshot(); })
-        .catch(function (error) {
-          if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
-          return Promise.all([safeGet(endpoints.immich_url), safeGet(endpoints.api_key)]);
-        })
-        .then(function (result) {
-          var savedUrl;
-          if (result && !Array.isArray(result)) {
-            savedUrl = normalizeImmichUrl(result.values.immich_url);
-            if (!result.api_key_configured) throw Error("verify_failed");
-          } else {
-            savedUrl = normalizeImmichUrl(connectionResponseValue(result[0]));
-            if (!connectionResponseValue(result[1])) throw Error("verify_failed");
-          }
-          if (savedUrl !== normalizedUrl) throw Error("verify_failed");
-          return { url: normalizedUrl, key: apiKey };
-        });
+  function saveAndVerifyConnection(changes: { immich_url?: string; api_key?: string }) {
+    var tracked: Record<string, string | boolean> = {};
+    if (changes.immich_url !== undefined) tracked.immich_url = changes.immich_url;
+    if (changes.api_key) tracked.api_key_configured = true;
+    return settingSaves.save(tracked, async function () {
+      var writes = Object.keys(changes).map(function (key) { return legacySettingWrite(key, changes[key]); });
+      var savedUrl, keyConfigured;
+      try {
+        var response = await apiClient.updateSettings(changes, writes);
+        await delayMs(150);
+        var snapshot = nativeAdmin && response?.restart_required
+          ? await window["espframeNativeReconnect"](getConfigurationSnapshot)
+          : await getConfigurationSnapshot();
+        savedUrl = snapshot.values.immich_url;
+        keyConfigured = snapshot.api_key_configured;
+      } catch (error) {
+        if (nativeAdmin || !(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
+        var [url, key] = await Promise.all([
+          changes.immich_url === undefined ? null : safeGet(endpoints.immich_url),
+          changes.api_key ? safeGet(endpoints.api_key) : null
+        ]);
+        savedUrl = connectionResponseValue(url);
+        keyConfigured = key && (key.api_key_configured || connectionResponseValue(key));
+      }
+      if ((changes.immich_url !== undefined && normalizeImmichUrl(savedUrl) !== changes.immich_url) ||
+          (changes.api_key && !keyConfigured)) throw Error("verify_failed");
     });
   }
 
@@ -320,6 +295,7 @@ import {
       var response = await apiClient.updateSettings(values, Object.keys(legacyValues).map(function (key) {
         return legacySettingWrite(key, legacyValues[key]);
       }), legacyValues);
+      if (nativeAdmin && response?.restart_required) await window["espframeNativeReconnect"](getConfigurationSnapshot);
       if (response && affectsRotationPolicy) {
         try {
           var snapshot = await apiClient.getConfigurationSnapshot();
@@ -339,8 +315,8 @@ import {
   }
 
   function saveGenericSetting(key, value) {
-    if (!key || !endpoints[key]) return Promise.resolve(null);
     if (key === "api_key") return saveAndVerifyApiKey(value);
+    if (!hasWritableSetting(key)) return Promise.resolve(null);
     var domain = settingEntityDomain(key);
     var savedValue = value;
     if (domain === "switch") savedValue = !!value;
@@ -350,6 +326,10 @@ import {
     }
     if (domain === "select" || domain === "text") savedValue = value == null ? "" : String(value);
     return saveSettingValues({ [key]: savedValue });
+  }
+
+  function hasWritableSetting(key) {
+    return nativeAdmin ? nativeSettings.has(key) : !!endpoints[key];
   }
 
   function saveNtpServer(key, value) {
@@ -380,13 +360,17 @@ import {
     screen_rotation: saveScreenRotationSetting
   };
 
+  async function applyPhotoSource() {
+    if (!nativeAdmin) await post(endpoints.apply_photo_source + "/press");
+  }
+
   function saveSetting(key, value, options?) {
     var opts = options || {};
     var adapter = SETTING_SAVE_ADAPTERS[key];
     var result = adapter ? adapter(key, value, opts) : saveGenericSetting(key, value);
     if (opts.applyPhotoSource && settingUsesPhotoSourceApply(key)) {
       result = Promise.resolve(result).then(function (saved) {
-        return post(endpoints.apply_photo_source + "/press").then(function () { return saved; });
+        return applyPhotoSource().then(function () { return saved; });
       });
     }
     // Event handlers may ignore the result; backup import still receives the
@@ -516,5 +500,9 @@ import {
   // --- Init ---
 
   buildUI();
-  initSSE();
+  if (nativeAdmin) {
+    tryRender();
+    startNativeSettingsSync();
+  }
+  else initSSE();
   loadFrameIdentity();

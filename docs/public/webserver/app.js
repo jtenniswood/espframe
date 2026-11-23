@@ -1,495 +1,447 @@
 // ESPFRAME: generated from typed docs/webserver/src and product/contract; run `npm run generate` to update.
 "use strict";
 (() => {
-  var __defProp = Object.defineProperty;
-  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-  var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-
   // docs/webserver/src/setting_save.ts
+  var c = Object.defineProperty;
+  var l = (g2, e, i) => e in g2 ? c(g2, e, { enumerable: true, configurable: true, writable: true, value: i }) : g2[e] = i;
+  var s = (g2, e, i) => l(g2, typeof e != "symbol" ? e + "" : e, i);
   var SettingSaveCoordinator = class {
-    constructor(read, write) {
-      __publicField(this, "read", read);
-      __publicField(this, "write", write);
-      __publicField(this, "sequence", 0);
-      __publicField(this, "confirmed", /* @__PURE__ */ new Map());
-      __publicField(this, "pending", /* @__PURE__ */ new Map());
-      __publicField(this, "queue", null);
+    constructor(e, i) {
+      s(this, "read", e);
+      s(this, "write", i);
+      s(this, "sequence", 0);
+      s(this, "writesInFlight", 0);
+      s(this, "confirmed", /* @__PURE__ */ new Map());
+      s(this, "pending", /* @__PURE__ */ new Map());
+      s(this, "queue", null);
     }
-    receive(key, value) {
-      if (this.pending.has(key)) return;
-      this.confirmed.set(key, value);
-      this.write(key, value);
+    receive(e, i) {
+      this.pending.has(e) || (this.confirmed.set(e, i), this.write(e, i));
     }
-    save(values, send, appliedValues) {
-      const revision = ++this.sequence;
-      const entries = Object.entries(values);
-      for (const [key, value] of entries) {
-        let pending = this.pending.get(key);
-        if (!pending) {
-          pending = { confirmed: this.confirmed.has(key) ? this.confirmed.get(key) : this.read(key), latest: revision, remaining: 0 };
-          this.pending.set(key, pending);
-        }
-        pending.latest = revision;
-        pending.remaining++;
-        this.write(key, value);
+    idleRevision() {
+      return this.writesInFlight ? null : this.sequence;
+    }
+    save(e, i, u) {
+      const r = ++this.sequence;
+      ++this.writesInFlight;
+      const h2 = Object.entries(e);
+      for (const [t, o2] of h2) {
+        let a = this.pending.get(t);
+        a || (a = { confirmed: this.confirmed.has(t) ? this.confirmed.get(t) : this.read(t), latest: r, remaining: 0 }, this.pending.set(t, a)), a.latest = r, a.remaining++, this.write(t, o2);
       }
-      let request;
-      if (this.queue) {
-        request = this.queue.then(send);
-      } else {
+      let n;
+      if (this.queue)
+        n = this.queue.then(i);
+      else
         try {
-          request = Promise.resolve(send());
-        } catch (error) {
-          request = Promise.reject(error);
+          n = Promise.resolve(i());
+        } catch (t) {
+          n = Promise.reject(t);
         }
-      }
-      request = request.then(
-        (result) => {
-          this.finish(entries, revision, true, appliedValues == null ? void 0 : appliedValues(result));
-          return result;
-        },
-        (error) => {
-          this.finish(entries, revision, false);
-          throw error;
+      return n = n.then(
+        (t) => (this.finish(h2, r, true, u == null ? void 0 : u(t)), t),
+        (t) => {
+          throw this.finish(h2, r, false), t;
         }
-      );
-      this.queue = request.catch(() => void 0);
-      return request;
+      ).finally(() => {
+        --this.writesInFlight;
+      }), this.queue = n.catch(() => {
+      }), n;
     }
-    finish(entries, revision, accepted, applied) {
-      var _a;
-      for (const [key, value] of entries) {
-        const pending = this.pending.get(key);
-        if (accepted) {
-          pending.confirmed = (_a = applied == null ? void 0 : applied[key]) != null ? _a : value;
-          this.confirmed.set(key, pending.confirmed);
-        }
-        if (pending.latest === revision) this.write(key, pending.confirmed);
-        if (--pending.remaining === 0) this.pending.delete(key);
+    finish(e, i, u, r) {
+      var h2;
+      for (const [n, t] of e) {
+        const o2 = this.pending.get(n);
+        u && (o2.confirmed = (h2 = r == null ? void 0 : r[n]) != null ? h2 : t, this.confirmed.set(n, o2.confirmed)), o2.latest === i && this.write(n, o2.confirmed), --o2.remaining === 0 && this.pending.delete(n);
       }
     }
   };
 
   // docs/webserver/src/api_client.ts
+  var f = Object.defineProperty;
+  var p = (u, e, t) => e in u ? f(u, e, { enumerable: true, configurable: true, writable: true, value: t }) : u[e] = t;
+  var s2 = (u, e, t) => p(u, typeof e != "symbol" ? e + "" : e, t);
   var EspframeApiError = class extends Error {
-    constructor(kind, message, status, code, field2) {
-      super(message);
-      __publicField(this, "kind", kind);
-      __publicField(this, "status", status);
-      __publicField(this, "code", code);
-      __publicField(this, "field", field2);
+    constructor(t, n, i, r, a) {
+      super(n);
+      s2(this, "kind", t);
+      s2(this, "status", i);
+      s2(this, "code", r);
+      s2(this, "field", a);
       this.name = "EspframeApiError";
     }
   };
-  function object(value) {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
+  function c2(u) {
+    return typeof u == "object" && u !== null && !Array.isArray(u);
   }
   var EspframeApiClient = class {
-    constructor(capabilitiesPath, timeoutMs = 5e3) {
-      __publicField(this, "capabilitiesPath", capabilitiesPath);
-      __publicField(this, "timeoutMs", timeoutMs);
-      __publicField(this, "queue", Promise.resolve());
-      __publicField(this, "capabilities", null);
-      __publicField(this, "negotiated");
-      __publicField(this, "resetEpoch");
-      __publicField(this, "resetAccepted", false);
+    constructor(e, t = 5e3) {
+      s2(this, "capabilitiesPath", e);
+      s2(this, "timeoutMs", t);
+      s2(this, "queue", Promise.resolve());
+      s2(this, "capabilities", null);
+      s2(this, "negotiated");
+      s2(this, "resetEpoch");
+      s2(this, "resetAccepted", false);
     }
     waitForWrites() {
       return this.queue;
     }
-    enqueue(command) {
-      const request = this.queue.then(command);
-      this.queue = request.catch(() => void 0);
-      return request;
+    enqueue(e) {
+      const t = this.queue.then(e);
+      return this.queue = t.catch(() => {
+      }), t;
     }
-    error(status, message, payload) {
-      const body = object(payload) ? payload : {};
-      const kind = status === 404 || status === 405 ? "unavailable" : status === 409 ? "conflict" : status === 400 || status === 422 ? "validation" : "server";
+    error(e, t, n) {
+      const i = c2(n) ? n : {}, r = e === 404 || e === 405 ? "unavailable" : e === 409 ? "conflict" : e === 400 || e === 422 ? "validation" : "server";
       return new EspframeApiError(
-        kind,
-        typeof body.error === "string" ? body.error : message,
-        status,
-        typeof body.error === "string" ? body.error : void 0,
-        typeof body.field === "string" ? body.field : void 0
+        r,
+        typeof i.error == "string" ? i.error : t,
+        e,
+        typeof i.error == "string" ? i.error : void 0,
+        typeof i.field == "string" ? i.field : void 0
       );
     }
-    async requestWith(url, init, consume) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    async requestWith(e, t, n) {
+      const i = new AbortController(), r = setTimeout(() => i.abort(), this.timeoutMs);
       try {
-        const response = await fetch(url, { ...init, signal: controller.signal });
-        return await consume(response);
-      } catch (error) {
-        if (error instanceof EspframeApiError) throw error;
-        if (error && typeof error === "object" && error.name === "AbortError") {
-          throw new EspframeApiError("timeout", "request_timeout");
-        }
-        throw new EspframeApiError("offline", "device_offline");
+        const a = await fetch(e, { ...t, signal: i.signal });
+        return await n(a);
+      } catch (a) {
+        throw a instanceof EspframeApiError ? a : a && typeof a == "object" && a.name === "AbortError" ? new EspframeApiError("timeout", "request_timeout") : new EspframeApiError("offline", "device_offline");
       } finally {
-        clearTimeout(timer);
+        clearTimeout(r);
       }
     }
-    request(url, init = {}) {
-      return this.requestWith(url, init, async (response) => response);
+    request(e, t = {}) {
+      return this.requestWith(e, t, async (n) => n);
     }
-    requestJson(url, init, message) {
-      return this.requestWith(url, init, (response) => this.json(response, message));
+    requestJson(e, t, n) {
+      return this.requestWith(e, t, (i) => this.json(i, n));
     }
-    async json(response, message) {
-      let payload = null;
+    async json(e, t) {
+      let n = null;
       try {
-        payload = await response.json();
-      } catch (error) {
-        if (error && typeof error === "object" && error.name === "AbortError") {
-          throw new EspframeApiError("timeout", "request_timeout");
-        }
-        if (!response.ok) throw this.error(response.status, message);
-        throw new EspframeApiError("server", "invalid_server_response", response.status);
+        n = await e.json();
+      } catch (i) {
+        throw i && typeof i == "object" && i.name === "AbortError" ? new EspframeApiError("timeout", "request_timeout") : e.ok ? new EspframeApiError("server", "invalid_server_response", e.status) : this.error(e.status, t);
       }
-      if (!response.ok) throw this.error(response.status, message, payload);
-      return payload;
+      if (!e.ok) throw this.error(e.status, t, n);
+      return n;
     }
-    parseCapabilities(value) {
-      if (!object(value) || typeof value.contract_version !== "number" || typeof value.api_version !== "number" || typeof value.configuration_path !== "string" || value.update_mode !== "atomic" || typeof value.configuration_available !== "boolean" || typeof value.configuration_read !== "boolean" || typeof value.configuration_write !== "boolean" || typeof value.legacy_entity_api !== "boolean") return null;
-      return value;
+    parseCapabilities(e) {
+      return !c2(e) || typeof e.contract_version != "number" || typeof e.api_version != "number" || typeof e.configuration_path != "string" || e.update_mode !== "atomic" || typeof e.configuration_available != "boolean" || typeof e.configuration_read != "boolean" || typeof e.configuration_write != "boolean" || typeof e.legacy_entity_api != "boolean" ? null : e;
     }
     negotiate() {
-      if (this.negotiated !== void 0) return Promise.resolve(this.negotiated);
-      if (!this.capabilities) {
-        this.capabilities = this.requestJson(this.capabilitiesPath, { cache: "no-store" }, "capabilities_unavailable").then((payload) => {
-          const capabilities = this.parseCapabilities(payload);
-          if (!capabilities) {
-            this.negotiated = null;
-            return null;
-          }
-          this.negotiated = capabilities.configuration_available && capabilities.configuration_read && capabilities.configuration_write ? capabilities : null;
-          return this.negotiated;
-        }).catch((error) => {
-          if (error instanceof EspframeApiError && error.kind === "unavailable") {
-            this.negotiated = null;
-            return null;
-          }
-          this.capabilities = null;
-          throw error;
-        });
-      }
-      return this.capabilities;
+      return this.negotiated !== void 0 ? Promise.resolve(this.negotiated) : (this.capabilities || (this.capabilities = this.requestJson(this.capabilitiesPath, { cache: "no-store" }, "capabilities_unavailable").then((e) => {
+        const t = this.parseCapabilities(e);
+        return t ? (this.negotiated = t.configuration_available && t.configuration_read && t.configuration_write ? t : null, this.negotiated) : (this.negotiated = null, null);
+      }).catch((e) => {
+        if (e instanceof EspframeApiError && e.kind === "unavailable")
+          return this.negotiated = null, null;
+        throw this.capabilities = null, e;
+      })), this.capabilities);
     }
     async getConfigurationSnapshot() {
-      const capabilities = await this.negotiate();
-      if (!capabilities) throw new EspframeApiError("unavailable", "configuration_api_unavailable");
-      const payload = await this.requestJson(capabilities.configuration_path, { cache: "no-store" }, "configuration_api_failed");
-      if (!object(payload) || payload.api_version !== capabilities.api_version || capabilities.reset_path && !Number.isInteger(payload.reset_epoch) || !object(payload.values) || !Array.isArray(payload.unavailable) || !payload.unavailable.every((value) => typeof value === "string")) {
+      const e = await this.pollConfiguration();
+      if (!e) throw new EspframeApiError("server", "invalid_configuration_snapshot");
+      return this.useConfigurationSnapshot(e.snapshot), e.snapshot;
+    }
+    useConfigurationSnapshot(e) {
+      this.resetEpoch = e.reset_epoch;
+    }
+    async pollConfiguration(e) {
+      const t = await this.negotiate();
+      if (!t) throw new EspframeApiError("unavailable", "configuration_api_unavailable");
+      const n = await this.requestWith(t.configuration_path, {
+        cache: "no-store",
+        headers: e ? { "If-None-Match": e } : void 0
+      }, async (i) => {
+        var r;
+        return e && i.status === 304 ? null : {
+          payload: await this.json(i, "configuration_api_failed"),
+          etag: ((r = i.headers) == null ? void 0 : r.get("ETag")) || void 0
+        };
+      });
+      return n ? { snapshot: this.parseConfiguration(n.payload, t), etag: n.etag } : null;
+    }
+    parseConfiguration(e, t) {
+      if (!c2(e) || e.api_version !== t.api_version || t.reset_path && !Number.isInteger(e.reset_epoch) || !c2(e.values) || !Array.isArray(e.unavailable) || !e.unavailable.every((a) => typeof a == "string"))
         throw new EspframeApiError("server", "invalid_configuration_snapshot");
-      }
-      let apiKeyConfigured = typeof payload.api_key_configured === "boolean" ? payload.api_key_configured : void 0;
-      const values = {};
-      for (const [key, value] of Object.entries(payload.values)) {
-        if (key === "api_key") {
-          if (apiKeyConfigured !== void 0) throw new EspframeApiError("server", "invalid_configuration_snapshot");
-          apiKeyConfigured = !!value;
+      let n = typeof e.api_key_configured == "boolean" ? e.api_key_configured : void 0;
+      const i = {};
+      for (const [a, o2] of Object.entries(e.values)) {
+        if (a === "api_key") {
+          if (n !== void 0) throw new EspframeApiError("server", "invalid_configuration_snapshot");
+          n = !!o2;
           continue;
         }
-        if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
+        if (typeof o2 != "string" && typeof o2 != "number" && typeof o2 != "boolean")
           throw new EspframeApiError("server", "invalid_configuration_snapshot");
-        }
-        values[key] = value;
+        i[a] = o2;
       }
-      if (apiKeyConfigured === void 0) apiKeyConfigured = false;
-      let secretsConfigured;
-      if (payload.secrets_configured !== void 0) {
-        if (!object(payload.secrets_configured)) throw new EspframeApiError("server", "invalid_configuration_snapshot");
-        secretsConfigured = {};
-        for (const [key, value] of Object.entries(payload.secrets_configured)) {
-          if (typeof value !== "boolean") throw new EspframeApiError("server", "invalid_configuration_snapshot");
-          secretsConfigured[key] = value;
+      n === void 0 && (n = false);
+      let r;
+      if (e.secrets_configured !== void 0) {
+        if (!c2(e.secrets_configured)) throw new EspframeApiError("server", "invalid_configuration_snapshot");
+        r = {};
+        for (const [a, o2] of Object.entries(e.secrets_configured)) {
+          if (typeof o2 != "boolean") throw new EspframeApiError("server", "invalid_configuration_snapshot");
+          r[a] = o2;
         }
       }
-      this.resetEpoch = Number.isInteger(payload.reset_epoch) ? payload.reset_epoch : 0;
       return {
-        api_version: capabilities.api_version,
-        reset_epoch: this.resetEpoch,
-        api_key_configured: apiKeyConfigured,
-        secrets_configured: secretsConfigured,
-        values,
-        unavailable: payload.unavailable
+        api_version: t.api_version,
+        reset_epoch: Number.isInteger(e.reset_epoch) ? e.reset_epoch : 0,
+        api_key_configured: n,
+        secrets_configured: r,
+        values: i,
+        unavailable: e.unavailable
       };
     }
-    async legacyPost(url, body) {
-      return this.requestWith(url, body === void 0 ? { method: "POST" } : {
+    async legacyPost(e, t) {
+      return this.requestWith(e, t === void 0 ? { method: "POST" } : {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body
-      }, async (response) => {
-        if (!response.ok) {
-          let payload = null;
+        body: t
+      }, async (n) => {
+        if (!n.ok) {
+          let i = null;
           try {
-            payload = await response.json();
-          } catch (error) {
-            if (error && typeof error === "object" && error.name === "AbortError") {
+            i = await n.json();
+          } catch (r) {
+            if (r && typeof r == "object" && r.name === "AbortError")
               throw new EspframeApiError("timeout", "request_timeout");
-            }
           }
-          throw this.error(response.status, "legacy_write_failed", payload);
+          throw this.error(n.status, "legacy_write_failed", i);
         }
-        return response;
+        return n;
       });
     }
-    async legacyWrite(setting) {
-      if (setting.domain === "switch") {
-        await this.legacyPost(setting.url + (setting.value ? "/turn_on" : "/turn_off"));
+    async legacyWrite(e) {
+      if (e.domain === "switch") {
+        await this.legacyPost(e.url + (e.value ? "/turn_on" : "/turn_off"));
         return;
       }
-      const body = new URLSearchParams({ [setting.domain === "select" ? "option" : "value"]: String(setting.value) }).toString();
-      await this.legacyPost(setting.url + "/set", body);
+      const t = new URLSearchParams({ [e.domain === "select" ? "option" : "value"]: String(e.value) }).toString();
+      await this.legacyPost(e.url + "/set", t);
     }
-    updateSettings(values, legacy, compatibilityValues = values) {
+    updateSettings(e, t, n = e) {
       return this.enqueue(async () => {
         if (this.resetAccepted) throw new EspframeApiError("conflict", "reset_pending", 409, "reset_pending");
-        const capabilities = await this.negotiate();
-        if (!capabilities) {
-          for (const setting of legacy) await this.legacyWrite(setting);
+        const i = await this.negotiate();
+        if (!i) {
+          for (const o2 of t) await this.legacyWrite(o2);
           return null;
         }
-        if (this.resetEpoch === void 0) await this.getConfigurationSnapshot();
-        const supportedValues = capabilities.firmware_rotation_policy === true ? values : compatibilityValues;
-        const body = new URLSearchParams({ [capabilities.configuration_parameter || "configuration"]: JSON.stringify({ api_version: capabilities.api_version, reset_epoch: this.resetEpoch, values: supportedValues }) }).toString();
+        this.resetEpoch === void 0 && await this.getConfigurationSnapshot();
+        const r = i.firmware_rotation_policy === true ? e : n, a = new URLSearchParams({ [i.configuration_parameter || "configuration"]: JSON.stringify({ api_version: i.api_version, reset_epoch: this.resetEpoch, values: r }) }).toString();
         try {
-          const payload = await this.requestJson(capabilities.configuration_path, {
+          const o2 = await this.requestJson(i.configuration_path, {
             method: "POST",
-            headers: { "Content-Type": capabilities.configuration_encoding || "application/x-www-form-urlencoded" },
-            body
+            headers: { "Content-Type": i.configuration_encoding || "application/x-www-form-urlencoded" },
+            body: a
           }, "configuration_update_failed");
-          if (!object(payload) || payload.status !== "accepted") throw new EspframeApiError("server", "configuration_update_failed");
-          await new Promise((resolve) => setTimeout(resolve, 100));
-          return payload;
-        } catch (error) {
-          if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
+          if (!c2(o2) || o2.status !== "accepted") throw new EspframeApiError("server", "configuration_update_failed");
+          return await new Promise((l3) => setTimeout(l3, 100)), o2;
+        } catch (o2) {
+          if (!i.legacy_entity_api || !(o2 instanceof EspframeApiError) || o2.kind !== "unavailable") throw o2;
           this.negotiated = null;
-          for (const setting of legacy) await this.legacyWrite(setting);
+          for (const l3 of t) await this.legacyWrite(l3);
           return null;
         }
       });
     }
-    reset(mode) {
+    reset(e) {
       return this.enqueue(async () => {
         if (this.resetAccepted) return;
-        const capabilities = await this.negotiate();
-        if (!capabilities || !capabilities.reset_path) {
+        const t = await this.negotiate();
+        if (!t || !t.reset_path)
           throw new EspframeApiError("unavailable", "reset_unavailable");
-        }
-        await this.legacyPost(capabilities.reset_path, new URLSearchParams({ mode }).toString());
-        this.resetAccepted = true;
+        await this.legacyPost(t.reset_path, new URLSearchParams({ mode: e }).toString()), this.resetAccepted = true;
       });
     }
-    post(url, params) {
+    post(e, t) {
       if (this.resetAccepted) return Promise.reject(new EspframeApiError("conflict", "reset_pending", 409, "reset_pending"));
-      const query = params ? "?" + new URLSearchParams(Object.entries(params).map(([key, value]) => [key, String(value)])).toString() : "";
-      return this.enqueue(() => this.legacyPost(url + query));
+      const n = t ? "?" + new URLSearchParams(Object.entries(t).map(([i, r]) => [i, String(r)])).toString() : "";
+      return this.enqueue(() => this.legacyPost(e + n));
     }
-    postText(url, value, useQueryFallback = false) {
-      if (this.resetAccepted) return Promise.reject(new EspframeApiError("conflict", "reset_pending", 409, "reset_pending"));
-      return this.enqueue(() => {
-        const body = new URLSearchParams({ value }).toString();
-        const query = useQueryFallback && (url + "?" + body).length <= 120 ? "?" + body : "";
-        return this.legacyPost(url + query, body);
+    postText(e, t, n = false) {
+      return this.resetAccepted ? Promise.reject(new EspframeApiError("conflict", "reset_pending", 409, "reset_pending")) : this.enqueue(() => {
+        const i = new URLSearchParams({ value: t }).toString(), r = n && (e + "?" + i).length <= 120 ? "?" + i : "";
+        return this.legacyPost(e + r, i);
       });
     }
-    getJson(url) {
-      return this.requestJson(url, { cache: "no-store" }, "legacy_read_failed");
+    getJson(e) {
+      return this.requestJson(e, { cache: "no-store" }, "legacy_read_failed");
     }
   };
 
   // docs/webserver/src/compat.ts
   var MAX_PHOTO_ID_FIELD_LENGTH = 255;
-  function normalizeNtpServer(value) {
-    return String(value == null ? "" : value).trim();
+  function d(t) {
+    return String(t == null ? "" : t).trim();
   }
-  var MAX_WIREGUARD_ALLOWED_IPS = 4;
-  function parseIpv4(value) {
-    var match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(String(value == null ? "" : value));
-    if (!match) return null;
-    var result = 0;
-    for (var i = 1; i <= 4; i++) {
-      var octet = parseInt(match[i], 10);
-      if (octet > 255) return null;
-      result = result * 256 + octet;
+  var m = 4;
+  function l2(t) {
+    var r = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(String(t == null ? "" : t));
+    if (!r) return null;
+    for (var n = 0, i = 1; i <= 4; i++) {
+      var e = parseInt(r[i], 10);
+      if (e > 255) return null;
+      n = n * 256 + e;
     }
-    return result;
+    return n;
   }
-  function formatIpv4(address) {
+  function v(t) {
     return [
-      Math.floor(address / 16777216) % 256,
-      Math.floor(address / 65536) % 256,
-      Math.floor(address / 256) % 256,
-      address % 256
+      Math.floor(t / 16777216) % 256,
+      Math.floor(t / 65536) % 256,
+      Math.floor(t / 256) % 256,
+      t % 256
     ].join(".");
   }
-  function formatWireguardHandshakeAge(seconds) {
-    var value = Number(seconds);
-    if (seconds == null || seconds === "" || !isFinite(value) || value < 0) return "";
-    value = Math.round(value);
-    if (value < 120) return value + "s ago";
-    if (value < 7200) return Math.floor(value / 60) + " min ago";
-    return Math.floor(value / 3600) + " h ago";
+  function p2(t) {
+    var r = Number(t);
+    return t == null || t === "" || !isFinite(r) || r < 0 ? "" : (r = Math.round(r), r < 120 ? r + "s ago" : r < 7200 ? Math.floor(r / 60) + " min ago" : Math.floor(r / 3600) + " h ago");
   }
-  function isValidWireguardKey(value) {
-    return /^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw480]=$/.test(String(value == null ? "" : value).trim());
+  function A(t) {
+    return /^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw480]=$/.test(String(t == null ? "" : t).trim());
   }
-  function isValidWireguardAddress(value) {
-    var address = parseIpv4(String(value == null ? "" : value).trim());
-    return address !== null && address !== 0 && address !== 4294967295;
+  function I(t) {
+    var r = l2(String(t == null ? "" : t).trim());
+    return r !== null && r !== 0 && r !== 4294967295;
   }
-  function isValidIpv4Netmask(value) {
-    var mask = parseIpv4(String(value == null ? "" : value).trim());
-    if (mask === null) return false;
-    var inverted = 4294967295 - mask;
-    return (inverted + 1 & inverted) === 0;
+  function L(t) {
+    var r = l2(String(t == null ? "" : t).trim());
+    if (r === null) return false;
+    var n = 4294967295 - r;
+    return (n + 1 & n) === 0;
   }
-  function isValidWireguardPort(value) {
-    var text = String(value == null ? "" : value).trim();
-    if (!/^\d{1,5}$/.test(text)) return false;
-    var port = parseInt(text, 10);
-    return port >= 1 && port <= 65535;
+  function S(t) {
+    var r = String(t == null ? "" : t).trim();
+    if (!/^\d{1,5}$/.test(r)) return false;
+    var n = parseInt(r, 10);
+    return n >= 1 && n <= 65535;
   }
-  function isValidWireguardEndpoint(value) {
-    var endpoint = String(value == null ? "" : value).trim();
-    if (!endpoint || endpoint.length > 253) return false;
-    return /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/.test(endpoint) && endpoint.indexOf("..") === -1;
+  function y(t) {
+    var r = String(t == null ? "" : t).trim();
+    return !r || r.length > 253 ? false : /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/.test(r) && r.indexOf("..") === -1;
   }
-  function normalizeWireguardAllowedIps(value) {
-    var tokens = String(value == null ? "" : value).split(/[\s,;]+/).filter(Boolean);
-    if (!tokens.length || tokens.length > MAX_WIREGUARD_ALLOWED_IPS) return "";
-    var result = [];
-    for (var i = 0; i < tokens.length; i++) {
-      var parts = tokens[i].split("/");
-      if (parts.length > 2) return "";
-      var address = parseIpv4(parts[0]);
-      if (address === null) return "";
-      var prefix = 32;
-      if (parts.length === 2) {
-        if (!/^\d{1,2}$/.test(parts[1])) return "";
-        prefix = parseInt(parts[1], 10);
-        if (prefix > 32) return "";
-      }
-      var hostBits = Math.pow(2, 32 - prefix);
-      result.push(formatIpv4(Math.floor(address / hostBits) * hostBits) + "/" + prefix);
+  function _(t) {
+    var r = String(t == null ? "" : t).split(/[\s,;]+/).filter(Boolean);
+    if (!r.length || r.length > m) return "";
+    for (var n = [], i = 0; i < r.length; i++) {
+      var e = r[i].split("/");
+      if (e.length > 2) return "";
+      var u = l2(e[0]);
+      if (u === null) return "";
+      var a = 32;
+      if (e.length === 2 && (!/^\d{1,2}$/.test(e[1]) || (a = parseInt(e[1], 10), a > 32)))
+        return "";
+      var f2 = Math.pow(2, 32 - a);
+      n.push(v(Math.floor(u / f2) * f2) + "/" + a);
     }
-    return result.join(", ");
+    return n.join(", ");
   }
-  var LEGACY_DATE_TAKEN_FORMATS = {
+  var O = {
     "January 1, 2000": "January 1, 2026",
     "January 1, 2026": "January 1, 2026",
     "Month Day, Year": "January 1, 2026",
     "Month Day Ordinal, Year": "January 1, 2026"
   };
-  function normalizeDateTakenFormat(value) {
-    return LEGACY_DATE_TAKEN_FORMATS[value] || "1 January, 2026";
+  function M(t) {
+    return O[t] || "1 January, 2026";
   }
-  function stripUrlTrailingSlashes(value) {
-    var url = String(value == null ? "" : value);
-    while (url.length > 0 && url.charAt(url.length - 1) === "/" && !/^[a-z][a-z0-9+.-]*:\/\/$/i.test(url)) {
-      url = url.slice(0, -1);
-    }
-    return url;
+  function c3(t) {
+    for (var r = String(t == null ? "" : t); r.length > 0 && r.charAt(r.length - 1) === "/" && !/^[a-z][a-z0-9+.-]*:\/\/$/i.test(r); )
+      r = r.slice(0, -1);
+    return r;
   }
-  function isValidHttpUrl(value) {
+  function z(t) {
     try {
-      var url = new URL(value);
-      return (url.protocol === "http:" || url.protocol === "https:") && !!url.hostname;
-    } catch (_) {
+      var r = new URL(t);
+      return (r.protocol === "http:" || r.protocol === "https:") && !!r.hostname;
+    } catch (n) {
       return false;
     }
   }
-  function extractUrlAuthority(value) {
-    var url = String(value || "");
-    if (url.indexOf("//") === 0) url = url.slice(2);
-    return url.split(/[/?#]/)[0] || "";
+  function s3(t) {
+    var r = String(t || "");
+    return r.indexOf("//") === 0 && (r = r.slice(2)), r.split(/[/?#]/)[0] || "";
   }
-  function extractUrlHost(value) {
-    var authority = extractUrlAuthority(value);
-    var at = authority.lastIndexOf("@");
-    if (at >= 0) authority = authority.slice(at + 1);
-    if (!authority) return "";
-    if (authority.charAt(0) === "[") {
-      var close = authority.indexOf("]");
-      return (close >= 0 ? authority.slice(0, close + 1) : authority).toLowerCase();
+  function h(t) {
+    var r = s3(t), n = r.lastIndexOf("@");
+    if (n >= 0 && (r = r.slice(n + 1)), !r) return "";
+    if (r.charAt(0) === "[") {
+      var i = r.indexOf("]");
+      return (i >= 0 ? r.slice(0, i + 1) : r).toLowerCase();
     }
-    return authority.split(":")[0].toLowerCase();
+    return r.split(":")[0].toLowerCase();
   }
-  function extractUrlPort(value) {
-    var authority = extractUrlAuthority(value);
-    var at = authority.lastIndexOf("@");
-    if (at >= 0) authority = authority.slice(at + 1);
-    if (!authority) return "";
-    if (authority.charAt(0) === "[") {
-      var close = authority.indexOf("]");
-      if (close >= 0 && authority.charAt(close + 1) === ":") return authority.slice(close + 2).match(/^\d*/)[0];
-      return "";
+  function o(t) {
+    var r = s3(t), n = r.lastIndexOf("@");
+    if (n >= 0 && (r = r.slice(n + 1)), !r) return "";
+    if (r.charAt(0) === "[") {
+      var i = r.indexOf("]");
+      return i >= 0 && r.charAt(i + 1) === ":" ? r.slice(i + 2).match(/^\d*/)[0] : "";
     }
-    var colon = authority.indexOf(":");
-    return colon >= 0 ? authority.slice(colon + 1).match(/^\d*/)[0] : "";
+    var e = r.indexOf(":");
+    return e >= 0 ? r.slice(e + 1).match(/^\d*/)[0] : "";
   }
-  function urlHasExplicitPort(value) {
-    return extractUrlPort(value) !== "";
+  function x(t) {
+    return o(t) !== "";
   }
-  function isLocalImmichHost(host) {
-    if (!host) return false;
-    if (host === "localhost" || host.charAt(0) === "[") return true;
-    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return true;
-    return host.slice(-6) === ".local" || host.slice(-4) === ".lan";
+  function E(t) {
+    return t ? t === "localhost" || t.charAt(0) === "[" || /^\d{1,3}(\.\d{1,3}){3}$/.test(t) ? true : t.slice(-6) === ".local" || t.slice(-4) === ".lan" : false;
   }
-  function normalizeImmichUrl(value) {
-    var url = stripUrlTrailingSlashes(String(value == null ? "" : value).trim());
-    if (!url) return "";
-    if (url.indexOf("//") === 0) {
-      url = "https:" + url;
-    } else if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) {
-      var host = extractUrlHost(url);
-      var port = extractUrlPort(url);
-      var useHttp = isLocalImmichHost(host) || urlHasExplicitPort(url);
-      if (port === "443") useHttp = false;
-      url = (useHttp ? "http://" : "https://") + url;
+  function U(t) {
+    var r = c3(String(t == null ? "" : t).trim());
+    if (!r) return "";
+    if (r.indexOf("//") === 0)
+      r = "https:" + r;
+    else if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(r)) {
+      var n = h(r), i = o(r), e = E(n) || x(r);
+      i === "443" && (e = false), r = (e ? "http://" : "https://") + r;
     }
-    return stripUrlTrailingSlashes(url.replace(/^([a-z][a-z0-9+.-]*):\/\//i, function(_, scheme) {
-      return scheme.toLowerCase() + "://";
+    return c3(r.replace(/^([a-z][a-z0-9+.-]*):\/\//i, function(u, a) {
+      return a.toLowerCase() + "://";
     }));
   }
-  function photoIdFieldLengthLimit() {
-    return MAX_PHOTO_ID_FIELD_LENGTH;
+  function g() {
+    return 255;
   }
-  function photoIdFieldTooLong(s) {
-    return String(s != null ? s : "").trim().length > photoIdFieldLengthLimit();
+  function D(t) {
+    return String(t != null ? t : "").trim().length > g();
   }
-  function photoLabelFieldTooLong(s) {
-    return String(s != null ? s : "").trim().length > photoIdFieldLengthLimit();
+  function T(t) {
+    return String(t != null ? t : "").trim().length > g();
   }
-  var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  function isValidUuidList(str) {
-    var s = str.trim();
-    if (!s) return true;
-    return s.split(",").every(function(id) {
-      return UUID_RE.test(id.trim());
-    });
+  var w = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  function F(t) {
+    var r = t.trim();
+    return r ? r.split(",").every(function(n) {
+      return w.test(n.trim());
+    }) : true;
   }
-  function splitPhotoIdList(str) {
-    var parts = String(str || "").split(",").map(function(id) {
-      return id.trim();
+  function H(t) {
+    var r = String(t || "").split(",").map(function(n) {
+      return n.trim();
     }).filter(Boolean);
-    return parts.length ? parts : [""];
+    return r.length ? r : [""];
   }
-  function parsePhotoLabelList(str) {
-    var raw = String(str || "").trim();
-    if (!raw) return [];
+  function J(t) {
+    var r = String(t || "").trim();
+    if (!r) return [];
     try {
-      var parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed.map(function(label) {
-        return String(label || "");
+      var n = JSON.parse(r);
+      if (Array.isArray(n)) return n.map(function(i) {
+        return String(i || "");
       });
-    } catch (_) {
+    } catch (i) {
     }
-    return raw.split(",").map(function(label) {
-      return label.trim();
+    return r.split(",").map(function(i) {
+      return i.trim();
     });
   }
 
@@ -522,7 +474,9 @@
   var SUPPORT_BUTTON_IMAGE_DATA_URI = "data:image/webp;base64,UklGRu4MAABXRUJQVlA4WAoAAAAQAAAA2AAAOwAAQUxQSG4AAAABcFtr29K8NboK5285LEPFSuzgrjNFKk/w+o0nIggkbWaNvwAAKHbSM5EYWBFFT8bBE4usTc/HxgIg9j0jewl613MSwOlJdTbbnhW3p9Wp5+Xvf3//+zDtRGxOSGwAymuyS2xkzWsWT+3IwOt6AlZQOCBaDAAAUDYAnQEq2QA8AD5JII5EoqIhlSqteCgEhLYAaicAv27r9pKdq/G/8w/mVq79s+9nKsmq67P0H23fAT1AflX/Oe4B+qH+M9Ir1AfzX/CeoD+N/0j/G/1X3Uv9F/o/YB+tn+u9wD+Zfyz0pPYH/XX2AP5V/YPSn/7n+6+Bv9lP+Z/tfgG/lX9W+///h94B6AHq/9KOvf+z/j55r99jv97Vf1H2NMb/O7+7+hX8c+u/3b8mfzM9mbwB92f8x6gX4h/Iv7V+WP5gchQAD8s/nn+J+5b0cNU3uP/nvcA/jH8q/vf5g+qT4RfjnsAfyH+0f8f/Ce63+8f+D/SflL7X/y/+5/8v/EfAP/Kf6l/uf73+Tnzkexr9yPZgM2JBazSmkrpjSRSnJbdchXHmgCRYbamNpbdhkx6iTplTdQaOZPe569QakRMg7zwffhrS81BDeVkXHaolGV3K1uUFfUfXkxmxiH9akXO0sO2eEcuCRSalI43bnhz4gVlZflOcHUjC/cHK92d7iHqIjIQke72Dh5Nc+KbfHu6ao8RBSRo1xYD7bK5odaFI1VkBSaht+OYczNR83oYXXw+uEd+ZQgAA/v2E2JFf00S7ZZurvf45OdwBGfysJTJe8NAkOsnssv7LL9ll/45GsLCqARXe54sz/OpxCLeTuKis6/Fz8DsS4LqboI8pI3J9gFK1ImoUZ0qWzWwsOTYLXKQ6GteX0al+agc5JXKyLtfhPoFNNBGQV2+nUNu16ejPEuaakkePBfxG+Tzvfg0rkndAXKMOFycgsAtd5uHLV8PyGXLXfUvqrJhKbFZ57yRq0haXzN/fylfN01AAEICoED7wFdKlhdCfclwKCDmiblWz/HW3/LJvdJVQQVofCPpsm9qPfZZo0nqnArYU0twSFBWeOQceeaZkPZbFfmbyjMzc/ZWnji/H/WdNUqQRHfj83sJ4/eDnvjNoJhvv3T8wM1TM2apS9YlqsiyWJXKmXi+J1WyCgTytBUB0G/qZRac97djE6xUjvtyViLonMWi2AZHWx2nXLaDwELK6tU+QS31qsW9wp0A1NBsU7mYsozO0ecWjQsLeUSoIOr3VFPIOglZetzQ9gO4r/Q0xwIGpH+k3IWFA6ekVHAsVUE6ic+gQfBgq+oqy3R2PjAX/ct8TTTHwHDyLvoNH9yPvE780Y3JN0wuXQpOXg8dw8lpbtL2SaKgUqXxN7XbHp2JSZetuGxwuapaaXx7/5VC53n1A2xjKRC9fE+xLY3GU8MwM8CrsRRBV8Dbu7eZlO5Uhsb8CsqYkKIA+SpG3uXdbQ1O6IV4y9ZIaxmLlcHHzzLtWJn811VJTt4MSa95HmnrF+016wyRZB/Hl/6YG0YsdFPN4lSOvFp+c3VtuYwHrSFdUVlpyJrq4UxXIsDXxiN10NBYzj+a8RoIZxVF1Jpad6FMQbg94fLOKQQ1EOM15RFNWLDVoG2eIgZVqERyPOQilrOmrAIbsg0PdroPeARqno+Fmgrl4aZipqitQ+Ce+cz2Omqgx3L/GBwnRYEvTT/fdDGpxBkZRZgvoHFyuf6WopWU8tutFErxLysa3NpPhihIcuyDjmhae8LjCSM3b4t0T4IctUhijI4NlHe+09Ps7sGD2RpKXpK4T9VxTYvTQBzg/54Yo3SCYqr7he69twNdmqjgMjoJVVQ74q0fKeUbJVrCXD5WmmagBfvZhyYB/Xmubwg/BIA+VgGWBk+ccstbvruxsXC3+N9KC8mS8VcZfBHkCrNqL8pOKfJmRboq58vENFNVY4kLlO6pW88kj8Sxe2UXl0TpPCivm20QEaA3/j9OelzE5Jw/3eiXPjkNAFKkyYu7YJK5UkvitdDnEZ1mnGrHTxRhyJX7gjo5Ma8JYW1dyUm4vfnnLRrJfRgV2jQ0HHFFYWsp6hwn/r8TrdcHMes1e3+6wGMYOc/qX2glzqFJfCmhHIpvU3SKl0MB/JRd4Rac6uCnJCKgKsBhp60xvOfpjrLCC5fwEyv2wT61lwXeb3xevvZNYoCgl0uwdCULLFVQSL9RJNpwZv1EBKRo5fCn+PerplieqyX2lZqz8ygzMwp7gJLjA6Dlt7gTl/R/y7C6JccayLs2f9N1Gry0I9GSaTyRvM5Sm5l9ASGUobp6jQGtBFENt1k+nR5d05qxmwGmNUYxBW1//qr/xi/D7gFIqa3bpYO9ukwNiHxBPp5JqgHNGZYfKjKoLz/rb30RDnaX0JANcBlRXP3BcFemCObKBqUWEPt8CKopdWWwmPauXl7UFW1kiGUjyVnT6dH7RppEP63ympv+OBbiNE3jP3zJDVm3SfDgkE4Uh/uOyrB9kB7TufzovmLwKe3t8lKza0mmk1Yt3iEA8IqXx9cuwpNYvUoPfbjztyC8J++dsLVJWwQoeKGCczxzjWefTUe82K5fP9mvoVyMPHuFjQlsSCtvEK9VIH9HqSsvZVUFoadZo1GmO6NGFVkMf26cq0KyS7uAizDRjhMqoxddm7LEG1PTSfqgatQRnNyo6AvMiZx9w8/RnI6nilNYrs3wpvH1ce4P9q9zfC01ss6OetWKEG/yDiqs29lhXzawhBMfhpeYnJxchqQzHS71bSmFooQbvf/JGqaKmO2VZz1JrRCKV2Cp3zJMv2zs/IyxWVSv516btmNHIfiCblWYEmnQkyrEx79w8NMCz/wXN8WFG2hdrY5wWFXsWuXs+cS7MEpiexmYOnmf1I37RcRatrk5kW2FBGVb8tMX4apMTGVzSygYp8LrIrZgpgHJpOf/mDYha6BjUDt8Kdle47P19lN25I13881QSpWo2KRUvijLwNzwQ6ORxgY9yEh4RFDTnQFthD9+A84cNPDNhwmGp/Pzpj2xIuJpDmG86Sf1LjOxkOtbPLPZRPmDrpIEifQxG2Qth9b5IWcqDnoz5xElZf5ucEsLRmeHVpIgY5tR3ztNBmV7vL9rn3gOH7wIFf0kGYtdjBm6VPwkmWYjycvQRunimz7qNVuRNRCNPohxKqX/91fFD8i4hoyMhtHXS7lF0JCUfN5SKfpbGp8IpwqjBqs5WSZgd/jq84ni6QtQnQfzWlL5/pOa5qc7VMHoEtLhfYAVn1Aom8PnTEO3GJOsN2Ls/bLuNKLqtgXJ8mU1ldBaHwVPd8JRDz+u9rFoG2YmXZ4BjAG9KonvVudRnrkgqKTCd31684v9Xls1G5bDw3hvriZpOfoOy1xHNVW44numoi+kG2C8Z8qNPZbk72ourHv8C0PZaMe/+yJ/+Nv41pt62tH29M58aW6wGRIFNgtXwy5ep+7yeVAUd0dzREPlL+tx7oqbdpZxXp1Yc76qu/tiju1Vb8LHCDt3uSa8x6jQwF0L62uodMBTsI/q8gfnZXVhHx+ujlPkeBtM9fwoGvWsG+TqZawVW8Nn4aikGJxWuDc9y+Elc1fDOznKziQzK3WTu7x+D3cRc+/+Bt6N9VORnJKVHAaPbKMH3z9LvQjL4L2KFoj2BH78IUuoi+uBQjhl4xl5Pc6vE4sIHW5SNdAbwlxthBL8s+oJtMK9KQ/KJidaAlkI/CM5+k1OkT9NNaEmHOXR5FHMrDcefRHFP95Q0LyaP4QuCHs9hBrNBDd5GS5IGLvyyrRhpNeFnWp5dur+I4yjfW5J7+rs01na/HoOiEfAa5WVA/RevkHb1RybwVk+1N8Dcum5gJC3v+MK6HZkeC3OKKnkd4cXqPVrHy1ndLZx0xbGmyU2gX5/zsG1RBYJ5B1Rzu5S6z0RqNvEidnVK7ZbLlJTFGFTr+hDvaMXhs/b6R23YlthFiRENO2O/ReExVzVxpjdttQN7LkPVfuObNHn8qNiUenuKQoH+FHxRUdNEGbTcdNC9YMxnkNpCZ6tbtPQmq430q5739kB2pyRMtraAO5K10sNJ86S4z87+/bXIFxmxt/0t23d0SepvIfxj3vQF2dAEXizBaUDn1WSicc1BA3m/4lyuZvX6XAYCkuqIH4CxQQ/FGuZH/01HoVj6Y0B26y4/iBI0Us8wJ/wmYmrHoewk0UHJk/Pbx12sbjiSYcc18zaMuap0ES3gFFqtRuotzHC1SpErkb4LothEAWJjyAKwGZKf9KWtn6BgxROJxLMxoKWjQK2wwKpiNDcfIq7V68wPPygdIBIiRbg8xmYrCYS7fkEAAAAAAAAugNB5avHG5gomemNHUXvqnN9Q/uKP2Lf0F+GSe426YDBfUuCJdfrQPYleJgAA";
   var CONFIGURATION_CAPABILITIES_PATH = "/espframe/api/v1/capabilities";
   var highlightApiKeyAfterRestore = false;
-  var S = {
+  var nativeAdmin = document.documentElement.hasAttribute("data-native-admin");
+  var nativeSettings = /* @__PURE__ */ new Set();
+  var S2 = {
     tz_options: TIMEZONES,
     tz_labels: TIMEZONE_LABELS,
     brightness: 100,
@@ -562,7 +516,7 @@
     Object.keys(STATIC_ENTITIES).forEach(function(key) {
       var spec = STATIC_ENTITIES[key];
       if (!spec || spec.default === void 0) return;
-      if (S[key] === void 0) S[key] = spec.default;
+      if (S2[key] === void 0) S2[key] = spec.default;
     });
   }
   function registerProductSettingStateDefaults() {
@@ -570,7 +524,7 @@
     Object.keys(PRODUCT_SETTINGS).forEach(function(key) {
       var spec = PRODUCT_SETTINGS[key];
       if (!spec) return;
-      if (S[key] === void 0) S[key] = spec.default !== void 0 ? spec.default : "";
+      if (S2[key] === void 0) S2[key] = spec.default !== void 0 ? spec.default : "";
     });
   }
   registerStaticEntityStateDefaults();
@@ -604,1461 +558,15 @@
     }
     return options;
   }
-  var CSS = `*, *::before, *::after {
-  box-sizing:border-box;
-  margin:0;
-  padding:0
-}
-
-:root {
-  --bg:#1b1b1f;
-  --surface:#202127;
-  --surface2:#2e2e32;
-  --border:#3c3f44;
-  --border-hover:rgba(255, 255, 255, .16);
-  --text:#dfdfd6;
-  --text2:#98989f;
-  --text3:#6a6a71;
-  --accent:#5c73e7;
-  --accent-hover:#a8b1ff;
-  --accent-soft:rgba(100, 108, 255, .16);
-  --success:#30a46c;
-  --success-soft:rgba(48, 164, 108, .14);
-  --danger:#f14158;
-  --radius:12px;
-  --action-r:9999px;
-  --gap:16px;
-  --shadow-1:0 1px 2px rgba(0, 0, 0, .2), 0 1px 2px rgba(0, 0, 0, .24);
-  --shadow-2:0 3px 12px rgba(0, 0, 0, .28), 0 1px 4px rgba(0, 0, 0, .2);
-  --shadow-3:0 12px 32px rgba(0, 0, 0, .35), 0 2px 6px rgba(0, 0, 0, .24)
-}
-
-esp-app {
-  display:none !important
-}
-
-html {
-  font-size:16px
-}
-
-body {
-  font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  background:var(--bg);
-  color:var(--text);
-  line-height:1.7;
-  min-height:100vh;
-  margin:0;
-  -webkit-font-smoothing:antialiased;
-  -moz-osx-font-smoothing:grayscale
-}
-
-#sp-app {
-  display:block;
-  width:100%;
-  max-width:1080px;
-  margin:0 auto
-}
-
-.sp-header {
-  display:flex;
-  align-items:center;
-  background:var(--bg);
-  border-bottom:1px solid var(--border);
-  position:sticky;
-  top:0;
-  z-index:100;
-  height:56px;
-  padding:0 20px
-}
-
-.sp-brand {
-  font-size:1rem;
-  font-weight:600;
-  color:var(--text);
-  display:flex;
-  align-items:baseline;
-  gap:8px;
-  flex:1;
-  min-width:0;
-  margin-right:12px;
-  white-space:nowrap;
-  letter-spacing:-.01em
-}
-
-.sp-brand-label { flex:none; }
-.sp-device-name { color:var(--text2); font-weight:400; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-
-.sp-nav {
-  flex-shrink:0;
-  display:flex;
-  align-items:center;
-  height:100%
-}
-
-.sp-tab {
-  padding:0 16px;
-  height:100%;
-  display:flex;
-  align-items:center;
-  color:var(--text2);
-  cursor:pointer;
-  font-size:.875rem;
-  font-weight:500;
-  border-bottom:2px solid transparent;
-  text-decoration:none;
-  transition:color .2s
-}
-
-.sp-tab:hover {
-  color:var(--text)
-}
-
-.sp-tab.active {
-  color:var(--accent);
-  border-bottom-color:var(--accent)
-}
-
-.sp-tab-docs {
-  position:relative;
-  gap:6px;
-  margin-left:8px;
-  padding-left:24px
-}
-
-.sp-tab-docs::before {
-  content:'';
-  position:absolute;
-  left:0;
-  top:12px;
-  bottom:12px;
-  width:1px;
-  background:var(--border)
-}
-
-.sp-docs-icon {
-  font-size:16px;
-  line-height:1;
-  opacity:.7
-}
-
-.sp-page {
-  display:none
-}
-
-.sp-page.active {
-  display:block
-}
-
-.sp-settings-wrap {
-  padding:var(--gap)
-}
-
-.brand {
-  font-size:1.6rem;
-  font-weight:700;
-  letter-spacing:-.02em;
-  background:linear-gradient(135deg, var(--accent) 0%, #a78bfa 100%);
-  -webkit-background-clip:text;
-  -webkit-text-fill-color:transparent;
-  background-clip:text
-}
-
-h1 {
-  font-size:1.6rem;
-  font-weight:700;
-  margin-bottom:4px;
-  letter-spacing:-.02em
-}
-
-h2 {
-  font-size:1rem;
-  font-weight:500;
-  margin-bottom:20px;
-  color:var(--text2);
-  letter-spacing:.01em
-}
-
-.subtitle {
-  font-size:.875rem;
-  color:var(--text2);
-  margin-bottom:24px;
-  line-height:1.6
-}
-
-.settings-section {
-  margin-bottom:48px
-}
-
-.settings-section:last-child {
-  margin-bottom:0
-}
-
-.settings-section-title {
-  color:var(--text2);
-  font-size:.75rem;
-  font-weight:700;
-  line-height:1.2;
-  letter-spacing:.12em;
-  text-transform:uppercase;
-  margin:4px 4px 14px
-}
-
-.settings-section .card:last-child {
-  margin-bottom:0
-}
-
-.card {
-  background:var(--surface);
-  border:1px solid var(--border);
-  border-radius:var(--radius);
-  padding:24px;
-  margin-bottom:var(--gap);
-  transition:border-color .25s
-}
-
-.card:hover {
-  border-color:var(--text3)
-}
-
-.card h3 {
-  font-size:.875rem;
-  font-weight:600;
-  margin-bottom:14px;
-  color:var(--text);
-  letter-spacing:-.01em
-}
-
-.card-header {
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  cursor:pointer;
-  user-select:none;
-  margin:-24px -24px 0 -24px;
-  padding:24px 24px 0 24px
-}
-
-.card-header h3 {
-  margin:0;
-  flex:1
-}
-
-.card-toggle {
-  display:block;
-  width:100%;
-  padding:0;
-  border:0;
-  background:none;
-  color:inherit;
-  font:inherit;
-  letter-spacing:inherit;
-  text-align:left;
-  cursor:pointer
-}
-
-.card-toggle:focus-visible {
-  outline:2px solid var(--accent);
-  outline-offset:4px;
-  border-radius:2px
-}
-
-.card-body {
-  padding-top:20px
-}
-
-.card-chevron {
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  width:24px;
-  height:24px;
-  color:var(--text3);
-  transition:transform .25s ease;
-  flex-shrink:0
-}
-
-.card-chevron svg {
-  width:100%;
-  height:100%
-}
-
-.card.collapsed .card-chevron {
-  transform:rotate(-90deg)
-}
-
-.card.collapsed .card-body {
-  display:none
-}
-
-.card-header-right {
-  display:flex;
-  align-items:center;
-  gap:8px
-}
-
-.card.memory-filter-disabled {
-  border-color:var(--border);
-  opacity:.6
-}
-
-.card.memory-filter-disabled:hover {
-  border-color:var(--border)
-}
-
-.card.memory-filter-disabled .card-header {
-  color:var(--text3)
-}
-
-.on-badge {
-  display:none;
-  align-items:center;
-  gap:4px;
-  font-size:.6rem;
-  font-weight:600;
-  color:var(--success);
-  padding:2px 8px 2px 6px;
-  background:var(--success-soft);
-  border-radius:999px;
-  text-transform:uppercase;
-  letter-spacing:.06em;
-  white-space:nowrap
-}
-
-.card.collapsed .on-badge.active {
-  display:inline-flex
-}
-
-.on-badge::before {
-  content:'';
-  display:block;
-  width:6px;
-  height:6px;
-  border-radius:50%;
-  background:var(--success);
-  flex-shrink:0
-}
-
-.field {
-  margin-bottom:22px
-}
-
-.api-key-restore-required input {
-  border-color:var(--danger) !important;
-  box-shadow:0 0 0 2px rgba(241, 65, 88, .18)
-}
-
-.field:last-child {
-  margin-bottom:0
-}
-
-label {
-  display:block;
-  font-size:.875rem;
-  color:var(--text2);
-  margin-bottom:6px;
-  font-weight:500
-}
-
-.filter-relative-row {
-  display:grid;
-  grid-template-columns:minmax(84px, 104px) minmax(0, 1fr);
-  gap:12px
-}
-
-.filter-relative-row .field {
-  margin-bottom:0
-}
-
-input[type='text'], input[type='password'], input[type='url'], input[type='date'], input[type='number'] {
-  width:100%;
-  padding:10px 14px;
-  background:var(--surface2);
-  border:1px solid var(--border);
-  border-radius:10px;
-  color:var(--text);
-  font-size:.875rem;
-  letter-spacing:0;
-  outline:none;
-  transition:border-color .25s, box-shadow .25s;
-  font-family:inherit;
-  font-variant-numeric:tabular-nums;
-  color-scheme:dark
-}
-
-input[type='text']:focus, input[type='password']:focus, input[type='url']:focus, input[type='date']:focus, input[type='number']:focus {
-  border-color:var(--accent);
-  box-shadow:0 0 0 3px var(--accent-soft)
-}
-
-input[type='date']::-webkit-datetime-edit, input[type='date']::-webkit-date-and-time-value {
-  color:var(--text);
-  font:inherit;
-  letter-spacing:0;
-  text-align:left
-}
-
-input[type='date']::-webkit-datetime-edit-fields-wrapper, input[type='date']::-webkit-datetime-edit-text, input[type='date']::-webkit-datetime-edit-day-field, input[type='date']::-webkit-datetime-edit-month-field, input[type='date']::-webkit-datetime-edit-year-field {
-  font:inherit;
-  color:inherit;
-  letter-spacing:0
-}
-
-input[type='date']::-webkit-calendar-picker-indicator {
-  filter:invert(.7);
-  cursor:pointer
-}
-
-input::placeholder {
-  color:var(--text2);
-  opacity:.7
-}
-
-input[readonly] {
-  opacity:.58;
-  border-style:dashed;
-  cursor:not-allowed
-}
-
-.compatibility-disabled {
-  color:var(--text2);
-  font-size:.78rem
-}
-
-.filter-group-details, .filter-panel {
-  margin:0 0 20px;
-  padding:16px;
-  border:1px solid var(--border);
-  border-radius:8px
-}
-
-.filter-lists {
-  padding:0 0 16px;
-  border:0
-}
-
-.filter-nested {
-  margin:12px 0;
-  padding:8px 16px;
-  border:1px solid var(--border);
-  border-radius:8px
-}
-
-.filter-lists > :first-child {
-  margin-top:0
-}
-
-.filter-lists > :last-child {
-  margin-bottom:0
-}
-
-.filter-nested[open] {
-  padding-bottom:16px
-}
-
-.filter-nested:not([open]) {
-  padding-top:4px;
-  padding-bottom:4px
-}
-
-.filter-nested summary {
-  cursor:pointer;
-  color:var(--text2);
-  font-size:.875rem;
-  font-weight:500;
-  display:flex;
-  align-items:center;
-  gap:8px;
-  list-style:none;
-  min-height:44px;
-  box-sizing:border-box
-}
-
-.filter-nested:not([open]) summary {
-  min-height:40px
-}
-
-.filter-nested summary::-webkit-details-marker {
-  display:none
-}
-
-.filter-nested summary::marker {
-  content:""
-}
-
-.filter-nested summary::before {
-  content:"";
-  width:8px;
-  height:8px;
-  border-right:2px solid currentColor;
-  border-bottom:2px solid currentColor;
-  transform:rotate(-45deg);
-  transition:transform .2s ease;
-  flex-shrink:0
-}
-
-.filter-nested[open] summary::before {
-  transform:rotate(45deg)
-}
-
-.filter-nested[open] > summary {
-  margin-bottom:12px
-}
-
-.filter-group-details .photo-id-row {
-  align-items:center
-}
-
-.filter-group-details .photo-id-fields {
-  grid-template-columns:minmax(0, 2fr) minmax(0, 1fr)
-}
-
-.filter-group-details .photo-id-actions {
-  margin-top:12px
-}
-
-.select, select {
-  width:100%;
-  padding:10px 14px;
-  background:var(--surface2);
-  border:1px solid var(--border);
-  border-radius:10px;
-  color:var(--text);
-  font-size:.875rem;
-  outline:none;
-  transition:border-color .25s, box-shadow .25s;
-  -webkit-appearance:none;
-  appearance:none;
-  color-scheme:dark;
-  font-family:inherit;
-  background-image:url("data:image/svg+xml, %3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;
-  background-position:right 14px center;
-  padding-right:36px
-}
-
-.select:focus, select:focus {
-  border-color:var(--accent);
-  box-shadow:0 0 0 3px var(--accent-soft)
-}
-
-.select:disabled, select:disabled, input:disabled, textarea:disabled {
-  opacity:.4;
-  cursor:not-allowed
-}
-
-select option {
-  background:var(--surface);
-  color:var(--text)
-}
-
-.input-group {
-  display:flex;
-  gap:8px
-}
-
-.input-group input {
-  flex:1
-}
-
-.photo-id-list {
-  display:flex;
-  flex-direction:column;
-  gap:8px
-}
-
-.photo-id-row {
-  display:grid;
-  grid-template-columns:minmax(0, 1fr) auto;
-  gap:8px;
-  align-items:start
-}
-
-.photo-id-fields {
-  display:grid;
-  grid-template-columns:minmax(220px, 2fr) minmax(160px, 1fr);
-  gap:8px
-}
-
-.photo-id-row-actions {
-  display:flex;
-  gap:6px
-}
-
-.photo-id-actions {
-  display:flex;
-  justify-content:flex-start;
-  margin-top:18px
-}
-
-.btn.btn-icon {
-  width:40px;
-  height:40px;
-  padding:0;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  border-radius:var(--action-r);
-  font-size:1.2rem;
-  line-height:1;
-  flex-shrink:0
-}
-
-.btn {
-  padding:10px 20px;
-  border:none;
-  border-radius:var(--action-r);
-  font-size:.875rem;
-  font-weight:600;
-  cursor:pointer;
-  transition:background .25s, opacity .25s, box-shadow .25s;
-  font-family:inherit;
-  letter-spacing:.01em
-}
-
-.btn:focus-visible, .sp-log-clear:focus-visible {
-  outline:2px solid var(--accent);
-  outline-offset:2px;
-  box-shadow:0 0 0 3px var(--accent-soft)
-}
-
-.btn:active {
-  opacity:.85
-}
-
-.btn-primary {
-  background:var(--accent);
-  color:#fff
-}
-
-.btn-primary:hover {
-  background:var(--accent-hover);
-  box-shadow:0 2px 12px var(--accent-soft)
-}
-
-.btn-secondary {
-  background:var(--surface2);
-  color:var(--text);
-  border:1px solid var(--border)
-}
-
-.btn-secondary:hover {
-  border-color:var(--border-hover);
-  background:rgba(255, 255, 255, .06)
-}
-
-.btn-sm {
-  padding:7px 14px;
-  font-size:.8rem
-}
-
-.btn-block {
-  width:100%;
-  display:block
-}
-
-.btn:disabled {
-  opacity:.35;
-  cursor:not-allowed
-}
-
-.field-error {
-  font-size:.75rem;
-  color:var(--danger);
-  margin-top:4px
-}
-
-.field-error:empty {
-  display:none
-}
-
-.toggle-row {
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  min-height:36px
-}
-
-.toggle-row span {
-  font-size:.875rem
-}
-
-.toggle {
-  position:relative;
-  width:44px;
-  height:24px;
-  background:var(--surface2);
-  border-radius:999px;
-  cursor:pointer;
-  transition:background .25s;
-  border:1px solid var(--border)
-}
-
-.toggle.on {
-  background:var(--accent);
-  border-color:var(--accent)
-}
-
-.setting-info-banner {
-  display:flex;
-  align-items:flex-start;
-  gap:10px;
-  margin:0 0 20px;
-  padding:12px 14px;
-  background:var(--accent-soft);
-  border:1px solid rgba(92, 115, 231, .3);
-  border-radius:10px;
-  color:var(--text2);
-  font-size:.82rem;
-  line-height:1.35
-}
-
-.setting-info-banner-icon {
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  flex:0 0 18px;
-  width:18px;
-  height:18px;
-  border-radius:50%;
-  background:var(--accent);
-  color:#fff;
-  font-size:.72rem;
-  font-weight:700;
-  line-height:1
-}
-
-.toggle::after {
-  content:'';
-  position:absolute;
-  top:2px;
-  left:2px;
-  width:18px;
-  height:18px;
-  border-radius:50%;
-  background:#fff;
-  transition:transform .25s ease;
-  box-shadow:0 1px 3px rgba(0, 0, 0, .3)
-}
-
-.toggle.on::after {
-  transform:translateX(20px)
-}
-
-.segment {
-  display:flex;
-  border-radius:8px;
-  overflow:hidden;
-  border:1px solid var(--border)
-}
-
-.segment button {
-  flex:1;
-  padding:8px 0;
-  background:var(--surface2);
-  color:var(--text2);
-  border:none;
-  font-size:.875rem;
-  cursor:pointer;
-  transition:background .25s, color .25s;
-  font-family:inherit
-}
-
-.segment button.active {
-  background:var(--accent);
-  color:#fff
-}
-
-.range-wrap {
-  display:flex;
-  align-items:center;
-  gap:12px
-}
-
-.range-wrap input[type='range'] {
-  flex:1;
-  -webkit-appearance:none;
-  height:4px;
-  background:var(--surface2);
-  border-radius:2px;
-  outline:none
-}
-
-.range-wrap input[type='range']::-webkit-slider-thumb {
-  -webkit-appearance:none;
-  width:18px;
-  height:18px;
-  border-radius:50%;
-  background:var(--accent);
-  cursor:pointer;
-  box-shadow:0 0 0 3px var(--accent-soft);
-  transition:box-shadow .2s
-}
-
-.range-wrap input[type='range']::-webkit-slider-thumb:hover {
-  box-shadow:0 0 0 5px var(--accent-soft)
-}
-
-.range-wrap input[type='range']::-moz-range-thumb {
-  width:18px;
-  height:18px;
-  border-radius:50%;
-  background:var(--accent);
-  cursor:pointer;
-  border:none
-}
-
-.range-val {
-  min-width:42px;
-  text-align:right;
-  font-size:.875rem;
-  color:var(--text2);
-  font-variant-numeric:tabular-nums
-}
-
-.range-label {
-  font-size:.875rem;
-  color:var(--text2);
-  white-space:nowrap
-}
-
-.status {
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  font-size:.8rem;
-  color:var(--text2);
-  margin-top:4px
-}
-
-.dot {
-  width:8px;
-  height:8px;
-  border-radius:50%;
-  flex-shrink:0
-}
-
-.dot.green {
-  background:var(--success)
-}
-
-.dot.red {
-  background:var(--danger)
-}
-
-.dot.orange {
-  background:#ff9800
-}
-
-.wizard-steps {
-  display:flex;
-  gap:8px;
-  margin-bottom:24px
-}
-
-.wizard-steps .step {
-  flex:1;
-  height:3px;
-  border-radius:2px;
-  background:var(--surface2);
-  transition:background .3s
-}
-
-.wizard-steps .step.active {
-  background:var(--accent)
-}
-
-.wizard-steps .step.done {
-  background:var(--success)
-}
-
-.wizard-nav {
-  display:flex;
-  gap:8px;
-  margin-top:20px
-}
-
-.wizard-nav .btn {
-  flex:1
-}
-
-.fade-in {
-  animation:fadeIn .35s ease
-}
-
-@keyframes fadeIn {
-  from {
-  opacity:0;
-  transform:translateY(8px)
-}
-
-to {
-  opacity:1;
-  transform:translateY(0)
-}
-
-}
-
-.sun-info {
-  font-size:.8rem;
-  color:var(--text2);
-  padding:10px 14px;
-  background:var(--surface2);
-  border-radius:10px;
-  text-align:center;
-  border:1px solid var(--border)
-}
-
-.version {
-  text-align:center;
-  font-size:.75rem;
-  color:var(--text2);
-  margin-top:8px;
-  opacity:.5
-}
-
-.fw-body {
-  display:flex;
-  flex-direction:column;
-  gap:12px
-}
-
-.reset-backup-notice {
-  display:flex;
-  align-items:center;
-  gap:14px;
-  min-height:68px;
-  padding:12px 16px;
-  border:1px solid rgba(92, 115, 231, .32);
-  border-radius:12px;
-  background:var(--accent-soft);
-  color:var(--text2)
-}
-
-.reset-notice-icon {
-  display:flex;
-  flex:none;
-  width:22px;
-  height:22px;
-  color:var(--accent)
-}
-
-.reset-notice-icon svg { width:100%; height:100%; }
-.reset-notice-text { flex:1; min-width:0; }
-.reset-backup-button { padding:12px 24px; font-size:1rem; font-weight:500; white-space:nowrap; }
-
-.reset-actions-grid {
-  display:grid;
-  grid-template-columns:repeat(2, minmax(0, 1fr));
-  gap:16px
-}
-
-.reset-action-panel {
-  display:flex;
-  flex-direction:column;
-  align-items:flex-start;
-  min-height:190px;
-  padding:20px;
-  border:1px solid var(--border);
-  border-radius:16px;
-  background:rgba(0, 0, 0, .08)
-}
-
-.reset-action-panel h4 { margin:0 0 8px; font-size:1rem; font-weight:600; line-height:1.4; }
-.reset-action-description { flex:1; margin:0 0 20px; color:var(--text2); line-height:1.6; }
-.reset-action-button { padding:10px 20px; font-size:.875rem; font-weight:500; }
-.btn-danger { background:var(--danger); color:#fff; }
-.btn-danger:hover { background:#d93049; box-shadow:0 2px 12px rgba(241, 65, 88, .22); }
-
-.reset-confirm-dialog {
-  width:min(520px, calc(100% - 32px));
-  max-height:calc(100% - 32px);
-  margin:auto;
-  padding:24px;
-  border:1px solid var(--border);
-  border-radius:16px;
-  background:var(--surface);
-  color:var(--text);
-  box-shadow:var(--shadow-3);
-  font:inherit;
-  line-height:1.55
-}
-
-.reset-confirm-dialog::backdrop { background:rgba(0, 0, 0, .64); }
-.reset-confirm-dialog h2 { margin:0 0 8px; font-size:1.15rem; font-weight:600; line-height:1.4; }
-.reset-confirm-dialog>p { margin:0 0 16px; color:var(--text2); }
-.reset-dialog-warning { display:flex; align-items:flex-start; gap:12px; margin:16px 0; padding:14px; border:1px solid rgba(241, 65, 88, .35); border-radius:12px; background:rgba(241, 65, 88, .12); color:var(--text2); }
-.reset-dialog-warning-icon { display:flex; flex:none; align-items:center; justify-content:center; width:22px; height:22px; border:2px solid var(--danger); border-radius:50%; color:var(--danger); font-weight:700; line-height:1; }
-.reset-dialog-backup-reminder { color:var(--text2); }
-.reset-confirm-label { display:block; margin-top:14px; color:var(--text); font-size:.875rem; font-weight:600; }
-.reset-confirm-input { display:block; width:100%; margin-top:6px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--bg); color:var(--text); font:inherit; }
-.reset-confirm-input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-.reset-confirm-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:24px; }
-.reset-confirm-actions .btn { min-width:104px; }
-
-@media (max-width:700px) {
-  .reset-actions-grid { grid-template-columns:1fr; }
-  .reset-action-panel { min-height:0; }
-}
-
-@media (max-width:480px) {
-  .reset-backup-notice { flex-wrap:wrap; }
-  .reset-notice-text { flex-basis:calc(100% - 40px); }
-  .reset-backup-button { margin-left:36px; }
-  .reset-confirm-dialog { padding:20px; }
-}
-
-.fw-subpanels {
-  display:grid;
-  gap:12px
-}
-
-.inline-disclosure {
-  border:1px solid var(--border);
-  border-radius:8px;
-  background:var(--surface)
-}
-
-.inline-disclosure-button {
-  width:100%;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
-  padding:12px 14px;
-  background:transparent;
-  border:0;
-  color:var(--text);
-  font:inherit;
-  font-size:.875rem;
-  font-weight:500;
-  cursor:pointer;
-  text-align:left
-}
-
-.inline-disclosure-button:hover {
-  background:rgba(255,255,255,.03)
-}
-
-.inline-disclosure-button:focus-visible {
-  outline:none;
-  box-shadow:0 0 0 2px var(--accent-soft) inset
-}
-
-.inline-disclosure-right {
-  display:inline-flex;
-  align-items:center;
-  gap:10px;
-  margin-left:auto
-}
-
-.disclosure-badge {
-  display:inline-flex;
-  align-items:center;
-  gap:7px;
-  min-height:22px;
-  padding:0 10px 0 9px;
-  border-radius:999px;
-  background:var(--success-soft);
-  color:var(--success);
-  font-size:.66rem;
-  font-weight:500;
-  text-transform:uppercase;
-  letter-spacing:.04em;
-  line-height:1;
-  white-space:nowrap
-}
-
-.disclosure-badge-dot {
-  width:7px;
-  height:7px;
-  border-radius:999px;
-  background:var(--success);
-  flex-shrink:0
-}
-
-.inline-disclosure.open .disclosure-badge,
-.disclosure-badge.hidden {
-  display:none
-}
-
-.inline-disclosure-chevron {
-  display:inline-flex;
-  width:20px;
-  height:20px;
-  color:var(--text3);
-  transition:transform .25s ease;
-  flex-shrink:0
-}
-
-.inline-disclosure-chevron svg {
-  width:100%;
-  height:100%
-}
-
-.inline-disclosure-body {
-  display:none;
-  padding:18px 14px 16px
-}
-
-.inline-disclosure.open .inline-disclosure-chevron {
-  transform:rotate(180deg)
-}
-
-.inline-disclosure.open .inline-disclosure-body {
-  display:block
-}
-
-.fw-body .field {
-  margin-bottom:0
-}
-
-.fw-updates {
-  display:flex;
-  flex-direction:column;
-  gap:12px
-}
-
-.fw-row {
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:8px;
-  min-height:36px;
-  margin-bottom:8px
-}
-
-.fw-label {
-  font-size:.875rem
-}
-
-.fw-status {
-  font-size:.8rem;
-  color:var(--text2);
-  line-height:1.4;
-  margin-top:8px;
-  text-align:right
-}
-
-.fw-status:empty {
-  display:none
-}
-
-.fw-status.error {
-  color:var(--danger)
-}
-
-.fw-actions,
-.fw-previous-actions {
-  display:flex;
-  justify-content:flex-end;
-  gap:8px;
-  margin-top:12px
-}
-
-.fw-body .toggle-row {
-  margin-bottom:12px
-}
-
-.field-hint {
-  font-size:.75rem;
-  color:var(--text2);
-  margin-top:6px;
-  margin-bottom:8px
-}
-
-.key-mask {
-  flex:1;
-  padding:10px 14px;
-  background:var(--surface2);
-  border:1px solid var(--border);
-  border-radius:10px;
-  color:var(--text2);
-  font-size:.875rem;
-  letter-spacing:2px
-}
-
-.check-wrap {
-  display:flex;
-  align-items:center;
-  gap:8px;
-  flex-shrink:0
-}
-
-.sp-log-toolbar {
-  display:flex;
-  justify-content:flex-end;
-  padding:12px var(--gap) 0
-}
-
-.sp-log-clear {
-  background:var(--surface2);
-  color:var(--text);
-  border:1px solid var(--border);
-  border-radius:var(--action-r);
-  padding:8px 14px;
-  font-size:.8rem;
-  font-weight:500;
-  cursor:pointer;
-  font-family:inherit;
-  transition:all .25s
-}
-
-.sp-log-clear:hover {
-  background:var(--border);
-  border-color:var(--text3)
-}
-
-.sp-log-output {
-  margin:8px var(--gap) var(--gap);
-  padding:16px;
-  background:var(--surface);
-  border:1px solid var(--border);
-  border-radius:var(--radius);
-  font-family:ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
-  font-size:.75rem;
-  line-height:1.7;
-  color:var(--text2);
-  overflow-x:auto;
-  overflow-y:auto;
-  max-height:70vh;
-  white-space:pre;
-  word-break:break-all
-}
-
-.sp-log-line {
-  padding:1px 0;
-  border-left:3px solid transparent;
-  padding-left:8px
-}
-
-.sp-log-error {
-  color:#f66f81;
-  border-left-color:#f14158;
-  background:rgba(244, 63, 94, .08)
-}
-
-.sp-log-warn {
-  color:#f9b44e;
-  border-left-color:#da8b17;
-  background:rgba(234, 179, 8, .06)
-}
-
-.sp-log-info {
-  color:#3dd68c
-}
-
-.sp-log-config {
-  color:#c8abfa
-}
-
-.sp-log-debug {
-  color:#5c73e7
-}
-
-.sp-log-verbose {
-  color:var(--text2)
-}
-
-.banner {
-  position:fixed;
-  top:16px;
-  left:50%;
-  transform:translateX(-50%);
-  z-index:9999;
-  padding:10px 24px;
-  border-radius:var(--radius);
-  font-size:.875rem;
-  font-weight:600;
-  color:#fff;
-  box-shadow:var(--shadow-2);
-  animation:bannerIn .25s ease;
-  max-width:calc(100% - 32px);
-  text-align:center
-}
-
-.banner-success {
-  background:var(--success)
-}
-
-.banner-error {
-  background:var(--danger)
-}
-
-.banner-info {
-  background:var(--accent)
-}
-
-@keyframes bannerIn {
-  from {
-  opacity:0;
-  transform:translateX(-50%) translateY(-12px)
-}
-
-to {
-  opacity:1;
-  transform:translateX(-50%) translateY(0)
-}
-
-}
-
-.backup-row {
-  display:flex;
-  gap:8px
-}
-
-.backup-row .btn {
-  flex:1
-}
-
-.sp-support-btn {
-  position:fixed;
-  right:28px;
-  bottom:28px;
-  z-index:150;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  width:217px;
-  height:60px;
-  overflow:hidden;
-  border-radius:999px;
-  background:#ffdd00;
-  color:#000;
-  font-family:Arial, sans-serif;
-  font-size:18px;
-  font-weight:700;
-  line-height:1;
-  text-decoration:none;
-  box-shadow:0 2px 5px rgba(0, 0, 0, .15)
-}
-
-.sp-support-btn span {
-  position:absolute
-}
-
-.sp-support-btn img {
-  position:absolute;
-  inset:0;
-  width:217px;
-  height:60px;
-  display:block;
-  border-radius:999px
-}
-
-@media(max-width:768px) {
-  .sp-header {
-  padding:0 12px;
-  height:48px
-}
-
-.sp-brand {
-  font-size:.875rem
-}
-
-.sp-tab {
-  padding:0 12px;
-  font-size:.8rem
-}
-
-.photo-id-row {
-  grid-template-columns:1fr
-}
-
-.photo-id-fields,
-.filter-group-details .photo-id-fields {
-  grid-template-columns:minmax(0, 1fr)
-}
-
-.photo-id-row-actions {
-  justify-content:flex-end
-}
-
-}
-
-@media(max-width:480px) {
-  .sp-header {
-  padding:0 10px
-}
-
-.sp-tab {
-  padding:0 10px;
-  font-size:.75rem
-}
-
-.sp-tab-docs {
-  gap:4px
-}
-
-.settings-section {
-  margin-bottom:40px
-}
-
-.settings-section-title {
-  margin:2px 2px 12px
-}
-
-.fw-row {
-  flex-direction:column;
-  align-items:flex-start;
-  gap:8px
-}
-
-.fw-actions,
-.fw-previous-actions {
-  justify-content:flex-start
-}
-
-.fw-actions .btn,
-.fw-previous-actions .btn {
-  width:100%
-}
-
-.fw-status {
-  text-align:left
-}
-
-}
-
-.mb-8 {
-  margin-bottom:8px
-}
-
-.mb-12 {
-  margin-bottom:12px
-}
-
-.mb-20 {
-  margin-bottom:20px
-}
-
-.mb-24 {
-  margin-bottom:24px
-}
-
-.mt-12 {
-  margin-top:12px
-}
-
-/* Naming form and dialog follow Espcontrol's identity UI. */
-.frame-name-label { display:block; font-size:.875rem; font-weight:500; color:var(--text2); margin-bottom:8px; }
-.frame-name-row { display:flex; align-items:center; gap:12px; }
-.frame-name-row #frame-name { flex:1; min-width:0; width:100%; margin:0; border-radius:10px; padding:10px 12px; }
-.frame-name-button { flex:none; white-space:nowrap; border-radius:var(--action-r); padding:8px 14px; font-weight:500; }
-.frame-name-info { display:flex; align-items:center; gap:10px; padding:10px 12px; margin-top:16px; background:var(--accent-soft); border:1px solid rgba(92,115,231,.22); border-radius:10px; color:var(--text2); font-size:.82rem; line-height:1.35; overflow-wrap:anywhere; }
-.frame-name-info-icon { flex:none; color:var(--accent); display:flex; }
-.frame-name-info>span:last-child { min-width:0; }
-.frame-name-info code { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:1em; }
-.frame-name-dialog { font-family:inherit; font-size:.875rem; line-height:1.5; max-width:32rem; width:calc(100% - 3rem); margin:auto; border:1px solid var(--border); border-radius:12px; padding:1.5rem; background:var(--bg); color:var(--text); }
-.frame-name-dialog::backdrop { background:#0008; }
-.frame-name-dialog h3 { margin:1em 0; font-size:1.17em; }
-.frame-name-dialog p { margin:1em 0; }
-.frame-name-dialog a { color:var(--accent); overflow-wrap:anywhere; }
-.frame-name-dialog button { margin:1rem .5rem 0 0; }
-@media (max-width:480px) { .frame-name-row { flex-wrap:wrap; } .frame-name-row #frame-name { flex-basis:100%; } }`;
+  var CSS = `*,*:before,*:after{box-sizing:border-box;margin:0;padding:0}:root{--bg:#1b1b1f;--surface:#202127;--surface2:#2e2e32;--border:#3c3f44;--border-hover:rgba(255, 255, 255, .16);--text:#dfdfd6;--text2:#98989f;--text3:#6a6a71;--accent:#5c73e7;--accent-hover:#a8b1ff;--accent-soft:rgba(100, 108, 255, .16);--success:#30a46c;--success-soft:rgba(48, 164, 108, .14);--danger:#f14158;--radius:12px;--action-r:9999px;--gap:16px;--shadow-1:0 1px 2px rgba(0, 0, 0, .2), 0 1px 2px rgba(0, 0, 0, .24);--shadow-2:0 3px 12px rgba(0, 0, 0, .28), 0 1px 4px rgba(0, 0, 0, .2);--shadow-3:0 12px 32px rgba(0, 0, 0, .35), 0 2px 6px rgba(0, 0, 0, .24) }esp-app{display:none!important}html{font-size:16px}body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;margin:0;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}#sp-app{display:block;width:100%;max-width:1080px;margin:0 auto}.sp-header{display:flex;align-items:center;background:var(--bg);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;height:56px;padding:0 20px}.sp-brand{font-size:1rem;font-weight:600;color:var(--text);display:flex;align-items:baseline;gap:8px;flex:1;min-width:0;margin-right:12px;white-space:nowrap;letter-spacing:-.01em}.sp-brand-label{flex:none}.sp-device-name{color:var(--text2);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sp-nav{flex-shrink:0;display:flex;align-items:center;height:100%}.sp-tab{padding:0 16px;height:100%;display:flex;align-items:center;color:var(--text2);cursor:pointer;font-size:.875rem;font-weight:500;border-bottom:2px solid transparent;text-decoration:none;transition:color .2s}.sp-tab:hover{color:var(--text)}.sp-tab.active{color:var(--accent);border-bottom-color:var(--accent)}.sp-tab-docs{position:relative;gap:6px;margin-left:8px;padding-left:24px}.sp-tab-docs:before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:1px;background:var(--border)}.sp-docs-icon{font-size:16px;line-height:1;opacity:.7}.sp-page{display:none}.sp-page.active{display:block}.sp-settings-wrap{padding:var(--gap)}.brand{font-size:1.6rem;font-weight:700;letter-spacing:-.02em;background:linear-gradient(135deg,var(--accent) 0%,#a78bfa 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}h1{font-size:1.6rem;font-weight:700;margin-bottom:4px;letter-spacing:-.02em}h2{font-size:1rem;font-weight:500;margin-bottom:20px;color:var(--text2);letter-spacing:.01em}.subtitle{font-size:.875rem;color:var(--text2);margin-bottom:24px;line-height:1.6}.settings-section{margin-bottom:48px}.settings-section:last-child{margin-bottom:0}.settings-section-title{color:var(--text2);font-size:.75rem;font-weight:700;line-height:1.2;letter-spacing:.12em;text-transform:uppercase;margin:4px 4px 14px}.settings-section .card:last-child{margin-bottom:0}.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:var(--gap);transition:border-color .25s}.card:hover{border-color:var(--text3)}.card h3{font-size:.875rem;font-weight:600;margin-bottom:14px;color:var(--text);letter-spacing:-.01em}.card-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;margin:-24px -24px 0;padding:24px 24px 0}.card-header h3{margin:0;flex:1}.card-toggle{display:block;width:100%;padding:0;border:0;background:none;color:inherit;font:inherit;letter-spacing:inherit;text-align:left;cursor:pointer}.card-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:2px}.card-body{padding-top:20px}.card-chevron{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;color:var(--text3);transition:transform .25s ease;flex-shrink:0}.card-chevron svg{width:100%;height:100%}.card.collapsed .card-chevron{transform:rotate(-90deg)}.card.collapsed .card-body{display:none}.card-header-right{display:flex;align-items:center;gap:8px}.card.memory-filter-disabled{border-color:var(--border);opacity:.6}.card.memory-filter-disabled:hover{border-color:var(--border)}.card.memory-filter-disabled .card-header{color:var(--text3)}.on-badge{display:none;align-items:center;gap:4px;font-size:.6rem;font-weight:600;color:var(--success);padding:2px 8px 2px 6px;background:var(--success-soft);border-radius:999px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}.card.collapsed .on-badge.active{display:inline-flex}.on-badge:before{content:"";display:block;width:6px;height:6px;border-radius:50%;background:var(--success);flex-shrink:0}.field{margin-bottom:22px}.api-key-restore-required input{border-color:var(--danger)!important;box-shadow:0 0 0 2px #f141582e}.field:last-child{margin-bottom:0}label{display:block;font-size:.875rem;color:var(--text2);margin-bottom:6px;font-weight:500}.filter-relative-row{display:grid;grid-template-columns:minmax(84px,104px) minmax(0,1fr);gap:12px}.filter-relative-row .field{margin-bottom:0}input[type=text],input[type=password],input[type=url],input[type=date],input[type=number]{width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:.875rem;letter-spacing:0;outline:none;transition:border-color .25s,box-shadow .25s;font-family:inherit;font-variant-numeric:tabular-nums;color-scheme:dark}input[type=text]:focus,input[type=password]:focus,input[type=url]:focus,input[type=date]:focus,input[type=number]:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}input[type=date]::-webkit-datetime-edit,input[type=date]::-webkit-date-and-time-value{color:var(--text);font:inherit;letter-spacing:0;text-align:left}input[type=date]::-webkit-datetime-edit-fields-wrapper,input[type=date]::-webkit-datetime-edit-text,input[type=date]::-webkit-datetime-edit-day-field,input[type=date]::-webkit-datetime-edit-month-field,input[type=date]::-webkit-datetime-edit-year-field{font:inherit;color:inherit;letter-spacing:0}input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.7);cursor:pointer}input::placeholder{color:var(--text2);opacity:.7}input[readonly]{opacity:.58;border-style:dashed;cursor:not-allowed}.compatibility-disabled{color:var(--text2);font-size:.78rem}.filter-group-details,.filter-panel{margin:0 0 20px;padding:16px;border:1px solid var(--border);border-radius:8px}.filter-lists{padding:0 0 16px;border:0}.filter-nested{margin:12px 0;padding:8px 16px;border:1px solid var(--border);border-radius:8px}.filter-lists>:first-child{margin-top:0}.filter-lists>:last-child{margin-bottom:0}.filter-nested[open]{padding-bottom:16px}.filter-nested:not([open]){padding-top:4px;padding-bottom:4px}.filter-nested summary{cursor:pointer;color:var(--text2);font-size:.875rem;font-weight:500;display:flex;align-items:center;gap:8px;list-style:none;min-height:44px;box-sizing:border-box}.filter-nested:not([open]) summary{min-height:40px}.filter-nested summary::-webkit-details-marker{display:none}.filter-nested summary::marker{content:""}.filter-nested summary:before{content:"";width:8px;height:8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);transition:transform .2s ease;flex-shrink:0}.filter-nested[open] summary:before{transform:rotate(45deg)}.filter-nested[open]>summary{margin-bottom:12px}.filter-group-details .photo-id-row{align-items:center}.filter-group-details .photo-id-fields{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}.filter-group-details .photo-id-actions{margin-top:12px}.select,select{width:100%;padding:10px 36px 10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:.875rem;outline:none;transition:border-color .25s,box-shadow .25s;-webkit-appearance:none;appearance:none;color-scheme:dark;font-family:inherit;background-image:url("data:image/svg+xml, %3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}.select:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}.select:disabled,select:disabled,input:disabled,textarea:disabled{opacity:.4;cursor:not-allowed}select option{background:var(--surface);color:var(--text)}.input-group{display:flex;gap:8px}.input-group input{flex:1}.photo-id-list{display:flex;flex-direction:column;gap:8px}.photo-id-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start}.photo-id-fields{display:grid;grid-template-columns:minmax(220px,2fr) minmax(160px,1fr);gap:8px}.photo-id-row-actions{display:flex;gap:6px}.photo-id-actions{display:flex;justify-content:flex-start;margin-top:18px}.btn.btn-icon{width:40px;height:40px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--action-r);font-size:1.2rem;line-height:1;flex-shrink:0}.btn{padding:10px 20px;border:none;border-radius:var(--action-r);font-size:.875rem;font-weight:600;cursor:pointer;transition:background .25s,opacity .25s,box-shadow .25s;font-family:inherit;letter-spacing:.01em}.btn:focus-visible,.sp-log-clear:focus-visible{outline:2px solid var(--accent);outline-offset:2px;box-shadow:0 0 0 3px var(--accent-soft)}.btn:active{opacity:.85}.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent-hover);box-shadow:0 2px 12px var(--accent-soft)}.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}.btn-secondary:hover{border-color:var(--border-hover);background:#ffffff0f}.btn-sm{padding:7px 14px;font-size:.8rem}.btn-block{width:100%;display:block}.btn:disabled{opacity:.35;cursor:not-allowed}.field-error{font-size:.75rem;color:var(--danger);margin-top:4px}.field-error:empty{display:none}.toggle-row{display:flex;justify-content:space-between;align-items:center;min-height:36px}.toggle-row span{font-size:.875rem}.toggle{position:relative;width:44px;height:24px;background:var(--surface2);border-radius:999px;cursor:pointer;transition:background .25s;border:1px solid var(--border)}.toggle.on{background:var(--accent);border-color:var(--accent)}.setting-info-banner{display:flex;align-items:flex-start;gap:10px;margin:0 0 20px;padding:12px 14px;background:var(--accent-soft);border:1px solid rgba(92,115,231,.3);border-radius:10px;color:var(--text2);font-size:.82rem;line-height:1.35}.setting-info-banner-icon{display:inline-flex;align-items:center;justify-content:center;flex:0 0 18px;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:.72rem;font-weight:700;line-height:1}.toggle:after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .25s ease;box-shadow:0 1px 3px #0000004d}.toggle.on:after{transform:translate(20px)}.segment{display:flex;border-radius:8px;overflow:hidden;border:1px solid var(--border)}.segment button{flex:1;padding:8px 0;background:var(--surface2);color:var(--text2);border:none;font-size:.875rem;cursor:pointer;transition:background .25s,color .25s;font-family:inherit}.segment button.active{background:var(--accent);color:#fff}.range-wrap{display:flex;align-items:center;gap:12px}.range-wrap input[type=range]{flex:1;-webkit-appearance:none;height:4px;background:var(--surface2);border-radius:2px;outline:none}.range-wrap input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--accent);cursor:pointer;box-shadow:0 0 0 3px var(--accent-soft);transition:box-shadow .2s}.range-wrap input[type=range]::-webkit-slider-thumb:hover{box-shadow:0 0 0 5px var(--accent-soft)}.range-wrap input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--accent);cursor:pointer;border:none}.range-val{min-width:42px;text-align:right;font-size:.875rem;color:var(--text2);font-variant-numeric:tabular-nums}.range-label{font-size:.875rem;color:var(--text2);white-space:nowrap}.status{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;color:var(--text2);margin-top:4px}.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}.dot.green{background:var(--success)}.dot.red{background:var(--danger)}.dot.orange{background:#ff9800}.wizard-steps{display:flex;gap:8px;margin-bottom:24px}.wizard-steps .step{flex:1;height:3px;border-radius:2px;background:var(--surface2);transition:background .3s}.wizard-steps .step.active{background:var(--accent)}.wizard-steps .step.done{background:var(--success)}.wizard-nav{display:flex;gap:8px;margin-top:20px}.wizard-nav .btn{flex:1}.fade-in{animation:fadeIn .35s ease}@keyframes fadeIn{0%{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}.sun-info{font-size:.8rem;color:var(--text2);padding:10px 14px;background:var(--surface2);border-radius:10px;text-align:center;border:1px solid var(--border)}.version{text-align:center;font-size:.75rem;color:var(--text2);margin-top:8px;opacity:.5}.fw-body{display:flex;flex-direction:column;gap:12px}.reset-backup-notice{display:flex;align-items:center;gap:14px;min-height:68px;padding:12px 16px;border:1px solid rgba(92,115,231,.32);border-radius:12px;background:var(--accent-soft);color:var(--text2)}.reset-notice-icon{display:flex;flex:none;width:22px;height:22px;color:var(--accent)}.reset-notice-icon svg{width:100%;height:100%}.reset-notice-text{flex:1;min-width:0}.reset-backup-button{padding:12px 24px;font-size:1rem;font-weight:500;white-space:nowrap}.reset-actions-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.reset-action-panel{display:flex;flex-direction:column;align-items:flex-start;min-height:190px;padding:20px;border:1px solid var(--border);border-radius:16px;background:#00000014}.reset-action-panel h4{margin:0 0 8px;font-size:1rem;font-weight:600;line-height:1.4}.reset-action-description{flex:1;margin:0 0 20px;color:var(--text2);line-height:1.6}.reset-action-button{padding:10px 20px;font-size:.875rem;font-weight:500}.btn-danger{background:var(--danger);color:#fff}.btn-danger:hover{background:#d93049;box-shadow:0 2px 12px #f1415838}.reset-confirm-dialog{width:min(520px,calc(100% - 32px));max-height:calc(100% - 32px);margin:auto;padding:24px;border:1px solid var(--border);border-radius:16px;background:var(--surface);color:var(--text);box-shadow:var(--shadow-3);font:inherit;line-height:1.55}.reset-confirm-dialog::backdrop{background:#000000a3}.reset-confirm-dialog h2{margin:0 0 8px;font-size:1.15rem;font-weight:600;line-height:1.4}.reset-confirm-dialog>p{margin:0 0 16px;color:var(--text2)}.reset-dialog-warning{display:flex;align-items:flex-start;gap:12px;margin:16px 0;padding:14px;border:1px solid rgba(241,65,88,.35);border-radius:12px;background:#f141581f;color:var(--text2)}.reset-dialog-warning-icon{display:flex;flex:none;align-items:center;justify-content:center;width:22px;height:22px;border:2px solid var(--danger);border-radius:50%;color:var(--danger);font-weight:700;line-height:1}.reset-dialog-backup-reminder{color:var(--text2)}.reset-confirm-label{display:block;margin-top:14px;color:var(--text);font-size:.875rem;font-weight:600}.reset-confirm-input{display:block;width:100%;margin-top:6px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font:inherit}.reset-confirm-input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.reset-confirm-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:24px}.reset-confirm-actions .btn{min-width:104px}@media(max-width:700px){.reset-actions-grid{grid-template-columns:1fr}.reset-action-panel{min-height:0}}@media(max-width:480px){.reset-backup-notice{flex-wrap:wrap}.reset-notice-text{flex-basis:calc(100% - 40px)}.reset-backup-button{margin-left:36px}.reset-confirm-dialog{padding:20px}}.fw-subpanels{display:grid;gap:12px}.inline-disclosure{border:1px solid var(--border);border-radius:8px;background:var(--surface)}.inline-disclosure-button{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:transparent;border:0;color:var(--text);font:inherit;font-size:.875rem;font-weight:500;cursor:pointer;text-align:left}.inline-disclosure-button:hover{background:#ffffff08}.inline-disclosure-button:focus-visible{outline:none;box-shadow:0 0 0 2px var(--accent-soft) inset}.inline-disclosure-right{display:inline-flex;align-items:center;gap:10px;margin-left:auto}.disclosure-badge{display:inline-flex;align-items:center;gap:7px;min-height:22px;padding:0 10px 0 9px;border-radius:999px;background:var(--success-soft);color:var(--success);font-size:.66rem;font-weight:500;text-transform:uppercase;letter-spacing:.04em;line-height:1;white-space:nowrap}.disclosure-badge-dot{width:7px;height:7px;border-radius:999px;background:var(--success);flex-shrink:0}.inline-disclosure.open .disclosure-badge,.disclosure-badge.hidden{display:none}.inline-disclosure-chevron{display:inline-flex;width:20px;height:20px;color:var(--text3);transition:transform .25s ease;flex-shrink:0}.inline-disclosure-chevron svg{width:100%;height:100%}.inline-disclosure-body{display:none;padding:18px 14px 16px}.inline-disclosure.open .inline-disclosure-chevron{transform:rotate(180deg)}.inline-disclosure.open .inline-disclosure-body{display:block}.fw-body .field{margin-bottom:0}.fw-updates{display:flex;flex-direction:column;gap:12px}.fw-row{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:36px;margin-bottom:8px}.fw-label{font-size:.875rem}.fw-status{font-size:.8rem;color:var(--text2);line-height:1.4;margin-top:8px;text-align:right}.fw-status:empty{display:none}.fw-status.error{color:var(--danger)}.fw-actions,.fw-previous-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}.fw-body .toggle-row{margin-bottom:12px}.field-hint{font-size:.75rem;color:var(--text2);margin-top:6px;margin-bottom:8px}.key-mask{flex:1;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text2);font-size:.875rem;letter-spacing:2px}.check-wrap{display:flex;align-items:center;gap:8px;flex-shrink:0}.sp-log-toolbar{display:flex;justify-content:flex-end;padding:12px var(--gap) 0}.sp-log-clear{background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--action-r);padding:8px 14px;font-size:.8rem;font-weight:500;cursor:pointer;font-family:inherit;transition:all .25s}.sp-log-clear:hover{background:var(--border);border-color:var(--text3)}.sp-log-output{margin:8px var(--gap) var(--gap);padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);font-family:ui-monospace,SF Mono,SFMono-Regular,Menlo,Consolas,monospace;font-size:.75rem;line-height:1.7;color:var(--text2);overflow-x:auto;overflow-y:auto;max-height:70vh;white-space:pre;word-break:break-all}.sp-log-line{border-left:3px solid transparent;padding:1px 0 1px 8px}.sp-log-error{color:#f66f81;border-left-color:#f14158;background:#f43f5e14}.sp-log-warn{color:#f9b44e;border-left-color:#da8b17;background:#eab3080f}.sp-log-info{color:#3dd68c}.sp-log-config{color:#c8abfa}.sp-log-debug{color:#5c73e7}.sp-log-verbose{color:var(--text2)}.banner{position:fixed;top:16px;left:50%;transform:translate(-50%);z-index:9999;padding:10px 24px;border-radius:var(--radius);font-size:.875rem;font-weight:600;color:#fff;box-shadow:var(--shadow-2);animation:bannerIn .25s ease;max-width:calc(100% - 32px);text-align:center}.banner-success{background:var(--success)}.banner-error{background:var(--danger)}.banner-info{background:var(--accent)}@keyframes bannerIn{0%{opacity:0;transform:translate(-50%) translateY(-12px)}to{opacity:1;transform:translate(-50%) translateY(0)}}.backup-row{display:flex;gap:8px}.backup-row .btn{flex:1}.sp-support-btn{position:fixed;right:28px;bottom:28px;z-index:150;display:inline-flex;align-items:center;justify-content:center;width:217px;height:60px;overflow:hidden;border-radius:999px;background:#fd0;color:#000;font-family:Arial,sans-serif;font-size:18px;font-weight:700;line-height:1;text-decoration:none;box-shadow:0 2px 5px #00000026}.sp-support-btn span{position:absolute}.sp-support-btn img{position:absolute;inset:0;width:217px;height:60px;display:block;border-radius:999px}@media(max-width:768px){.sp-header{padding:0 12px;height:48px}.sp-brand{font-size:.875rem}.sp-tab{padding:0 12px;font-size:.8rem}.photo-id-row{grid-template-columns:1fr}.photo-id-fields,.filter-group-details .photo-id-fields{grid-template-columns:minmax(0,1fr)}.photo-id-row-actions{justify-content:flex-end}}@media(max-width:480px){.sp-header{padding:0 10px}.sp-tab{padding:0 10px;font-size:.75rem}.sp-tab-docs{gap:4px}.settings-section{margin-bottom:40px}.settings-section-title{margin:2px 2px 12px}.fw-row{flex-direction:column;align-items:flex-start;gap:8px}.fw-actions,.fw-previous-actions{justify-content:flex-start}.fw-actions .btn,.fw-previous-actions .btn{width:100%}.fw-status{text-align:left}}.mb-8{margin-bottom:8px}.mb-12{margin-bottom:12px}.mb-20{margin-bottom:20px}.mb-24{margin-bottom:24px}.mt-12{margin-top:12px}.frame-name-label{display:block;font-size:.875rem;font-weight:500;color:var(--text2);margin-bottom:8px}.frame-name-row{display:flex;align-items:center;gap:12px}.frame-name-row #frame-name{flex:1;min-width:0;width:100%;margin:0;border-radius:10px;padding:10px 12px}.frame-name-button{flex:none;white-space:nowrap;border-radius:var(--action-r);padding:8px 14px;font-weight:500}.frame-name-info{display:flex;align-items:center;gap:10px;padding:10px 12px;margin-top:16px;background:var(--accent-soft);border:1px solid rgba(92,115,231,.22);border-radius:10px;color:var(--text2);font-size:.82rem;line-height:1.35;overflow-wrap:anywhere}.frame-name-info-icon{flex:none;color:var(--accent);display:flex}.frame-name-info>span:last-child{min-width:0}.frame-name-info code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:1em}.frame-name-dialog{font-family:inherit;font-size:.875rem;line-height:1.5;max-width:32rem;width:calc(100% - 3rem);margin:auto;border:1px solid var(--border);border-radius:12px;padding:1.5rem;background:var(--bg);color:var(--text)}.frame-name-dialog::backdrop{background:#0008}.frame-name-dialog h3{margin:1em 0;font-size:1.17em}.frame-name-dialog p{margin:1em 0}.frame-name-dialog a{color:var(--accent);overflow-wrap:anywhere}.frame-name-dialog button{margin:1rem .5rem 0 0}@media(max-width:480px){.frame-name-row{flex-wrap:wrap}.frame-name-row #frame-name{flex-basis:100%}}
+`;
   var FAVICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" id="mdi-home-automation" viewBox="0 0 24 24"><path fill="#5c73e7" d="M12,3L2,12H5V20H19V12H22L12,3M12,8.5C14.34,8.5 16.46,9.43 18,10.94L16.8,12.12C15.58,10.91 13.88,10.17 12,10.17C10.12,10.17 8.42,10.91 7.2,12.12L6,10.94C7.54,9.43 9.66,8.5 12,8.5M12,11.83C13.4,11.83 14.67,12.39 15.6,13.3L14.4,14.47C13.79,13.87 12.94,13.5 12,13.5C11.06,13.5 10.21,13.87 9.6,14.47L8.4,13.3C9.33,12.39 10.6,11.83 12,11.83M12,15.17C12.94,15.17 13.7,15.91 13.7,16.83C13.7,17.75 12.94,18.5 12,18.5C11.06,18.5 10.3,17.75 10.3,16.83C10.3,15.91 11.06,15.17 12,15.17Z"/></svg>';
-  var style = document.createElement("style");
-  style.textContent = CSS;
-  document.head.appendChild(style);
+  if (!nativeAdmin) {
+    style = document.createElement("style");
+    style.textContent = CSS;
+    document.head.appendChild(style);
+  }
+  var style;
   ensureFavicon();
   var els = {};
   var app;
@@ -2202,7 +710,8 @@ to {
     });
     els.immichPage.className = "sp-page" + (tab === "immich" ? " active" : "");
     els.settingsPage.className = "sp-page" + (tab === "settings" ? " active" : "");
-    els.logsPage.className = "sp-page" + (tab === "logs" ? " active" : "");
+    if (els.logsPage) els.logsPage.className = "sp-page" + (tab === "logs" ? " active" : "");
+    if (nativeAdmin) window["espframeShowLogs"](tab === "logs", appendLog);
   }
   function openImmichConnectionForApiKey() {
     switchTab("immich");
@@ -2257,13 +766,21 @@ to {
     return apiClient.getConfigurationSnapshot();
   }
   function applyConfigurationSnapshot(snapshot) {
-    settingSaves.receive("api_key_configured", snapshot.api_key_configured);
+    var changed = false;
+    function receive(key, value) {
+      var previous = S2[key];
+      settingSaves.receive(key, value);
+      changed || (changed = S2[key] !== previous);
+    }
+    if (nativeAdmin) nativeSettings = new Set(Object.keys(snapshot.values));
+    receive("api_key_configured", snapshot.api_key_configured);
     var secrets = snapshot.secrets_configured || {};
-    settingSaves.receive("wireguard_available", typeof secrets.wireguard_private_key === "boolean");
-    settingSaves.receive("wireguard_private_key_configured", secrets.wireguard_private_key === true);
+    receive("wireguard_available", typeof secrets.wireguard_private_key === "boolean");
+    receive("wireguard_private_key_configured", secrets.wireguard_private_key === true);
     Object.keys(snapshot.values).forEach(function(key) {
-      settingSaves.receive(key, snapshot.values[key]);
+      receive(key, snapshot.values[key]);
     });
+    return changed;
   }
   function registerManualEntityEndpoints() {
     if (!MANUAL_ENTITIES) return;
@@ -2300,86 +817,61 @@ to {
     });
   }
   var MAX_NTP_SERVER_LENGTH = 253;
-  function postTextValueSet(url, value, useQueryFallback) {
-    return apiClient.postText(url, value == null ? "" : String(value), useQueryFallback).catch(function(err) {
-      console.error("POST " + url + " error:", err);
-      showBanner("Failed to save setting", "error");
-      throw err;
-    });
-  }
   function delayMs(ms) {
     return new Promise(function(resolve) {
       setTimeout(resolve, ms);
     });
   }
-  function saveConnectionValue(path, value, useQueryFallback) {
-    return postTextValueSet(path + "/set", value, useQueryFallback).then(function(r) {
-      if (!r || !r.ok) throw new Error("save_failed");
-      return delayMs(1200);
-    });
-  }
   function connectionResponseValue(resp) {
     return resp && (resp.value || resp.state) || "";
   }
-  function saveAndVerifyConnectionValue(path, value, useQueryFallback, isSaved) {
-    if (path === endpoints.api_key) return saveAndVerifyApiKey(value);
-    return settingSaves.save({ immich_url: value }, function() {
-      return saveConnectionValue(path, value, useQueryFallback).then(function() {
-        return safeGet(path);
-      }).then(function(resp) {
-        var saved = connectionResponseValue(resp);
-        if (isSaved && !isSaved(saved)) throw Error("verify_failed");
-        return saved;
+  function normalizeConnectionUrl(value) {
+    var url = U(value);
+    return nativeAdmin ? window["espframeNativeUrl"](url) : url;
+  }
+  function saveAndVerifyConnectionUrl(value) {
+    if (nativeAdmin) return saveAndVerifyConnection({ immich_url: value });
+    return settingSaves.save({ immich_url: value }, async function() {
+      var path = endpoints.immich_url;
+      await apiClient.postText(path + "/set", value, true).catch(function(err) {
+        console.error("POST " + path + "/set error:", err);
+        showBanner("Failed to save setting", "error");
+        throw err;
       });
+      await delayMs(1200);
+      if (U(connectionResponseValue(await safeGet(path))) !== value) throw Error("verify_failed");
     });
   }
   function saveAndVerifyApiKey(value) {
     var apiKey = String(value || "").trim();
     if (!apiKey) return Promise.reject(Error("missing_api_key"));
-    return settingSaves.save({ api_key_configured: true }, function() {
-      return apiClient.updateSettings({ api_key: apiKey }, [legacySettingWrite("api_key", apiKey)]).then(function() {
-        return delayMs(150);
-      }).then(function() {
-        return getConfigurationSnapshot();
-      }).then(function(snapshot) {
-        if (!snapshot.api_key_configured) throw Error("verify_failed");
-      }).catch(function(error) {
-        if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
-        return safeGet(endpoints.api_key).then(function(resp) {
-          if (!resp || !resp.api_key_configured && !connectionResponseValue(resp)) {
-            throw Error("verify_failed");
-          }
-        });
-      });
-    });
+    return saveAndVerifyConnection({ api_key: apiKey });
   }
-  function saveAndVerifyConnection(url, key) {
-    var normalizedUrl = normalizeImmichUrl(url);
-    var apiKey = String(key || "").trim();
-    if (!normalizedUrl || !apiKey) return Promise.reject(new Error("missing_connection"));
-    return settingSaves.save({ immich_url: normalizedUrl, api_key_configured: true }, function() {
-      return apiClient.updateSettings(
-        { immich_url: normalizedUrl, api_key: apiKey },
-        [legacySettingWrite("immich_url", normalizedUrl), legacySettingWrite("api_key", apiKey)]
-      ).then(function() {
-        return delayMs(150);
-      }).then(function() {
-        return getConfigurationSnapshot();
-      }).catch(function(error) {
-        if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
-        return Promise.all([safeGet(endpoints.immich_url), safeGet(endpoints.api_key)]);
-      }).then(function(result) {
-        var savedUrl;
-        if (result && !Array.isArray(result)) {
-          savedUrl = normalizeImmichUrl(result.values.immich_url);
-          if (!result.api_key_configured) throw Error("verify_failed");
-        } else {
-          savedUrl = normalizeImmichUrl(connectionResponseValue(result[0]));
-          if (!connectionResponseValue(result[1])) throw Error("verify_failed");
-        }
-        if (savedUrl !== normalizedUrl) throw Error("verify_failed");
-        return { url: normalizedUrl, key: apiKey };
+  function saveAndVerifyConnection(changes) {
+    var tracked = {};
+    if (changes.immich_url !== void 0) tracked.immich_url = changes.immich_url;
+    if (changes.api_key) tracked.api_key_configured = true;
+    return settingSaves.save(tracked, async function() {
+      var writes = Object.keys(changes).map(function(key2) {
+        return legacySettingWrite(key2, changes[key2]);
       });
+      var savedUrl, keyConfigured;
+      try {
+        var response = await apiClient.updateSettings(changes, writes);
+        await delayMs(150);
+        var snapshot = nativeAdmin && (response == null ? void 0 : response.restart_required) ? await window["espframeNativeReconnect"](getConfigurationSnapshot) : await getConfigurationSnapshot();
+        savedUrl = snapshot.values.immich_url;
+        keyConfigured = snapshot.api_key_configured;
+      } catch (error) {
+        if (nativeAdmin || !(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
+        var [url, key] = await Promise.all([
+          changes.immich_url === void 0 ? null : safeGet(endpoints.immich_url),
+          changes.api_key ? safeGet(endpoints.api_key) : null
+        ]);
+        savedUrl = connectionResponseValue(url);
+        keyConfigured = key && (key.api_key_configured || connectionResponseValue(key));
+      }
+      if (changes.immich_url !== void 0 && U(savedUrl) !== changes.immich_url || changes.api_key && !keyConfigured) throw Error("verify_failed");
     });
   }
   var PHOTO_SOURCE_APPLY_SETTING_KEYS = [
@@ -2417,14 +909,14 @@ to {
   }
   var settingSaves = new SettingSaveCoordinator(
     function(key) {
-      return S[key];
+      return S2[key];
     },
     function(key, value) {
-      S[key] = value;
+      S2[key] = value;
     }
   );
-  Object.keys(S).forEach(function(key) {
-    var value = S[key];
+  Object.keys(S2).forEach(function(key) {
+    var value = S2[key];
     if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
       settingSaves.receive(key, value);
     }
@@ -2433,8 +925,8 @@ to {
     var domain = settingEntityDomain(key);
     return { key, domain, url: endpoints[key], value: savedValue };
   }
-  function legacyRotationValues(values, requestedRotation = ((_a) => (_a = values.screen_rotation) != null ? _a : S.screen_rotation)()) {
-    if (values.developer_features_enabled === false && isPortraitScreenRotation(S.screen_rotation)) {
+  function legacyRotationValues(values, requestedRotation = ((_a) => (_a = values.screen_rotation) != null ? _a : S2.screen_rotation)()) {
+    if (values.developer_features_enabled === false && isPortraitScreenRotation(S2.screen_rotation)) {
       return Object.assign({}, values, { screen_rotation: "0" });
     }
     return isPortraitScreenRotation(requestedRotation) && ("screen_rotation" in values || "portrait_pairing" in values) ? Object.assign({}, values, { portrait_pairing: false }) : values;
@@ -2453,6 +945,7 @@ to {
       var response = await apiClient.updateSettings(values, Object.keys(legacyValues).map(function(key2) {
         return legacySettingWrite(key2, legacyValues[key2]);
       }), legacyValues);
+      if (nativeAdmin && (response == null ? void 0 : response.restart_required)) await window["espframeNativeReconnect"](getConfigurationSnapshot);
       if (response && affectsRotationPolicy) {
         try {
           var snapshot = await apiClient.getConfigurationSnapshot();
@@ -2460,7 +953,7 @@ to {
           for (var key of policyKeys) {
             if (key in snapshot.values) appliedValues[key] = snapshot.values[key];
           }
-        } catch (_) {
+        } catch (_2) {
         }
       }
       return response;
@@ -2472,8 +965,8 @@ to {
     });
   }
   function saveGenericSetting(key, value) {
-    if (!key || !endpoints[key]) return Promise.resolve(null);
     if (key === "api_key") return saveAndVerifyApiKey(value);
+    if (!hasWritableSetting(key)) return Promise.resolve(null);
     var domain = settingEntityDomain(key);
     var savedValue = value;
     if (domain === "switch") savedValue = !!value;
@@ -2484,8 +977,11 @@ to {
     if (domain === "select" || domain === "text") savedValue = value == null ? "" : String(value);
     return saveSettingValues({ [key]: savedValue });
   }
+  function hasWritableSetting(key) {
+    return nativeAdmin ? nativeSettings.has(key) : !!endpoints[key];
+  }
   function saveNtpServer(key, value) {
-    return saveSettingValues({ [key]: normalizeNtpServer(value) });
+    return saveSettingValues({ [key]: d(value) });
   }
   function saveScheduleWakeTimeoutSetting(key, value) {
     return saveGenericSetting(key, normalizeScheduleWakeTimeout(value));
@@ -2507,13 +1003,16 @@ to {
     schedule_wake_timeout: saveScheduleWakeTimeoutSetting,
     screen_rotation: saveScreenRotationSetting
   };
+  async function applyPhotoSource() {
+    if (!nativeAdmin) await post(endpoints.apply_photo_source + "/press");
+  }
   function saveSetting(key, value, options) {
     var opts = options || {};
     var adapter = SETTING_SAVE_ADAPTERS[key];
     var result = adapter ? adapter(key, value, opts) : saveGenericSetting(key, value);
     if (opts.applyPhotoSource && settingUsesPhotoSourceApply(key)) {
       result = Promise.resolve(result).then(function(saved) {
-        return post(endpoints.apply_photo_source + "/press").then(function() {
+        return applyPhotoSource().then(function() {
           return saved;
         });
       });
@@ -2522,10 +1021,10 @@ to {
     return result;
   }
   function makeConnectionUrlField(value) {
-    var f = field("Immich Server URL");
+    var f2 = field("Immich Server URL");
     var urlInput = input("url", value, "http://192.168.0.1:2283");
-    f.appendChild(urlInput);
-    return { field: f, input: urlInput };
+    f2.appendChild(urlInput);
+    return { field: f2, input: urlInput };
   }
   function makeApiKeyInputGroup(options) {
     var opts = options || {};
@@ -2573,7 +1072,7 @@ to {
     try {
       var params = new URLSearchParams(window.location.search || "");
       return params.get("developer") === "experimental" || params.get("dev") === "experimental";
-    } catch (_) {
+    } catch (_2) {
       return false;
     }
   }
@@ -2581,11 +1080,11 @@ to {
     return value === "90" || value === "270";
   }
   function screenRotationOptionsForUi() {
-    var options = productSettingOptions("screen_rotation", S.developer_features_enabled);
+    var options = productSettingOptions("screen_rotation", S2.developer_features_enabled);
     return options.length ? options : ["0", "180"];
   }
   function effectiveScreenRotationForUi() {
-    var current = String(S.screen_rotation || "0");
+    var current = String(S2.screen_rotation || "0");
     return screenRotationOptionsForUi().indexOf(current) !== -1 ? current : "0";
   }
   function buildPhotoLabelList(idInputs, labelInputs) {
@@ -2602,10 +1101,10 @@ to {
     });
   }
   function displayVersion(value, fallback) {
-    var v = String(value || "").trim();
-    if (!v) return fallback || "";
-    if (v.toLowerCase() === "dev") return "Dev";
-    return v;
+    var v2 = String(value || "").trim();
+    if (!v2) return fallback || "";
+    if (v2.toLowerCase() === "dev") return "Dev";
+    return v2;
   }
   var evtSource = null;
   var rendered = false;
@@ -2613,6 +1112,17 @@ to {
   var renderTimer = null;
   var renderAttemptInFlight = false;
   var logListenerAttached = false;
+  var pendingPhotoSettings = /* @__PURE__ */ new Set();
+  function schedulePhotoSetting(timer, save, delay) {
+    clearTimeout(timer);
+    pendingPhotoSettings.delete(timer);
+    var next = setTimeout(function() {
+      pendingPhotoSettings.delete(next);
+      save();
+    }, delay);
+    pendingPhotoSettings.add(next);
+    return next;
+  }
   var ANSI_LEVEL = {
     "1;31": "sp-log-error",
     "0;31": "sp-log-error",
@@ -2628,8 +1138,8 @@ to {
     var line = document.createElement("div");
     line.className = "sp-log-line";
     var ansiClass = "";
-    var m = msg.match(/\x1b\[([\d;]+)m/);
-    if (m) ansiClass = ANSI_LEVEL[m[1]] || "";
+    var m2 = msg.match(/\x1b\[([\d;]+)m/);
+    if (m2) ansiClass = ANSI_LEVEL[m2[1]] || "";
     if (ansiClass) {
       line.classList.add(ansiClass);
     } else if (lvl === 1) line.classList.add("sp-log-error");
@@ -2701,48 +1211,48 @@ to {
     });
   }
   registerEntityAliases();
-  function applyEntityToState(d) {
-    if (!d || !d.id) return;
-    var id = d.id;
+  function applyEntityToState(d2) {
+    if (!d2 || !d2.id) return;
+    var id = d2.id;
     if (id === "light/Screen: Backlight") {
-      S.backlight_on = d.state === "ON";
-      if (d.brightness != null) {
-        S.brightness = Math.round(d.brightness / 255 * 100);
-        S.brightness_current = S.brightness;
+      S2.backlight_on = d2.state === "ON";
+      if (d2.brightness != null) {
+        S2.brightness = Math.round(d2.brightness / 255 * 100);
+        S2.brightness_current = S2.brightness;
       }
       return;
     }
     if (id === "update/Firmware: Update") {
-      S.installed_version = d.current_version || "";
-      S.latest_version = d.latest_version || "";
-      S.update_available = S.installed_version && S.latest_version && S.installed_version !== S.latest_version;
+      S2.installed_version = d2.current_version || "";
+      S2.latest_version = d2.latest_version || "";
+      S2.update_available = S2.installed_version && S2.latest_version && S2.installed_version !== S2.latest_version;
       return;
     }
     var spec = ENTITY_STATE_MAP[id];
     if (!spec) return;
-    var v = d.value != null ? d.value : d.state;
+    var v2 = d2.value != null ? d2.value : d2.state;
     var received;
     if (spec.boolFromState) {
-      received = v === true || v === "ON";
+      received = v2 === true || v2 === "ON";
     } else if (spec.number) {
-      received = v != null ? Math.round(Number(v)) : spec.default !== void 0 ? spec.default : 0;
+      received = v2 != null ? Math.round(Number(v2)) : spec.default !== void 0 ? spec.default : 0;
     } else {
-      received = v !== void 0 && v !== null ? String(v) : spec.default !== void 0 ? spec.default : "";
+      received = v2 !== void 0 && v2 !== null ? String(v2) : spec.default !== void 0 ? spec.default : "";
     }
     if (spec.key === "timezone") received = normalizeTimezoneOption(received);
-    if (spec.key && spec.key.indexOf("ntp_server_") === 0) received = normalizeNtpServer(received);
-    if (spec.optionsKey && d.option && d.option.length) S[spec.optionsKey] = d.option;
+    if (spec.key && spec.key.indexOf("ntp_server_") === 0) received = d(received);
+    if (spec.optionsKey && d2.option && d2.option.length) S2[spec.optionsKey] = d2.option;
     if (spec.key === "photo_metadata_date_format" && received !== "Relative Date" && received !== "Date Taken") {
-      settingSaves.receive("photo_metadata_date_taken_format", normalizeDateTakenFormat(received));
+      settingSaves.receive("photo_metadata_date_taken_format", M(received));
       received = "Date Taken";
     }
     if (spec.key === "photo_metadata_date_taken_format") {
-      received = normalizeDateTakenFormat(received);
+      received = M(received);
     }
     settingSaves.receive(spec.key, received);
   }
-  function collectState(d) {
-    applyEntityToState(d);
+  function collectState(d2) {
+    applyEntityToState(d2);
   }
   var INITIAL_FETCH_KEYS = ["firmware_device", "firmware", "photo_source", "memories_window", "memories_fallback", "album_order", "tag_matching", "date_filter_mode", "relative_unit", "photo_orientation", "display_mode", "transition", "transition_speed", "interval", "conn_timeout", "screen_rotation", "photo_metadata_date_format", "photo_metadata_date_taken_format", "clock_format", "update_frequency", "auto_update", "c6_auto_update", "date_filter_enabled", "date_from", "date_to", "relative_amount", "schedule_enabled", "schedule_on_hour", "schedule_off_hour", "schedule_wake_timeout", "brightness_day", "brightness_night", "base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override", "portrait_pairing", "portrait_pairing_range", "portrait_pairs_only", "photo_metadata_date_enabled", "photo_metadata_location_enabled", "albums_enabled", "people_enabled", "tags_enabled", "favorites_enabled", "rating_enabled", "location_enabled", "inclusion_matching", "album_matching", "person_matching", "favorite_mode", "minimum_rating", "filter_country", "filter_state", "filter_city", "device_language", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3", "wireguard_enabled", "wireguard_endpoint", "wireguard_port", "wireguard_address", "wireguard_netmask", "wireguard_allowed_ips", "wireguard_peer_public_key", "album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels", "excluded_album_ids", "excluded_album_labels", "excluded_person_ids", "excluded_person_labels", "excluded_tag_ids", "excluded_tag_labels", "immich_server_version", "immich_capability_status", "memories_migration_notice", "sunrise", "sunset", "developer_features_enabled", "c6_current_firmware", "c6_available_firmware", "c6_update_status"];
   function getEntityIdForStateKey(key) {
@@ -2762,7 +1272,7 @@ to {
     return getConfigurationSnapshot().then(function(snapshot) {
       applyConfigurationSnapshot(snapshot);
     }).catch(function(error) {
-      if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
+      if (nativeAdmin || !(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
       return fetchLegacyDeviceSettingsState();
     });
   }
@@ -2795,7 +1305,7 @@ to {
   }
   function withStartupTimeout(promise, timeoutMs) {
     var timeoutId;
-    var timeout = new Promise(function(_, reject) {
+    var timeout = new Promise(function(_2, reject) {
       timeoutId = setTimeout(function() {
         reject(new Error("startup_settings_timeout"));
       }, timeoutMs);
@@ -2840,10 +1350,35 @@ to {
       tryRender();
     }, delayMs2);
   }
+  function showSetup() {
+    renderWizard();
+  }
   function showConfiguredSettings() {
     rendered = true;
     renderAttemptInFlight = false;
     renderSettings();
+  }
+  function nativeSettingsRevision() {
+    if (!rendered || wizardActive || frameIdentityBusy || backupImportInProgress || pendingPhotoSettings.size || S2.firmware_installing || S2.firmware_uploading || S2.c6_firmware_installing)
+      return null;
+    return settingSaves.idleRevision();
+  }
+  function startNativeSettingsSync() {
+    window["espframeSyncSettings"](
+      els.root,
+      nativeSettingsRevision,
+      apiClient,
+      () => frameIdentity,
+      () => withStartupTimeout(requestFrameIdentity(), 3e3),
+      function(snapshot, identity) {
+        var changed = applyConfigurationSnapshot(snapshot);
+        if (identity) {
+          frameIdentity = identity;
+          updateFrameTitle();
+        }
+        if (changed || identity) return S2.immich_url ? renderSettings : showSetup;
+      }
+    );
   }
   var startupHydrationPromise = null;
   function getStartupHydration() {
@@ -2854,19 +1389,19 @@ to {
       if (startupHydrationPromise === hydration) startupHydrationPromise = null;
       renderAttemptInFlight = false;
       if (!rendered) {
-        if (S.immich_url) {
+        if (S2.immich_url) {
           showConfiguredSettings();
         } else {
           rendered = true;
-          renderWizard();
+          showSetup();
         }
-      } else if (S.immich_url) {
+      } else if (S2.immich_url) {
         renderSettingsAfterEditing();
       }
     }, function() {
       if (startupHydrationPromise === hydration) startupHydrationPromise = null;
       renderAttemptInFlight = false;
-      if (!rendered && !S.immich_url) scheduleTryRender(1e3);
+      if (!rendered && !S2.immich_url) scheduleTryRender(1e3);
     });
     return hydration;
   }
@@ -2881,15 +1416,15 @@ to {
     withStartupTimeout(hydration, 4e3).then(function() {
       renderAttemptInFlight = false;
       if (rendered) return;
-      if (S.immich_url) {
+      if (S2.immich_url) {
         showConfiguredSettings();
       } else {
         rendered = true;
-        renderWizard();
+        showSetup();
       }
     }).catch(function() {
       renderAttemptInFlight = false;
-      if (S.immich_url) showConfiguredSettings();
+      if (S2.immich_url) showConfiguredSettings();
       else scheduleTryRender(1e3);
     });
   }
@@ -2898,16 +1433,16 @@ to {
       evtSource = new EventSource("/events");
       evtSource.addEventListener("state", function(e) {
         try {
-          var d = JSON.parse(e.data);
-          if (d && d.name_id) d.id = d.name_id;
-          var spec = d && ENTITY_STATE_MAP[d.id];
-          var previousValue = spec ? S[spec.key] : void 0;
-          var previousOptions = spec && spec.optionsKey ? JSON.stringify(S[spec.optionsKey]) : "";
-          var previousDateTakenFormat = spec && spec.key === "photo_metadata_date_format" ? S.photo_metadata_date_taken_format : void 0;
-          collectState(d);
-          var changed = !spec || previousValue !== S[spec.key] || spec.optionsKey && previousOptions !== JSON.stringify(S[spec.optionsKey]) || spec.key === "photo_metadata_date_format" && previousDateTakenFormat !== S.photo_metadata_date_taken_format;
-          if (rendered && changed) handleLiveEvent(d);
-        } catch (_) {
+          var d2 = JSON.parse(e.data);
+          if (d2 && d2.name_id) d2.id = d2.name_id;
+          var spec = d2 && ENTITY_STATE_MAP[d2.id];
+          var previousValue = spec ? S2[spec.key] : void 0;
+          var previousOptions = spec && spec.optionsKey ? JSON.stringify(S2[spec.optionsKey]) : "";
+          var previousDateTakenFormat = spec && spec.key === "photo_metadata_date_format" ? S2.photo_metadata_date_taken_format : void 0;
+          collectState(d2);
+          var changed = !spec || previousValue !== S2[spec.key] || spec.optionsKey && previousOptions !== JSON.stringify(S2[spec.optionsKey]) || spec.key === "photo_metadata_date_format" && previousDateTakenFormat !== S2.photo_metadata_date_taken_format;
+          if (rendered && changed) handleLiveEvent(d2);
+        } catch (_2) {
         }
         if (!rendered) {
           scheduleTryRender(250);
@@ -2916,13 +1451,13 @@ to {
       if (!logListenerAttached) {
         logListenerAttached = true;
         evtSource.addEventListener("log", function(e) {
-          var d;
+          var d2;
           try {
-            d = JSON.parse(e.data);
-          } catch (_) {
-            d = { msg: e.data };
+            d2 = JSON.parse(e.data);
+          } catch (_2) {
+            d2 = { msg: e.data };
           }
-          appendLog(d.msg || e.data, d.lvl);
+          appendLog(d2.msg || e.data, d2.lvl);
         });
       }
       evtSource.onerror = function() {
@@ -2933,7 +1468,7 @@ to {
       evtSource.onopen = function() {
         handleFirmwareReconnect();
       };
-    } catch (_) {
+    } catch (_2) {
       tryRender();
     }
     scheduleTryRender(250);
@@ -2951,9 +1486,9 @@ to {
     wrap.innerHTML = `<p class="subtitle">Let's connect your photo frame</p>`;
     var steps = el("div", "wizard-steps");
     var s1 = el("div", "step active");
-    var s2 = el("div", "step");
+    var s22 = el("div", "step");
     steps.appendChild(s1);
-    steps.appendChild(s2);
+    steps.appendChild(s22);
     wrap.appendChild(steps);
     var body = el("div");
     wrap.appendChild(body);
@@ -2962,11 +1497,11 @@ to {
       body.replaceChildren();
       if (step === 1) {
         s1.className = "step active";
-        s2.className = "step";
+        s22.className = "step";
         body.appendChild(renderStep1());
       } else {
         s1.className = "step done";
-        s2.className = "step active";
+        s22.className = "step active";
         body.appendChild(renderStep2());
       }
       connectFieldLabels(body);
@@ -2974,7 +1509,7 @@ to {
     function renderStep1() {
       var card = el("div", "card fade-in");
       card.innerHTML = "<h3>Connection</h3>";
-      var urlField = makeConnectionUrlField(S.immich_url);
+      var urlField = makeConnectionUrlField(S2.immich_url);
       var urlInput = urlField.input;
       card.appendChild(urlField.field);
       var f2 = field("API Key");
@@ -2991,13 +1526,13 @@ to {
       var nextBtn = el("button", "btn btn-primary");
       nextBtn.textContent = "Connect";
       nextBtn.onclick = function() {
-        var u = normalizeImmichUrl(urlInput.value);
+        var u = normalizeConnectionUrl(urlInput.value);
         var k = keyInput.value.trim();
         if (!u || !k) return;
         nextBtn.disabled = true;
         nextBtn.textContent = "Saving\u2026";
-        saveAndVerifyConnection(u, k).then(function(connection) {
-          urlInput.value = connection.url;
+        saveAndVerifyConnection({ immich_url: u, api_key: k }).then(function() {
+          urlInput.value = u;
           step = 2;
           showStep();
         }).catch(function() {
@@ -3015,15 +1550,15 @@ to {
       card.innerHTML = "<h3>Clock & timezone</h3>";
       var f1 = field("Clock Format");
       f1.appendChild(
-        selectFromOptions(productSettingOptions("clock_format"), S.clock_format, function(v) {
-          saveSetting("clock_format", v);
+        selectFromOptions(productSettingOptions("clock_format"), S2.clock_format, function(v2) {
+          saveSetting("clock_format", v2);
         })
       );
       card.appendChild(f1);
       var f2 = field("Timezone");
       f2.appendChild(
-        timezoneSelect(S.tz_options, S.timezone, function(v) {
-          saveSetting("timezone", v);
+        timezoneSelect(S2.tz_options, S2.timezone, function(v2) {
+          saveSetting("timezone", v2);
         })
       );
       card.appendChild(f2);
@@ -3076,12 +1611,12 @@ to {
       "rating_enabled",
       "location_enabled"
     ].some(function(key) {
-      return !!S[key];
+      return !!S2[key];
     });
   }
   function makeMemoriesCard() {
     var body = el("div");
-    var memoriesActive = S.photo_source === "Memories";
+    var memoriesActive = S2.photo_source === "Memories";
     var infoBanner = makeMemoriesInfoBanner();
     var memoriesBadge = makeBadge(memoriesActive);
     var memoriesSecondaryFields = [];
@@ -3102,24 +1637,24 @@ to {
       },
       onChange: function(value) {
         if (value) {
-          S.photo_source = "Memories";
+          S2.photo_source = "Memories";
         } else {
-          S.photo_source = hasConfiguredPhotoFilters() ? "Custom" : "All Photos";
+          S2.photo_source = hasConfiguredPhotoFilters() ? "Custom" : "All Photos";
         }
         setBadgeActive(memoriesBadge, value);
         setMemoriesSecondaryVisibility(value);
         syncMemoryFilterUi();
-        saveSetting("photo_source", S.photo_source, { applyPhotoSource: true });
+        saveSetting("photo_source", S2.photo_source, { applyPhotoSource: true });
       }
     });
     body.appendChild(infoBanner);
     body.appendChild(memoriesToggle.field);
-    if (S.memories_migration_notice) {
+    if (S2.memories_migration_notice) {
       var notice = el("div", "banner warning");
       notice.textContent = "Memories is available again as an exclusive On This Day source. Choose it from this panel to enable it. ";
       var dismiss = button("Dismiss", "btn btn-secondary", function() {
         post(endpoints.memories_migration_notice + "/turn_off").then(function() {
-          S.memories_migration_notice = false;
+          S2.memories_migration_notice = false;
           notice.style.display = "none";
         });
       });
@@ -3129,9 +1664,9 @@ to {
     var memoriesWindowField = field("Memories Window");
     memoriesWindowField.appendChild(selectFromOptions(
       productSettingOptions("memories_window"),
-      S.memories_window,
+      S2.memories_window,
       function(value) {
-        S.memories_window = value;
+        S2.memories_window = value;
         saveSetting("memories_window", value, { applyPhotoSource: true });
       },
       function(value) {
@@ -3146,15 +1681,15 @@ to {
     memoriesSecondaryFields.push(memoriesWindowField);
     var memoriesFallbackRow = toggleSettingRow({
       label: "Fallback to All Photos",
-      value: !!S.memories_fallback,
+      value: !!S2.memories_fallback,
       getValue: function() {
-        return !!S.memories_fallback;
+        return !!S2.memories_fallback;
       },
       setValue: function(value) {
-        S.memories_fallback = value;
+        S2.memories_fallback = value;
       },
       onChange: function(value) {
-        S.memories_fallback = value;
+        S2.memories_fallback = value;
         saveSetting("memories_fallback", value, { applyPhotoSource: true });
       }
     });
@@ -3173,19 +1708,12 @@ to {
     function showConnectionError(msg) {
       setStatus(connStatus, msg, "red");
     }
-    var urlField = makeConnectionUrlField(S.immich_url);
+    var urlField = makeConnectionUrlField(S2.immich_url);
     var urlInput = urlField.input;
     urlInput.onchange = function() {
-      var normalized = normalizeImmichUrl(urlInput.value);
-      saveAndVerifyConnectionValue(
-        endpoints.immich_url,
-        normalized,
-        true,
-        function(saved) {
-          return normalizeImmichUrl(saved) === normalized;
-        }
-      ).then(function() {
-        if (S.immich_url === normalized) urlInput.value = normalized;
+      var normalized = normalizeConnectionUrl(urlInput.value);
+      saveAndVerifyConnectionUrl(normalized).then(function() {
+        if (S2.immich_url === normalized) urlInput.value = normalized;
         showSaved("URL saved");
       }).catch(function() {
         showConnectionError("Failed to save URL");
@@ -3194,7 +1722,7 @@ to {
     connBody.appendChild(urlField.field);
     var f2 = field("API Key");
     if (highlightApiKeyAfterRestore) f2.classList.add("api-key-restore-required");
-    var keyConfigured = S.api_key_configured;
+    var keyConfigured = S2.api_key_configured;
     var keyWrap = el("div");
     function showKeyMasked() {
       keyWrap.replaceChildren();
@@ -3212,18 +1740,11 @@ to {
         buttonText: "Save",
         buttonClass: "btn btn-primary",
         onButtonClick: function(keyInput, saveBtn) {
-          var v = keyInput.value.trim();
-          if (!v) return;
+          var v2 = keyInput.value.trim();
+          if (!v2) return;
           saveBtn.disabled = true;
           saveBtn.textContent = "Saving\u2026";
-          saveAndVerifyConnectionValue(
-            endpoints.api_key,
-            v,
-            false,
-            function(saved) {
-              return !!saved;
-            }
-          ).then(function() {
+          saveAndVerifyApiKey(v2).then(function() {
             var wasHighlighted = highlightApiKeyAfterRestore;
             highlightApiKeyAfterRestore = false;
             f2.classList.remove("api-key-restore-required");
@@ -3252,7 +1773,7 @@ to {
   }
   function saveAndVerifyWireguardPrivateKey(value) {
     var privateKey = String(value || "").trim();
-    if (!isValidWireguardKey(privateKey)) return Promise.reject(Error("invalid_wireguard_key"));
+    if (!A(privateKey)) return Promise.reject(Error("invalid_wireguard_key"));
     return settingSaves.save({ wireguard_private_key_configured: true }, function() {
       return apiClient.updateSettings(
         { wireguard_private_key: privateKey },
@@ -3289,18 +1810,18 @@ to {
   }
   function updateWireguardStatus(statusEl, badgeEl) {
     if (!statusEl) return;
-    if (S.wireguard_connected === void 0 || S.wireguard_connected === "") {
+    if (S2.wireguard_connected === void 0 || S2.wireguard_connected === "") {
       statusEl.style.display = "none";
       setBadgeActive(badgeEl, false);
       return;
     }
     statusEl.style.display = "";
-    var running = wireguardSensorOn(S.wireguard_tunnel_enabled);
-    var connected = running && wireguardSensorOn(S.wireguard_connected);
-    var age = running ? formatWireguardHandshakeAge(S.wireguard_handshake_age) : "";
+    var running = wireguardSensorOn(S2.wireguard_tunnel_enabled);
+    var connected = running && wireguardSensorOn(S2.wireguard_connected);
+    var age = running ? p2(S2.wireguard_handshake_age) : "";
     var message = !running ? "Tunnel is off" : connected ? "Connected" : "Not connected";
     if (age) message += " \xB7 last handshake " + age;
-    if (!!S.wireguard_enabled !== running) message += " \xB7 restart to apply the saved setting";
+    if (!!S2.wireguard_enabled !== running) message += " \xB7 restart to apply the saved setting";
     setStatus(statusEl, message, connected ? "green" : running ? "red" : "orange");
     setBadgeActive(badgeEl, connected);
   }
@@ -3308,7 +1829,7 @@ to {
     updateWireguardStatus(document.getElementById("wireguard-status"), document.getElementById("wireguard-badge"));
   }
   function makeWireguardCard() {
-    if (!S.wireguard_available) return null;
+    if (!S2.wireguard_available) return null;
     var body = el("div");
     var tunnelStatus = el("div", "status mb-12");
     tunnelStatus.id = "wireguard-status";
@@ -3324,7 +1845,7 @@ to {
     var restartButton = button("Restart now", "btn btn-secondary btn-sm", function() {
       restartButton.disabled = true;
       restartButton.textContent = "Restarting...";
-      post(endpoints.reboot_screen + "/press").catch(function() {
+      rebootFrame().catch(function() {
       }).finally(function() {
         setTimeout(function() {
           restartButton.disabled = false;
@@ -3344,29 +1865,29 @@ to {
     var detailsBody = el("div");
     var enabled = toggleSettingRow({
       label: "Connect through WireGuard",
-      value: !!S.wireguard_enabled,
+      value: !!S2.wireguard_enabled,
       getValue: function() {
-        return !!S.wireguard_enabled;
+        return !!S2.wireguard_enabled;
       },
       setValue: function(value) {
-        S.wireguard_enabled = value;
+        S2.wireguard_enabled = value;
       },
       details: detailsBody,
       onChange: function() {
-        saveSetting("wireguard_enabled", !!S.wireguard_enabled).then(function() {
+        saveSetting("wireguard_enabled", !!S2.wireguard_enabled).then(function() {
           saved("Saved");
         }, function() {
         });
       }
     });
-    detailsBody.style.display = S.wireguard_enabled ? "" : "none";
+    detailsBody.style.display = S2.wireguard_enabled ? "" : "none";
     body.appendChild(enabled.field);
     function trimmed(value) {
       return String(value == null ? "" : value).trim();
     }
     function textField(label, key, placeholder, hint, maxLength, isValid, invalidMessage, canonical) {
-      var f = field(label);
-      var inputEl = input("text", S[key], placeholder, maxLength);
+      var f2 = field(label);
+      var inputEl = input("text", S2[key], placeholder, maxLength);
       var error = makeFieldError();
       inputEl.onchange = function() {
         var raw = trimmed(inputEl.value);
@@ -3382,14 +1903,14 @@ to {
         }, function() {
         });
       };
-      f.appendChild(inputEl);
-      f.appendChild(error);
+      f2.appendChild(inputEl);
+      f2.appendChild(error);
       if (hint) {
         var hintEl = el("div", "field-hint");
         hintEl.textContent = hint;
-        f.appendChild(hintEl);
+        f2.appendChild(hintEl);
       }
-      return f;
+      return f2;
     }
     detailsBody.appendChild(textField(
       "Server Address",
@@ -3397,16 +1918,16 @@ to {
       "vpn.example.com",
       "Public IP address or hostname of your WireGuard server, such as your router.",
       253,
-      isValidWireguardEndpoint,
+      y,
       "Enter a hostname or IPv4 address without http:// or a port."
     ));
     var portField = field("Server Port");
-    var portInput = input("text", S.wireguard_port, "51820", 5);
+    var portInput = input("text", S2.wireguard_port, "51820", 5);
     portInput.inputMode = "numeric";
     var portError = makeFieldError();
     portInput.onchange = function() {
       var value = trimmed(portInput.value);
-      if (!isValidWireguardPort(value)) {
+      if (!S(value)) {
         portError.textContent = "Enter a port from 1 to 65535.";
         return;
       }
@@ -3425,7 +1946,7 @@ to {
       "192.168.88.200",
       "The address this frame has inside the VPN. It must match the peer you create on the server. Choose an unused address in the same network as your Immich server.",
       15,
-      isValidWireguardAddress,
+      I,
       "Enter an IPv4 address such as 192.168.88.200."
     ));
     detailsBody.appendChild(textField(
@@ -3434,7 +1955,7 @@ to {
       "255.255.255.0",
       "Only traffic inside this network is sent through the VPN. Use the mask of the network Immich is on.",
       15,
-      isValidIpv4Netmask,
+      L,
       "Enter a netmask such as 255.255.255.0."
     ));
     detailsBody.appendChild(textField(
@@ -3444,10 +1965,10 @@ to {
       "Networks reachable through the VPN, separated by commas (up to 4).",
       100,
       function(value) {
-        return !!normalizeWireguardAllowedIps(value);
+        return !!_(value);
       },
       "Enter up to 4 networks such as 192.168.88.0/24.",
-      normalizeWireguardAllowedIps
+      _
     ));
     detailsBody.appendChild(textField(
       "Server Public Key",
@@ -3455,7 +1976,7 @@ to {
       "",
       "The public key of the WireGuard interface on your server.",
       44,
-      isValidWireguardKey,
+      A,
       "Enter a 44-character WireGuard key."
     ));
     var keyField = field("Frame Private Key");
@@ -3492,7 +2013,7 @@ to {
         buttonClass: "btn btn-primary",
         onButtonClick: function(keyInput, saveBtn) {
           var value = trimmed(keyInput.value);
-          if (!isValidWireguardKey(value)) {
+          if (!A(value)) {
             keyError.textContent = "Enter a 44-character WireGuard key.";
             return;
           }
@@ -3510,7 +2031,7 @@ to {
         }
       }).group;
     }
-    if (S.wireguard_private_key_configured) showKeyMasked();
+    if (S2.wireguard_private_key_configured) showKeyMasked();
     else showKeyInput();
     keyField.appendChild(keyWrap);
     keyField.appendChild(keyError);
@@ -3521,7 +2042,16 @@ to {
     body.appendChild(detailsBody);
     body.appendChild(status);
     body.appendChild(restartNotice);
-    return makeCollapsibleCard("WireGuard VPN", body, true, tunnelBadge);
+    var card = makeCollapsibleCard("WireGuard VPN", body, true, tunnelBadge);
+    if (nativeAdmin) {
+      window["espframeWatchWireguard"](card, function(state) {
+        S2.wireguard_connected = state.connected;
+        S2.wireguard_tunnel_enabled = state.running;
+        S2.wireguard_handshake_age = state.handshake_age;
+        updateWireguardStatus(tunnelStatus, tunnelBadge);
+      });
+    }
+    return card;
   }
   function makeFrequencyCard() {
     var dispBody = el("div");
@@ -3530,7 +2060,7 @@ to {
   }
   function makeFiltersCard() {
     var body = el("div");
-    var memoriesActive = S.photo_source === "Memories";
+    var memoriesActive = S2.photo_source === "Memories";
     var filterCard;
     function filtersActive() {
       return !memoriesActive && hasConfiguredPhotoFilters();
@@ -3540,9 +2070,8 @@ to {
       filterBadge.textContent = memoriesActive ? "Disabled" : "On";
       filterBadge.className = "on-badge" + (filtersActive() || memoriesActive ? " active" : "");
     }
-    var version = String(S.immich_server_version || "Unknown");
-    var parts = version.split(".").map(Number);
-    var supportsStructured = parts.length >= 2 && isFinite(parts[0]) && isFinite(parts[1]) && (parts[0] > 3 || parts[0] === 3 && parts[1] >= 2);
+    var [major, minor] = String(S2.immich_server_version || "").split(".").map(Number);
+    var supportsStructured = S2.immich_filter_support === "structured" || isFinite(major) && isFinite(minor) && (major > 3 || major === 3 && minor >= 2);
     var compatibilityUpdates = [];
     function updateCompatibility() {
       compatibilityUpdates.forEach(function(update) {
@@ -3612,9 +2141,9 @@ to {
     body.appendChild(filtersInfoBanner);
     appendDateFilterControls(body, updateFilterBadge);
     function addSelect(label, key, disabled, reason, recoveryValue) {
-      var f = field(label);
-      var control = selectFromOptions(productSettingOptions(key), S[key], function(value) {
-        S[key] = value;
+      var f2 = field(label);
+      var control = selectFromOptions(productSettingOptions(key), S2[key], function(value) {
+        S2[key] = value;
         applySetting(key, value);
       });
       if (disabled && recoveryValue != null) {
@@ -3622,38 +2151,34 @@ to {
           optionEl.disabled = String(optionEl.value) !== String(recoveryValue);
         });
       }
-      f.appendChild(control);
+      f2.appendChild(control);
       if (disabled && reason) {
         var hint = el("div", "setting-hint");
         hint.textContent = reason;
-        f.appendChild(hint);
+        f2.appendChild(hint);
       }
-      body.appendChild(f);
-      return f;
+      body.appendChild(f2);
+      return f2;
     }
     function saveList(editor, idKey, labelKey) {
       var ids = editor.getIdsValue();
       var labels = editor.getLabelsValue();
       editor.error.textContent = "";
-      if (photoIdFieldTooLong(ids) || photoLabelFieldTooLong(labels)) {
+      if (D(ids) || T(labels)) {
         editor.error.textContent = "List exceeds the 255-character device limit.";
         return;
       }
-      if (ids && !isValidUuidList(ids)) {
+      if (ids && !F(ids)) {
         editor.error.textContent = "Invalid UUID format";
         return;
       }
-      S[idKey] = ids;
-      S[labelKey] = labels;
+      saveSettingValues({ [idKey]: ids, [labelKey]: labels }).then(applyPhotoSource).catch(reportSettingSaveFailure);
       updateCompatibility();
-      Promise.all([saveSetting(idKey, ids), saveSetting(labelKey, labels)]).then(function() {
-        return post(endpoints.apply_photo_source + "/press");
-      }).catch(reportSettingSaveFailure);
     }
     function addExclusions(parent, label, idKey, labelKey, noun) {
       var nested = document.createElement("details");
       nested.className = "filter-nested filter-exclusions";
-      nested.open = !!String(S[idKey] || "").trim();
+      nested.open = !!String(S2[idKey] || "").trim();
       var summary = document.createElement("summary");
       summary.textContent = label;
       nested.appendChild(summary);
@@ -3693,12 +2218,12 @@ to {
       var details = el("div", "filter-group-details filter-lists");
       var row = toggleSettingRow({
         label: "Filter by " + label,
-        value: !!S[enabledKey],
+        value: !!S2[enabledKey],
         getValue: function() {
-          return !!S[enabledKey];
+          return !!S2[enabledKey];
         },
         setValue: function(value) {
-          S[enabledKey] = value;
+          S2[enabledKey] = value;
         },
         details,
         onChange: function(value) {
@@ -3710,15 +2235,15 @@ to {
       compatibilityHint.textContent = "Saved exclusions require Immich 3.2 or newer. Remove them below before enabling this group.";
       row.field.appendChild(compatibilityHint);
       function updateGroupCompatibility() {
-        var hasUnsupportedExclusions = !supportsStructured && !!String(S[options.excludedIdKey] || "").trim();
-        var blocked = hasUnsupportedExclusions && !S[enabledKey];
+        var hasUnsupportedExclusions = !supportsStructured && !!String(S2[options.excludedIdKey] || "").trim();
+        var blocked = hasUnsupportedExclusions && !S2[enabledKey];
         row.toggle.onclick = blocked ? function() {
         } : toggleClick;
         row.toggle.setAttribute("aria-disabled", blocked ? "true" : "false");
         row.toggle.setAttribute("tabindex", blocked ? "-1" : "0");
         row.toggle.style.opacity = blocked ? ".35" : "";
         compatibilityHint.style.display = blocked ? "" : "none";
-        details.style.display = S[enabledKey] || hasUnsupportedExclusions ? "" : "none";
+        details.style.display = S2[enabledKey] || hasUnsupportedExclusions ? "" : "none";
       }
       compatibilityUpdates.push(updateGroupCompatibility);
       body.appendChild(row.field);
@@ -3762,7 +2287,7 @@ to {
       });
       inclusionParent.appendChild(editor.field);
       var matchingKey = noun + "_matching";
-      if (String(S[matchingKey] || "").indexOf("All selected") === 0) {
+      if (String(S2[matchingKey] || "").indexOf("All selected") === 0) {
         inclusionParent.appendChild(addSelect(
           "Matching " + label,
           matchingKey,
@@ -3811,19 +2336,19 @@ to {
       var valueControl = valueField.querySelector("select");
       var row = toggleSettingRow({
         label: "Filter by " + label,
-        value: !!S[enabledKey],
-        disabled: disabled && !S[enabledKey],
+        value: !!S2[enabledKey],
+        disabled: disabled && !S2[enabledKey],
         disabledTitle: reason,
         getValue: function() {
-          return !!S[enabledKey];
+          return !!S2[enabledKey];
         },
         setValue: function(value) {
-          S[enabledKey] = value;
+          S2[enabledKey] = value;
         },
         details,
         onChange: function(value) {
-          if (value && (S[settingKey] == null || S[settingKey] === "Any")) {
-            S[settingKey] = defaultValue;
+          if (value && (S2[settingKey] == null || S2[settingKey] === "Any")) {
+            S2[settingKey] = defaultValue;
             valueControl.value = defaultValue;
             saveSetting(settingKey, defaultValue);
           }
@@ -3839,7 +2364,7 @@ to {
       });
       body.appendChild(row.field);
       details.appendChild(valueField);
-      details.style.display = S[enabledKey] ? "" : "none";
+      details.style.display = S2[enabledKey] ? "" : "none";
       body.appendChild(details);
     }
     addValueGroup("Favorites", "favorites_enabled", "favorite_mode", "Favorites only", false, "");
@@ -3854,12 +2379,12 @@ to {
     var locationDetails = el("div", "filter-group-details");
     var locationRow = toggleSettingRow({
       label: "Filter by Location",
-      value: !!S.location_enabled,
+      value: !!S2.location_enabled,
       getValue: function() {
-        return !!S.location_enabled;
+        return !!S2.location_enabled;
       },
       setValue: function(value) {
-        S.location_enabled = value;
+        S2.location_enabled = value;
       },
       details: locationDetails,
       onChange: function(value) {
@@ -3868,8 +2393,8 @@ to {
     });
     body.appendChild(locationRow.field);
     [["Country", "filter_country"], ["State / Province", "filter_state"], ["City", "filter_city"]].forEach(function(spec) {
-      var f = field(spec[0]);
-      var inputEl = input("text", S[spec[1]] || "", "Exact Immich value", productTextMaxLength(spec[1], 96));
+      var f2 = field(spec[0]);
+      var inputEl = input("text", S2[spec[1]] || "", "Exact Immich value", productTextMaxLength(spec[1], 96));
       var hint = el("div", "setting-hint");
       var timer = null;
       inputEl.oninput = function() {
@@ -3877,19 +2402,19 @@ to {
         inputEl.setCustomValidity("");
         clearTimeout(timer);
         timer = setTimeout(function() {
-          S[spec[1]] = nextValue;
+          S2[spec[1]] = nextValue;
           applySetting(spec[1], nextValue);
         }, 600);
       };
-      f.appendChild(inputEl);
-      f.appendChild(hint);
-      locationDetails.appendChild(f);
+      f2.appendChild(inputEl);
+      f2.appendChild(hint);
+      locationDetails.appendChild(f2);
     });
-    locationDetails.style.display = S.location_enabled ? "" : "none";
+    locationDetails.style.display = S2.location_enabled ? "" : "none";
     body.appendChild(locationDetails);
     filterCard = makeCollapsibleCard("Filters", body, true, filterBadge);
     syncMemoryFilterUi = function() {
-      memoriesActive = S.photo_source === "Memories";
+      memoriesActive = S2.photo_source === "Memories";
       updateMemoryFilterLock();
     };
     syncMemoryFilterUi();
@@ -3897,23 +2422,23 @@ to {
   }
   function appendDateFilterControls(parent, onEnabledChange) {
     var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-    function isValidDate(s) {
-      if (!DATE_RE.test(s)) return false;
-      var parts = s.split("-");
-      var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-      return d.getFullYear() === Number(parts[0]) && d.getMonth() === Number(parts[1]) - 1 && d.getDate() === Number(parts[2]);
+    function isValidDate(s4) {
+      if (!DATE_RE.test(s4)) return false;
+      var parts = s4.split("-");
+      var d2 = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      return d2.getFullYear() === Number(parts[0]) && d2.getMonth() === Number(parts[1]) - 1 && d2.getDate() === Number(parts[2]);
     }
     var filterBody = el("div", "filter-group-details");
     var filterApplyTimer = null;
     var filterDetails = el("div");
     var filterToggle = toggleSettingRow({
       label: "Filter by Date",
-      value: S.date_filter_enabled,
+      value: S2.date_filter_enabled,
       getValue: function() {
-        return S.date_filter_enabled;
+        return S2.date_filter_enabled;
       },
       setValue: function(value) {
-        S.date_filter_enabled = value;
+        S2.date_filter_enabled = value;
       },
       details: filterBody,
       onChange: function() {
@@ -3923,13 +2448,13 @@ to {
     });
     parent.appendChild(filterToggle.field);
     var fFilterMode = field("Mode");
-    var modeVal = S.date_filter_mode;
-    var modeSegment = segmentedControl(productSettingOptions("date_filter_mode"), modeVal, function(v) {
-      modeVal = v;
-      updateFilterModeDisplay(v);
+    var modeVal = S2.date_filter_mode;
+    var modeSegment = segmentedControl(productSettingOptions("date_filter_mode"), modeVal, function(v2) {
+      modeVal = v2;
+      updateFilterModeDisplay(v2);
       scheduleFilterApply();
-    }, function(v) {
-      return v === "Relative Range" ? "Relative" : "Fixed";
+    }, function(v2) {
+      return v2 === "Relative Range" ? "Relative" : "Fixed";
     });
     fFilterMode.appendChild(modeSegment);
     filterDetails.appendChild(fFilterMode);
@@ -3937,7 +2462,7 @@ to {
     var fDateFrom = field("From");
     var dateFromInput = document.createElement("input");
     dateFromInput.type = "date";
-    dateFromInput.value = S.date_from || "";
+    dateFromInput.value = S2.date_from || "";
     dateFromInput.placeholder = "YYYY-MM-DD";
     dateFromInput.maxLength = productTextMaxLength("date_from", 10);
     var dateFromError = el("div", "field-error");
@@ -3947,7 +2472,7 @@ to {
     var fDateTo = field("Until");
     var dateToInput = document.createElement("input");
     dateToInput.type = "date";
-    dateToInput.value = S.date_to || "";
+    dateToInput.value = S2.date_to || "";
     dateToInput.placeholder = "YYYY-MM-DD";
     dateToInput.maxLength = productTextMaxLength("date_to", 10);
     var dateToError = el("div", "field-error");
@@ -3965,13 +2490,13 @@ to {
     relativeAmountInput.min = String(relativeAmountMin);
     relativeAmountInput.max = String(relativeAmountMax);
     relativeAmountInput.step = String(relativeAmountStep);
-    relativeAmountInput.value = String(S.relative_amount || 1);
+    relativeAmountInput.value = String(S2.relative_amount || 1);
     var relativeAmountError = el("div", "field-error");
     fRelativeAmount.appendChild(relativeAmountInput);
     fRelativeAmount.appendChild(relativeAmountError);
     relativeWrap.appendChild(fRelativeAmount);
     var fRelativeUnit = field("Unit");
-    var relativeUnitSelect = selectFromOptions(productSettingOptions("relative_unit"), S.relative_unit, function() {
+    var relativeUnitSelect = selectFromOptions(productSettingOptions("relative_unit"), S2.relative_unit, function() {
       scheduleFilterApply();
     });
     fRelativeUnit.appendChild(relativeUnitSelect);
@@ -3981,7 +2506,7 @@ to {
       fixedWrap.style.display = mode === "Relative Range" ? "none" : "";
       relativeWrap.style.display = mode === "Relative Range" ? "" : "none";
     }
-    updateFilterModeDisplay(S.date_filter_mode);
+    updateFilterModeDisplay(S2.date_filter_mode);
     var filterError = el("div", "field-error");
     filterDetails.appendChild(filterError);
     dateFromInput.onchange = scheduleFilterApply;
@@ -3996,19 +2521,19 @@ to {
       var toVal = dateToInput.value.trim();
       var amountVal = Math.round(Number(relativeAmountInput.value));
       var unitVal = relativeUnitSelect.value;
-      if (S.date_filter_enabled && modeVal === "Fixed Range" && fromVal && !isValidDate(fromVal)) {
+      if (S2.date_filter_enabled && modeVal === "Fixed Range" && fromVal && !isValidDate(fromVal)) {
         dateFromError.textContent = "Invalid date \u2014 use YYYY-MM-DD";
         return null;
       }
-      if (S.date_filter_enabled && modeVal === "Fixed Range" && toVal && !isValidDate(toVal)) {
+      if (S2.date_filter_enabled && modeVal === "Fixed Range" && toVal && !isValidDate(toVal)) {
         dateToError.textContent = "Invalid date \u2014 use YYYY-MM-DD";
         return null;
       }
-      if (S.date_filter_enabled && modeVal === "Fixed Range" && fromVal && toVal && fromVal > toVal) {
+      if (S2.date_filter_enabled && modeVal === "Fixed Range" && fromVal && toVal && fromVal > toVal) {
         filterError.textContent = "From must not be after Until";
         return null;
       }
-      if (S.date_filter_enabled && modeVal === "Relative Range" && (!amountVal || amountVal < relativeAmountMin || amountVal > relativeAmountMax)) {
+      if (S2.date_filter_enabled && modeVal === "Relative Range" && (!amountVal || amountVal < relativeAmountMin || amountVal > relativeAmountMax)) {
         relativeAmountError.textContent = "Enter a whole number from " + relativeAmountMin + " to " + relativeAmountMax;
         return null;
       }
@@ -4017,86 +2542,88 @@ to {
     function applyFilterSettings() {
       var vals = readFilterValues();
       if (!vals) return;
-      S.date_filter_mode = modeVal;
-      S.date_from = vals.from;
-      S.date_to = vals.to;
-      S.relative_amount = vals.amount;
-      S.relative_unit = vals.unit;
-      Promise.all([
-        saveSetting("date_filter_enabled", S.date_filter_enabled),
-        saveSetting("date_filter_mode", modeVal),
-        saveSetting("date_from", vals.from),
-        saveSetting("date_to", vals.to),
-        saveSetting("relative_amount", vals.amount),
-        saveSetting("relative_unit", vals.unit)
-      ]).then(function() {
-        return post(endpoints.apply_photo_source + "/press");
-      }).catch(reportSettingSaveFailure);
+      saveSettingValues({
+        date_filter_enabled: S2.date_filter_enabled,
+        date_filter_mode: modeVal,
+        date_from: vals.from,
+        date_to: vals.to,
+        relative_amount: vals.amount,
+        relative_unit: vals.unit
+      }).then(applyPhotoSource).catch(reportSettingSaveFailure);
     }
     function scheduleFilterApply() {
-      clearTimeout(filterApplyTimer);
-      filterApplyTimer = setTimeout(applyFilterSettings, 300);
+      filterApplyTimer = schedulePhotoSetting(filterApplyTimer, applyFilterSettings, 300);
     }
     filterBody.appendChild(filterDetails);
-    filterBody.style.display = S.date_filter_enabled ? "" : "none";
+    filterBody.style.display = S2.date_filter_enabled ? "" : "none";
     parent.appendChild(filterBody);
   }
   function makePortraitPairingCard() {
     var pairingBody = el("div");
     var portraitRotationActive = isPortraitScreenRotation(effectiveScreenRotationForUi());
-    var pairingEnabled = S.portrait_pairing && !portraitRotationActive;
+    var pairingEnabled = S2.portrait_pairing && !portraitRotationActive;
     var pairingOptionsBody = el("div", "portrait-pairing-options");
     var pairingBadge = makeBadge(pairingEnabled);
     var pairingToggle = toggleSettingRow({
       label: "Portrait Pairing",
       value: pairingEnabled,
       getValue: function() {
-        return S.portrait_pairing;
+        return S2.portrait_pairing;
       },
       setValue: function(value) {
-        S.portrait_pairing = value;
+        S2.portrait_pairing = value;
       },
       disabled: portraitRotationActive,
       disabledTitle: "Portrait pairing is disabled while the screen is in portrait rotation",
       onChange: function() {
-        pairingOptionsBody.style.display = S.portrait_pairing && !portraitRotationActive ? "" : "none";
-        setBadgeActive(pairingBadge, S.portrait_pairing && !portraitRotationActive);
-        saveSetting("portrait_pairing", S.portrait_pairing);
+        pairingOptionsBody.style.display = S2.portrait_pairing && !portraitRotationActive ? "" : "none";
+        setBadgeActive(pairingBadge, S2.portrait_pairing && !portraitRotationActive);
+        saveSetting("portrait_pairing", S2.portrait_pairing);
       }
     });
     var pairingOptionsDisabledTitle = portraitRotationActive ? "Portrait pairing is disabled while the screen is in portrait rotation" : "Turn on Portrait Pairing to use this option";
     pairingOptionsBody.appendChild(toggleSettingRow({
       label: "Show Paired Portraits Only",
-      value: S.portrait_pairs_only,
+      value: S2.portrait_pairs_only,
       getValue: function() {
-        return S.portrait_pairs_only;
+        return S2.portrait_pairs_only;
       },
       setValue: function(value) {
-        S.portrait_pairs_only = value;
+        S2.portrait_pairs_only = value;
       },
       disabled: portraitRotationActive,
       disabledTitle: pairingOptionsDisabledTitle,
       onChange: function() {
-        saveSetting("portrait_pairs_only", S.portrait_pairs_only);
+        saveSetting("portrait_pairs_only", S2.portrait_pairs_only);
       }
     }).field);
     var fPairingRange = field("Pairing Range");
     var pairingRangeSelect = selectFromOptions(
       productSettingOptions("portrait_pairing_range"),
-      S.portrait_pairing_range,
-      function(v) {
-        saveSetting("portrait_pairing_range", v);
+      S2.portrait_pairing_range,
+      function(v2) {
+        saveSetting("portrait_pairing_range", v2);
       },
-      function(v) {
-        if (v === "Within 1 Day") return "\xB11 Day";
-        if (v === "Within 2 Days") return "\xB12 Days";
-        return v;
+      function(v2) {
+        if (v2 === "Within 1 Day") return "\xB11 Day";
+        if (v2 === "Within 2 Days") return "\xB12 Days";
+        return v2;
       }
     );
     pairingRangeSelect.disabled = portraitRotationActive;
     if (portraitRotationActive) pairingRangeSelect.title = pairingOptionsDisabledTitle;
     fPairingRange.appendChild(pairingRangeSelect);
     pairingOptionsBody.appendChild(fPairingRange);
+    if (nativeSettings.has("portrait_pair_framing")) {
+      pairingOptionsBody.appendChild(window["espframePairFraming"](
+        field,
+        selectFromOptions,
+        S2.portrait_pair_framing,
+        function(value) {
+          saveSetting("portrait_pair_framing", value);
+        }
+      ));
+    }
     pairingBody.appendChild(pairingToggle.field);
     pairingOptionsBody.style.display = pairingEnabled ? "" : "none";
     pairingBody.appendChild(pairingOptionsBody);
@@ -4107,35 +2634,35 @@ to {
     var photoBody = el("div");
     var fPhotoOrientation = field("Display Photos");
     fPhotoOrientation.appendChild(
-      selectFromOptions(productSettingOptions("photo_orientation"), S.photo_orientation, function(v) {
-        saveSetting("photo_orientation", v);
+      selectFromOptions(productSettingOptions("photo_orientation"), S2.photo_orientation, function(v2) {
+        saveSetting("photo_orientation", v2);
       })
     );
     photoBody.appendChild(fPhotoOrientation);
     var fDisplayMode = field("Display Mode");
     fDisplayMode.appendChild(
-      selectFromOptions(productSettingOptions("display_mode"), S.display_mode, function(v) {
-        saveSetting("display_mode", v);
-      }, function(v) {
-        return v === "Fill" ? "Crop to fit" : "Show full image";
+      selectFromOptions(productSettingOptions("display_mode"), S2.display_mode, function(v2) {
+        saveSetting("display_mode", v2);
+      }, function(v2) {
+        return v2 === "Fill" ? "Crop to fit" : "Show full image";
       })
     );
     photoBody.appendChild(fDisplayMode);
     var fTransition = field("Transition");
     fTransition.appendChild(
-      selectFromOptions(productSettingOptions("transition"), S.transition, function(v) {
-        saveSetting("transition", v);
+      selectFromOptions(productSettingOptions("transition"), S2.transition, function(v2) {
+        saveSetting("transition", v2);
       })
     );
     photoBody.appendChild(fTransition);
     var fTransitionSpeed = field("Transition Speed");
     fTransitionSpeed.appendChild(
-      selectFromOptions(productSettingOptions("transition_speed"), S.transition_speed, function(v) {
-        saveSetting("transition_speed", v);
-      }, function(v) {
-        if (v === "Fast") return "Fast (0.5s)";
-        if (v === "Slow") return "Slow (1.5s)";
-        return v === "Normal" ? "Normal (1s)" : v;
+      selectFromOptions(productSettingOptions("transition_speed"), S2.transition_speed, function(v2) {
+        saveSetting("transition_speed", v2);
+      }, function(v2) {
+        if (v2 === "Fast") return "Fast (0.5s)";
+        if (v2 === "Slow") return "Slow (1.5s)";
+        return v2 === "Normal" ? "Normal (1s)" : v2;
       })
     );
     photoBody.appendChild(fTransitionSpeed);
@@ -4143,60 +2670,60 @@ to {
   }
   function makeMetadataCard() {
     function metadataIsActive() {
-      return S.photo_metadata_date_enabled || S.photo_metadata_location_enabled;
+      return S2.photo_metadata_date_enabled || S2.photo_metadata_location_enabled;
     }
     var metadataBadge = makeBadge(metadataIsActive());
     var metadataBody = el("div");
     var metadataDateDetails = el("div");
     var fMetadataDateTakenFormat = null;
     function refreshMetadataDetails() {
-      metadataDateDetails.style.display = S.photo_metadata_date_enabled ? "" : "none";
+      metadataDateDetails.style.display = S2.photo_metadata_date_enabled ? "" : "none";
       if (fMetadataDateTakenFormat) {
-        fMetadataDateTakenFormat.style.display = S.photo_metadata_date_enabled && S.photo_metadata_date_format === "Date Taken" ? "" : "none";
+        fMetadataDateTakenFormat.style.display = S2.photo_metadata_date_enabled && S2.photo_metadata_date_format === "Date Taken" ? "" : "none";
       }
       metadataBadge.className = "on-badge" + (metadataIsActive() ? " active" : "");
     }
     var fMetadataDate = toggleSettingRow({
       label: "Date",
-      value: S.photo_metadata_date_enabled,
+      value: S2.photo_metadata_date_enabled,
       getValue: function() {
-        return S.photo_metadata_date_enabled;
+        return S2.photo_metadata_date_enabled;
       },
       setValue: function(value) {
-        S.photo_metadata_date_enabled = value;
+        S2.photo_metadata_date_enabled = value;
       },
       onChange: function() {
         refreshMetadataDetails();
-        saveSetting("photo_metadata_date_enabled", S.photo_metadata_date_enabled);
+        saveSetting("photo_metadata_date_enabled", S2.photo_metadata_date_enabled);
       }
     }).field;
     var fMetadataDateFormat = field("Date Format");
     fMetadataDateFormat.appendChild(
-      selectFromOptions(productSettingOptions("photo_metadata_date_format"), S.photo_metadata_date_format, function(v) {
-        saveSetting("photo_metadata_date_format", v);
+      selectFromOptions(productSettingOptions("photo_metadata_date_format"), S2.photo_metadata_date_format, function(v2) {
+        saveSetting("photo_metadata_date_format", v2);
         refreshMetadataDetails();
       })
     );
     metadataDateDetails.appendChild(fMetadataDateFormat);
     fMetadataDateTakenFormat = field("Date Taken Format");
     fMetadataDateTakenFormat.appendChild(
-      selectFromOptions(productSettingOptions("photo_metadata_date_taken_format"), S.photo_metadata_date_taken_format, function(v) {
-        saveSetting("photo_metadata_date_taken_format", v);
+      selectFromOptions(productSettingOptions("photo_metadata_date_taken_format"), S2.photo_metadata_date_taken_format, function(v2) {
+        saveSetting("photo_metadata_date_taken_format", v2);
       })
     );
     metadataDateDetails.appendChild(fMetadataDateTakenFormat);
     var fMetadataLocation = toggleSettingRow({
       label: "Location",
-      value: S.photo_metadata_location_enabled,
+      value: S2.photo_metadata_location_enabled,
       getValue: function() {
-        return S.photo_metadata_location_enabled;
+        return S2.photo_metadata_location_enabled;
       },
       setValue: function(value) {
-        S.photo_metadata_location_enabled = value;
+        S2.photo_metadata_location_enabled = value;
       },
       onChange: function() {
         refreshMetadataDetails();
-        saveSetting("photo_metadata_location_enabled", S.photo_metadata_location_enabled);
+        saveSetting("photo_metadata_location_enabled", S2.photo_metadata_location_enabled);
       }
     }).field;
     metadataBody.appendChild(fMetadataLocation);
@@ -4229,26 +2756,26 @@ to {
     return makeCollapsibleCard("Screen Brightness", dnDetails, true);
   }
   function makeScreenToneCard() {
-    var toneBadge = makeBadge(S.base_tone_enabled || S.warm_tones_enabled);
+    var toneBadge = makeBadge(S2.base_tone_enabled || S2.warm_tones_enabled);
     var warmBody = el("div");
     var baseDetails = el("div");
-    baseDetails.style.display = S.base_tone_enabled ? "" : "none";
+    baseDetails.style.display = S2.base_tone_enabled ? "" : "none";
     var fBaseToneToggle = toggleSettingRow({
       label: "Screen Tone Adjustment",
-      value: S.base_tone_enabled,
+      value: S2.base_tone_enabled,
       getValue: function() {
-        return S.base_tone_enabled;
+        return S2.base_tone_enabled;
       },
       setValue: function(value) {
-        S.base_tone_enabled = value;
+        S2.base_tone_enabled = value;
       },
       details: baseDetails,
       badge: toneBadge,
       badgeActive: function() {
-        return S.base_tone_enabled || S.warm_tones_enabled;
+        return S2.base_tone_enabled || S2.warm_tones_enabled;
       },
       onChange: function() {
-        saveSetting("base_tone_enabled", S.base_tone_enabled);
+        saveSetting("base_tone_enabled", S2.base_tone_enabled);
       }
     }).field;
     fBaseToneToggle.style.marginBottom = "8px";
@@ -4263,23 +2790,23 @@ to {
     baseDetails.style.marginBottom = "28px";
     warmBody.appendChild(baseDetails);
     var nightDetails = el("div");
-    nightDetails.style.display = S.warm_tones_enabled ? "" : "none";
+    nightDetails.style.display = S2.warm_tones_enabled ? "" : "none";
     var fWarmToggle = toggleSettingRow({
       label: "Night Tone Adjustment",
-      value: S.warm_tones_enabled,
+      value: S2.warm_tones_enabled,
       getValue: function() {
-        return S.warm_tones_enabled;
+        return S2.warm_tones_enabled;
       },
       setValue: function(value) {
-        S.warm_tones_enabled = value;
+        S2.warm_tones_enabled = value;
       },
       details: nightDetails,
       badge: toneBadge,
       badgeActive: function() {
-        return S.base_tone_enabled || S.warm_tones_enabled;
+        return S2.base_tone_enabled || S2.warm_tones_enabled;
       },
       onChange: function() {
-        saveSetting("warm_tones_enabled", S.warm_tones_enabled);
+        saveSetting("warm_tones_enabled", S2.warm_tones_enabled);
       }
     }).field;
     fWarmToggle.style.marginBottom = "8px";
@@ -4293,38 +2820,38 @@ to {
     }).field);
     nightDetails.appendChild(toggleSettingRow({
       label: "Turn on until sunrise",
-      value: S.warm_tone_override,
+      value: S2.warm_tone_override,
       getValue: function() {
-        return S.warm_tone_override;
+        return S2.warm_tone_override;
       },
       setValue: function(value) {
-        S.warm_tone_override = value;
+        S2.warm_tone_override = value;
       },
       onChange: function() {
-        saveSetting("warm_tone_override", S.warm_tone_override);
+        saveSetting("warm_tone_override", S2.warm_tone_override);
       }
     }).field);
     warmBody.appendChild(nightDetails);
     return makeCollapsibleCard("Screen Tone", warmBody, true, toneBadge);
   }
   function makeNightScheduleCard() {
-    var schedBadge = makeBadge(S.schedule_enabled);
+    var schedBadge = makeBadge(S2.schedule_enabled);
     var schedBody = el("div");
     var schedDetails = el("div");
-    schedDetails.style.display = S.schedule_enabled ? "" : "none";
+    schedDetails.style.display = S2.schedule_enabled ? "" : "none";
     schedBody.appendChild(toggleSettingRow({
       label: "Schedule Screen Off",
-      value: S.schedule_enabled,
+      value: S2.schedule_enabled,
       getValue: function() {
-        return S.schedule_enabled;
+        return S2.schedule_enabled;
       },
       setValue: function(value) {
-        S.schedule_enabled = value;
+        S2.schedule_enabled = value;
       },
       details: schedDetails,
       badge: schedBadge,
       onChange: function() {
-        saveSetting("schedule_enabled", S.schedule_enabled);
+        saveSetting("schedule_enabled", S2.schedule_enabled);
       }
     }).field);
     schedDetails.appendChild(hourSelectSettingField("On Time", "schedule_on_hour"));
@@ -4332,10 +2859,10 @@ to {
     var fWakeTimeout = field("When Woken, Idle Time To Screen Off");
     var scheduleWakeMin = productNumberMin("schedule_wake_timeout", 10);
     var scheduleWakeMax = productNumberMax("schedule_wake_timeout", 3600);
-    var scheduleWakeOptions = [10, 30, 60, 120, 300, 600, 1800, 3600].filter(function(v) {
-      return v >= scheduleWakeMin && v <= scheduleWakeMax;
+    var scheduleWakeOptions = [10, 30, 60, 120, 300, 600, 1800, 3600].filter(function(v2) {
+      return v2 >= scheduleWakeMin && v2 <= scheduleWakeMax;
     });
-    var scheduleWakeCurrent = normalizeScheduleWakeTimeout(S.schedule_wake_timeout);
+    var scheduleWakeCurrent = normalizeScheduleWakeTimeout(S2.schedule_wake_timeout);
     if (scheduleWakeOptions.indexOf(scheduleWakeCurrent) === -1) {
       scheduleWakeOptions.push(scheduleWakeCurrent);
       scheduleWakeOptions.sort(function(a, b) {
@@ -4343,8 +2870,8 @@ to {
       });
     }
     fWakeTimeout.appendChild(
-      selectFromOptions(scheduleWakeOptions, scheduleWakeCurrent, function(v) {
-        saveSetting("schedule_wake_timeout", v);
+      selectFromOptions(scheduleWakeOptions, scheduleWakeCurrent, function(v2) {
+        saveSetting("schedule_wake_timeout", v2);
       }, formatDurationSeconds)
     );
     schedDetails.appendChild(fWakeTimeout);
@@ -4356,11 +2883,11 @@ to {
     var fRotation = field("Rotation");
     var rotationOptions = screenRotationOptionsForUi();
     fRotation.appendChild(
-      selectFromOptions(rotationOptions, effectiveScreenRotationForUi(), function(v) {
-        saveSetting("screen_rotation", v);
+      selectFromOptions(rotationOptions, effectiveScreenRotationForUi(), function(v2) {
+        saveSetting("screen_rotation", v2);
         renderSettings();
-      }, function(v) {
-        return v + " degrees";
+      }, function(v2) {
+        return v2 + " degrees";
       })
     );
     rotationBody.appendChild(fRotation);
@@ -4369,7 +2896,7 @@ to {
   function makeLanguageCard() {
     var body = el("div");
     body.appendChild(productSelectSettingField("Language", "device_language", {
-      optionDisplayFn: function(v) {
+      optionDisplayFn: function(v2) {
         return {
           en: "English",
           cs: "\u010Ce\u0161tina (Czech)",
@@ -4393,45 +2920,46 @@ to {
           sv: "Svenska (Swedish)",
           tr: "T\xFCrk\xE7e (Turkish)",
           uk: "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430 (Ukrainian)"
-        }[v] || v;
+        }[v2] || v2;
       }
     }));
     return makeCollapsibleCard("Language", body, true);
   }
   function makeClockCard() {
-    var clockBadge = makeBadge(S.show_clock);
+    var clockBadge = makeBadge(S2.show_clock);
     var clkBody = el("div");
     clkBody.appendChild(toggleSettingRow({
       label: "Show Clock",
-      value: S.show_clock,
+      value: S2.show_clock,
       getValue: function() {
-        return S.show_clock;
+        return S2.show_clock;
       },
       setValue: function(value) {
-        S.show_clock = value;
+        S2.show_clock = value;
       },
       badge: clockBadge,
       onChange: function() {
-        saveSetting("show_clock", S.show_clock);
+        saveSetting("show_clock", S2.show_clock);
       }
     }).field);
     var f6 = field("Format");
     f6.appendChild(
-      selectFromOptions(productSettingOptions("clock_format"), S.clock_format, function(v) {
-        saveSetting("clock_format", v);
+      selectFromOptions(productSettingOptions("clock_format"), S2.clock_format, function(v2) {
+        saveSetting("clock_format", v2);
       })
     );
     clkBody.appendChild(f6);
     var f7 = field("Timezone");
     f7.appendChild(
-      timezoneSelect(S.tz_options, S.timezone, function(v) {
-        saveSetting("timezone", v);
+      timezoneSelect(S2.tz_options, S2.timezone, function(v2) {
+        saveSetting("timezone", v2);
       })
     );
     clkBody.appendChild(f7);
     clkBody.appendChild(makeInlineDisclosure("Advanced", ntpServersField(), false));
     return makeCollapsibleCard("Clock", clkBody, true, clockBadge);
   }
+  var nativeFirmware;
   function parseFirmwareVersion(value) {
     var match = /^v([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/i.exec(String(value || "").trim());
     if (!match) return null;
@@ -4471,10 +2999,10 @@ to {
     return String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
   }
   function installedFirmwareVersion() {
-    return String(S.firmware || S.installed_version || "").trim();
+    return String(S2.firmware || S2.installed_version || "").trim();
   }
   function firmwareDeviceSlug() {
-    return String(S.firmware_device || "").trim();
+    return String(S2.firmware_device || "").trim();
   }
   function firmwarePublicManifestUrl() {
     var slug = firmwareDeviceSlug();
@@ -4494,7 +3022,7 @@ to {
       var baseDirectory = base.pathname.slice(0, base.pathname.lastIndexOf("/") + 1);
       if (resolved.origin !== base.origin || resolved.pathname.indexOf(baseDirectory) !== 0) return "";
       return resolved.href;
-    } catch (_) {
+    } catch (_2) {
       return "";
     }
   }
@@ -4533,9 +3061,9 @@ to {
   }
   function previousFirmwareInfos() {
     var installed = installedFirmwareVersion();
-    var latest = S.firmware_version_options && S.firmware_version_options.length ? S.firmware_version_options[0].version : S.latest_version;
+    var latest = S2.firmware_version_options && S2.firmware_version_options.length ? S2.firmware_version_options[0].version : S2.latest_version;
     var latestIsUpdate = compareFirmwareVersions(latest, installed) > 0;
-    return (S.firmware_version_options || []).filter(function(info) {
+    return (S2.firmware_version_options || []).filter(function(info) {
       if (firmwareVersionsSame(info.version, installed)) return false;
       return !latestIsUpdate || !firmwareVersionsSame(info.version, latest);
     });
@@ -4543,22 +3071,23 @@ to {
   function selectedPreviousFirmwareInfo() {
     var infos = previousFirmwareInfos();
     for (var i = 0; i < infos.length; i++) {
-      if (firmwareVersionsSame(infos[i].version, S.firmware_selected_version)) return infos[i];
+      if (firmwareVersionsSame(infos[i].version, S2.firmware_selected_version)) return infos[i];
     }
     return infos.length ? infos[0] : null;
   }
   function latestFirmwareInfo() {
-    return S.firmware_version_options && S.firmware_version_options.length ? S.firmware_version_options[0] : null;
+    return S2.firmware_version_options && S2.firmware_version_options.length ? S2.firmware_version_options[0] : null;
   }
   function firmwareUpdateKnownAvailable() {
     var installed = installedFirmwareVersion();
-    var latest = String(S.latest_version || "").trim();
+    var latest = String(S2.latest_version || "").trim();
     var comparison = compareFirmwareVersions(latest, installed);
-    return comparison === null ? !!S.update_available : comparison > 0;
+    return comparison === null ? !!S2.update_available : comparison > 0;
   }
   function c6FirmwareUpdateKnownAvailable() {
-    var current = String(S.c6_current_firmware || "").trim();
-    var latest = String(S.c6_available_firmware || "").trim();
+    var current = String(S2.c6_current_firmware || "").trim();
+    var latest = String(S2.c6_available_firmware || "").trim();
+    if (nativeAdmin) return compareFirmwareVersions("v" + latest, "v" + current) > 0;
     return /\d/.test(current) && /\d/.test(latest) && !firmwareVersionsSame(current, latest);
   }
   function refreshPreviousFirmwareUi() {
@@ -4580,96 +3109,96 @@ to {
       });
     }
     var selected = selectedPreviousFirmwareInfo();
-    S.firmware_selected_version = selected ? selected.version : "";
-    els.fwVersionSelect.value = S.firmware_selected_version;
-    els.fwPreviousPanel.style.display = S.firmware_versions_loaded && infos.length ? "" : "none";
-    var busy = !!(S.firmware_checking || S.firmware_installing || S.firmware_uploading);
+    S2.firmware_selected_version = selected ? selected.version : "";
+    els.fwVersionSelect.value = S2.firmware_selected_version;
+    els.fwPreviousPanel.style.display = S2.firmware_versions_loaded && infos.length ? "" : "none";
+    var busy = !!(S2.firmware_checking || S2.firmware_installing || S2.firmware_uploading) || nativeAdmin && !(nativeFirmware == null ? void 0 : nativeFirmware.isAvailable());
     els.fwVersionSelect.disabled = busy;
     if (els.fwPreviousInstallBtn) {
       els.fwPreviousInstallBtn.disabled = busy || !selected;
-      if (S.firmware_uploading) els.fwPreviousInstallBtn.textContent = "Uploading\u2026";
-      else if (S.firmware_installing) els.fwPreviousInstallBtn.textContent = "Installing\u2026";
+      if (S2.firmware_uploading) els.fwPreviousInstallBtn.textContent = "Uploading\u2026";
+      else if (S2.firmware_installing) els.fwPreviousInstallBtn.textContent = "Installing\u2026";
       else els.fwPreviousInstallBtn.textContent = "Install";
     }
   }
   function refreshFirmwareUi() {
     if (els.fwCurrentVersion) els.fwCurrentVersion.textContent = displayVersion(installedFirmwareVersion(), "Dev");
     if (els.fwLatestVersion) {
-      els.fwLatestVersion.textContent = isSpecificFirmwareVersion(S.latest_version) ? S.latest_version : S.firmware_checking ? "Checking\u2026" : "Not checked";
+      els.fwLatestVersion.textContent = isSpecificFirmwareVersion(S2.latest_version) ? S2.latest_version : S2.firmware_checking ? "Checking\u2026" : "Not checked";
     }
     var available = firmwareUpdateKnownAvailable();
     setDisclosureBadgeActive(els.firmwareUpdatesBadge, available);
-    setDisclosureBadgeActive(els.autoUpdateBadge, !!S.auto_update);
+    setDisclosureBadgeActive(els.autoUpdateBadge, !!S2.auto_update);
     setBadgeActive(els.firmwareCardBadge, available || c6FirmwareUpdateKnownAvailable());
-    if (els.fwAutoToggle) els.fwAutoToggle.className = S.auto_update ? "toggle on" : "toggle";
-    if (els.fwFrequencyField) els.fwFrequencyField.style.display = S.auto_update ? "" : "none";
+    if (els.fwAutoToggle) els.fwAutoToggle.className = S2.auto_update ? "toggle on" : "toggle";
+    if (els.fwFrequencyField) els.fwFrequencyField.style.display = S2.auto_update ? "" : "none";
     if (els.fwStatus) {
-      els.fwStatus.className = "fw-status" + (S.firmware_install_error ? " error" : "");
-      els.fwStatus.textContent = S.firmware_install_error || "";
+      els.fwStatus.className = "fw-status" + (S2.firmware_install_error ? " error" : "");
+      els.fwStatus.textContent = S2.firmware_install_error || "";
     }
     if (els.fwActionBtn) {
-      var busy = !!(S.firmware_checking || S.firmware_installing || S.firmware_uploading);
-      els.fwActionBtn.disabled = busy;
-      if (S.firmware_uploading) els.fwActionBtn.textContent = "Uploading\u2026";
-      else if (S.firmware_installing) els.fwActionBtn.textContent = "Installing\u2026";
-      else if (S.firmware_checking) els.fwActionBtn.textContent = "Checking\u2026";
+      var busy = !!(S2.firmware_checking || S2.firmware_installing || S2.firmware_uploading);
+      els.fwActionBtn.disabled = busy || nativeAdmin && !(nativeFirmware == null ? void 0 : nativeFirmware.isAvailable());
+      if (S2.firmware_uploading) els.fwActionBtn.textContent = "Uploading\u2026";
+      else if (S2.firmware_installing) els.fwActionBtn.textContent = "Installing\u2026";
+      else if (S2.firmware_checking) els.fwActionBtn.textContent = "Checking\u2026";
       else els.fwActionBtn.textContent = available ? "Install Update" : "Check for Update";
     }
     refreshPreviousFirmwareUi();
   }
   function refreshC6FirmwareUi() {
-    if (els.c6FirmwareCurrent) els.c6FirmwareCurrent.textContent = displayVersion(S.c6_current_firmware, "Unknown");
-    if (els.c6FirmwareLatest) els.c6FirmwareLatest.textContent = displayVersion(S.c6_available_firmware, "Unknown");
+    if (els.c6FirmwareCurrent) els.c6FirmwareCurrent.textContent = displayVersion(S2.c6_current_firmware, "Unknown");
+    if (els.c6FirmwareLatest) els.c6FirmwareLatest.textContent = displayVersion(S2.c6_available_firmware, "Unknown");
     var available = c6FirmwareUpdateKnownAvailable();
     setDisclosureBadgeActive(els.c6FirmwareBadge, available);
     setBadgeActive(els.firmwareCardBadge, firmwareUpdateKnownAvailable() || available);
-    if (els.c6AutoToggle) els.c6AutoToggle.className = S.c6_auto_update ? "toggle on" : "toggle";
+    if (els.c6AutoToggle) els.c6AutoToggle.className = S2.c6_auto_update ? "toggle on" : "toggle";
     if (els.c6FirmwareStatus) {
-      var status = String(S.c6_update_status || "");
-      if (S.c6_firmware_installing) els.c6FirmwareStatus.textContent = "Installing\u2026";
-      else if (S.c6_firmware_checking) els.c6FirmwareStatus.textContent = "Checking\u2026";
+      var status = String(S2.c6_update_status || "");
+      if (S2.c6_firmware_installing) els.c6FirmwareStatus.textContent = "Installing\u2026";
+      else if (S2.c6_firmware_checking) els.c6FirmwareStatus.textContent = "Checking\u2026";
       else els.c6FirmwareStatus.textContent = (!available || /^Could not/.test(status)) && status && status !== "Unknown" ? status : "";
     }
     if (els.c6FirmwareActionBtn) {
-      var busy = !!(S.c6_firmware_checking || S.c6_firmware_installing);
+      var busy = !!(S2.c6_firmware_checking || S2.c6_firmware_installing);
       els.c6FirmwareActionBtn.disabled = busy;
-      if (S.c6_firmware_installing) els.c6FirmwareActionBtn.textContent = "Installing\u2026";
-      else if (S.c6_firmware_checking) els.c6FirmwareActionBtn.textContent = "Checking\u2026";
+      if (S2.c6_firmware_installing) els.c6FirmwareActionBtn.textContent = "Installing\u2026";
+      else if (S2.c6_firmware_checking) els.c6FirmwareActionBtn.textContent = "Checking\u2026";
       else els.c6FirmwareActionBtn.textContent = available ? "Update WiFi Firmware" : "Check for Update";
     }
   }
   function fetchPublicFirmwareVersions() {
-    if (S.firmware_versions_loading) return Promise.resolve(S.firmware_version_options || []);
+    if (S2.firmware_versions_loading) return Promise.resolve(S2.firmware_version_options || []);
     var versionsUrl = firmwarePublicVersionsUrl();
     if (!versionsUrl) return Promise.resolve([]);
-    S.firmware_versions_loading = true;
+    S2.firmware_versions_loading = true;
     return fetch(versionsUrl, { cache: "no-store" }).then(function(response) {
       if (!response.ok) throw new Error("version_index_unavailable");
       return response.json();
     }).then(function(data) {
       var infos = firmwareInfosFromVersionsIndex(data);
-      S.firmware_version_options = infos;
-      S.firmware_versions_loaded = true;
-      if (infos.length) S.latest_version = infos[0].version;
+      S2.firmware_version_options = infos;
+      S2.firmware_versions_loaded = true;
+      if (infos.length) S2.latest_version = infos[0].version;
       refreshFirmwareUi();
       return infos;
     }).catch(function() {
-      S.firmware_version_options = [];
-      S.firmware_versions_loaded = true;
+      S2.firmware_version_options = [];
+      S2.firmware_versions_loaded = true;
       refreshFirmwareUi();
       return [];
     }).finally(function() {
-      S.firmware_versions_loading = false;
+      S2.firmware_versions_loading = false;
     });
   }
   function applyFirmwareUpdateResponse(data) {
     if (!data) return false;
-    if (data.current_version) S.installed_version = String(data.current_version);
-    if (data.latest_version || data.value) S.latest_version = String(data.latest_version || data.value);
-    var comparison = compareFirmwareVersions(S.latest_version, installedFirmwareVersion());
-    S.update_available = comparison === null ? data.state === "UPDATE AVAILABLE" : comparison > 0;
+    if (data.current_version) S2.installed_version = String(data.current_version);
+    if (data.latest_version || data.value) S2.latest_version = String(data.latest_version || data.value);
+    var comparison = compareFirmwareVersions(S2.latest_version, installedFirmwareVersion());
+    S2.update_available = comparison === null ? data.state === "UPDATE AVAILABLE" : comparison > 0;
     refreshFirmwareUi();
-    return S.update_available;
+    return S2.update_available;
   }
   function firmwareUpdateResponseResolved(data) {
     if (!data) return false;
@@ -4687,23 +3216,24 @@ to {
     });
   }
   function markFirmwareRestartPending() {
-    S.firmware_uploading = false;
-    S.firmware_installing = true;
-    S.firmware_restart_pending = true;
+    S2.firmware_uploading = false;
+    S2.firmware_installing = true;
+    S2.firmware_restart_pending = true;
     showBanner("Firmware uploaded. Waiting for the display to restart\u2026", "success");
     refreshFirmwareUi();
   }
   function failFirmwareInstall(message) {
-    S.firmware_uploading = false;
-    S.firmware_installing = false;
-    S.firmware_install_error = message || "Firmware update failed.";
-    showBanner(S.firmware_install_error, "error");
+    S2.firmware_uploading = false;
+    S2.firmware_installing = false;
+    S2.firmware_install_error = message || "Firmware update failed.";
+    showBanner(S2.firmware_install_error, "error");
     refreshFirmwareUi();
   }
   function installPublicFirmware(info) {
-    if (!info || !info.ota_url || S.firmware_uploading || S.firmware_installing) return Promise.resolve(false);
-    S.firmware_install_error = "";
-    S.firmware_uploading = true;
+    if (nativeAdmin && info) return nativeFirmware.request(info.version);
+    if (!info || !info.ota_url || S2.firmware_uploading || S2.firmware_installing) return Promise.resolve(false);
+    S2.firmware_install_error = "";
+    S2.firmware_uploading = true;
     refreshFirmwareUi();
     var uploadStarted = false;
     var uploadResponseReceived = false;
@@ -4749,22 +3279,24 @@ to {
   }
   function startFirmwareInstall() {
     if (!firmwareUpdateKnownAvailable()) return;
-    S.firmware_install_error = "";
-    S.firmware_installing = true;
+    if (nativeAdmin) return installPublicFirmware(latestFirmwareInfo());
+    S2.firmware_install_error = "";
+    S2.firmware_installing = true;
     refreshFirmwareUi();
     post(endpoints.update + "/install").then(function() {
-      S.firmware_restart_pending = true;
+      S2.firmware_restart_pending = true;
     }).catch(function() {
       var info = latestFirmwareInfo();
-      S.firmware_installing = false;
+      S2.firmware_installing = false;
       if (info) return installPublicFirmware(info);
       failFirmwareInstall("Could not start the firmware update.");
     });
   }
   function checkFirmwareUpdate(installAfterCheck) {
-    if (S.firmware_checking || S.firmware_installing) return;
-    S.firmware_install_error = "";
-    S.firmware_checking = true;
+    if (S2.firmware_checking || S2.firmware_installing) return;
+    if (nativeAdmin) return nativeFirmware.request("");
+    S2.firmware_install_error = "";
+    S2.firmware_checking = true;
     refreshFirmwareUi();
     var deviceCheck = post(endpoints.firmware_check + "/press").then(function() {
       return waitForFirmwareUpdateResponse(12);
@@ -4779,11 +3311,11 @@ to {
         throw new Error("firmware_check_unavailable");
       }
       var available = data ? applyFirmwareUpdateResponse(data) : firmwareUpdateKnownAvailable();
-      S.firmware_checking = false;
+      S2.firmware_checking = false;
       if (installAfterCheck && available) startFirmwareInstall();
       else refreshFirmwareUi();
     }).catch(function() {
-      S.firmware_checking = false;
+      S2.firmware_checking = false;
       failFirmwareInstall("Could not check for a firmware update.");
     });
   }
@@ -4793,18 +3325,18 @@ to {
       safeGet(endpoints.c6_available_firmware),
       safeGet(endpoints.c6_update_status)
     ]).then(function(responses) {
-      if (responses[0]) S.c6_current_firmware = responses[0].value || responses[0].state || S.c6_current_firmware;
-      if (responses[1]) S.c6_available_firmware = responses[1].value || responses[1].state || S.c6_available_firmware;
-      if (responses[2]) S.c6_update_status = responses[2].value || responses[2].state || S.c6_update_status;
+      if (responses[0]) S2.c6_current_firmware = responses[0].value || responses[0].state || S2.c6_current_firmware;
+      if (responses[1]) S2.c6_available_firmware = responses[1].value || responses[1].state || S2.c6_available_firmware;
+      if (responses[2]) S2.c6_update_status = responses[2].value || responses[2].state || S2.c6_update_status;
       refreshC6FirmwareUi();
     });
   }
   function handleFirmwareReconnect() {
-    if (!S.firmware_restart_pending) return;
-    S.firmware_restart_pending = false;
-    S.firmware_installing = false;
-    S.firmware_uploading = false;
-    S.firmware_install_error = "";
+    if (!S2.firmware_restart_pending) return;
+    S2.firmware_restart_pending = false;
+    S2.firmware_installing = false;
+    S2.firmware_uploading = false;
+    S2.firmware_install_error = "";
     fetchDeviceSettingsState().then(function() {
       showBanner("Firmware update complete.", "success");
       if (!isEditingSetting()) renderSettings();
@@ -4813,6 +3345,10 @@ to {
     });
   }
   function makeFirmwareCard() {
+    var showAppFirmware = !nativeAdmin || hasWritableSetting("auto_update") && hasWritableSetting("update_frequency");
+    var showWifiFirmware = !nativeAdmin || hasWritableSetting("c6_auto_update");
+    if (!showAppFirmware && !showWifiFirmware) return null;
+    var requestWifiFirmware = null;
     var fwBody = el("div", "fw-body");
     var subpanels = el("div", "fw-subpanels");
     var updateBody = el("div");
@@ -4831,7 +3367,7 @@ to {
     var updateActions = el("div", "fw-actions");
     var updateButton = button("Check for Update", "btn btn-secondary btn-sm", function() {
       if (firmwareUpdateKnownAvailable()) {
-        if (S.update_available) startFirmwareInstall();
+        if (S2.update_available) startFirmwareInstall();
         else checkFirmwareUpdate(true);
       } else {
         checkFirmwareUpdate(false);
@@ -4845,34 +3381,34 @@ to {
     els.fwStatus = updateStatus;
     var updateBadge = makeDisclosureBadge("Update available", "Firmware update available");
     els.firmwareUpdatesBadge = updateBadge;
-    subpanels.appendChild(makeInlineDisclosure("Firmware updates", updateBody, false, updateBadge));
+    if (showAppFirmware) subpanels.appendChild(makeInlineDisclosure("Firmware updates", updateBody, false, updateBadge));
     var autoBody = el("div");
     var autoBadge = makeDisclosureBadge("On", "Automatic firmware updates on");
     var autoToggle = toggleSettingRow({
       label: "Auto Update",
-      value: !!S.auto_update,
+      value: !!S2.auto_update,
       getValue: function() {
-        return !!S.auto_update;
+        return !!S2.auto_update;
       },
       setValue: function(value) {
-        S.auto_update = value;
+        S2.auto_update = value;
       },
       onChange: function() {
-        saveSetting("auto_update", S.auto_update);
+        saveSetting("auto_update", S2.auto_update);
         refreshFirmwareUi();
       }
     });
     autoBody.appendChild(autoToggle.field);
     els.fwAutoToggle = autoToggle.toggle;
     var frequencyField = field("Update Frequency");
-    frequencyField.appendChild(selectFromOptions(productSettingOptions("update_frequency"), S.update_frequency, function(value) {
-      S.update_frequency = value;
+    frequencyField.appendChild(selectFromOptions(productSettingOptions("update_frequency"), S2.update_frequency, function(value) {
+      S2.update_frequency = value;
       saveSetting("update_frequency", value);
     }));
     autoBody.appendChild(frequencyField);
     els.fwFrequencyField = frequencyField;
     els.autoUpdateBadge = autoBadge;
-    subpanels.appendChild(makeInlineDisclosure("Auto updates", autoBody, false, autoBadge));
+    if (showAppFirmware) subpanels.appendChild(makeInlineDisclosure("Auto updates", autoBody, false, autoBadge));
     var wifiBody = el("div");
     var c6CurrentRow = el("div", "fw-row");
     c6CurrentRow.appendChild(textLabel("Current", ""));
@@ -4888,15 +3424,15 @@ to {
     els.c6FirmwareLatest = c6LatestValue;
     var c6AutoToggle = toggleSettingRow({
       label: "Auto Update",
-      value: !!S.c6_auto_update,
+      value: !!S2.c6_auto_update,
       getValue: function() {
-        return !!S.c6_auto_update;
+        return !!S2.c6_auto_update;
       },
       setValue: function(value) {
-        S.c6_auto_update = value;
+        S2.c6_auto_update = value;
       },
       onChange: function() {
-        saveSetting("c6_auto_update", S.c6_auto_update);
+        saveSetting("c6_auto_update", S2.c6_auto_update);
         refreshC6FirmwareUi();
       }
     });
@@ -4904,29 +3440,33 @@ to {
     els.c6AutoToggle = c6AutoToggle.toggle;
     var c6Actions = el("div", "fw-actions");
     var c6Button = button("Check for Update", "btn btn-secondary btn-sm", function() {
-      if (S.c6_firmware_checking || S.c6_firmware_installing) return;
+      if (S2.c6_firmware_checking || S2.c6_firmware_installing) return;
+      if (nativeAdmin) {
+        if (requestWifiFirmware) requestWifiFirmware(c6FirmwareUpdateKnownAvailable());
+        return;
+      }
       if (c6FirmwareUpdateKnownAvailable()) {
-        S.c6_firmware_installing = true;
+        S2.c6_firmware_installing = true;
         refreshC6FirmwareUi();
         post(endpoints.c6_firmware_install + "/press").then(function() {
           return delayMs(5e3);
         }).then(refreshC6FirmwareState).catch(function() {
-          S.c6_update_status = "Could not install the WiFi firmware update.";
-          showBanner(S.c6_update_status, "error");
+          S2.c6_update_status = "Could not install the WiFi firmware update.";
+          showBanner(S2.c6_update_status, "error");
         }).finally(function() {
-          S.c6_firmware_installing = false;
+          S2.c6_firmware_installing = false;
           refreshC6FirmwareUi();
         });
       } else {
-        S.c6_firmware_checking = true;
+        S2.c6_firmware_checking = true;
         refreshC6FirmwareUi();
         post(endpoints.c6_firmware_check + "/press").then(function() {
           return delayMs(4e3);
         }).then(refreshC6FirmwareState).catch(function() {
-          S.c6_update_status = "Could not check WiFi firmware.";
-          showBanner(S.c6_update_status, "error");
+          S2.c6_update_status = "Could not check WiFi firmware.";
+          showBanner(S2.c6_update_status, "error");
         }).finally(function() {
-          S.c6_firmware_checking = false;
+          S2.c6_firmware_checking = false;
           refreshC6FirmwareUi();
         });
       }
@@ -4939,12 +3479,12 @@ to {
     els.c6FirmwareStatus = c6Status;
     var c6Badge = makeDisclosureBadge("Update available", "WiFi firmware update available");
     els.c6FirmwareBadge = c6Badge;
-    subpanels.appendChild(makeInlineDisclosure("WiFi firmware", wifiBody, false, c6Badge));
+    if (showWifiFirmware) subpanels.appendChild(makeInlineDisclosure("WiFi firmware", wifiBody, false, c6Badge));
     var previousBody = el("div");
     var versionField = field("Version");
     var versionSelect = document.createElement("select");
     versionSelect.onchange = function() {
-      S.firmware_selected_version = versionSelect.value;
+      S2.firmware_selected_version = versionSelect.value;
       refreshPreviousFirmwareUi();
     };
     versionField.appendChild(versionSelect);
@@ -4962,15 +3502,27 @@ to {
     els.fwPreviousInstallBtn = previousInstall;
     var previousPanel = makeInlineDisclosure("Previous firmware", previousBody, false);
     els.fwPreviousPanel = previousPanel;
-    subpanels.appendChild(previousPanel);
+    if (showAppFirmware) subpanels.appendChild(previousPanel);
     fwBody.appendChild(subpanels);
     var cardBadge = makeBadge(false, "Update available", "Firmware update available");
     els.firmwareCardBadge = cardBadge;
     var firmwareCard = makeCollapsibleCard("Firmware", fwBody, true, cardBadge);
+    if (nativeAdmin) {
+      if (showAppFirmware)
+        nativeFirmware = window["espframeNativeFirmware"](firmwareCard, S2, refreshFirmwareUi, compareFirmwareVersions, showBanner);
+      if (showWifiFirmware) {
+        requestWifiFirmware = window["espframeNativeWifiFirmware"](firmwareCard, S2, refreshC6FirmwareUi, showBanner);
+        refreshC6FirmwareUi();
+      }
+    } else {
+      refreshC6FirmwareUi();
+      fetchPublicFirmwareVersions();
+    }
     refreshFirmwareUi();
-    refreshC6FirmwareUi();
-    fetchPublicFirmwareVersions();
     return firmwareCard;
+  }
+  function rebootFrame() {
+    return post(nativeAdmin ? "/espframe/api/v1/reboot" : endpoints.reboot_screen + "/press");
   }
   function makeDeviceRebootCard() {
     var rebootBody = el("div", "fw-body");
@@ -4978,7 +3530,7 @@ to {
     var rebootBtn = button("Reboot Screen", "btn btn-secondary btn-sm", function() {
       rebootBtn.disabled = true;
       rebootBtn.textContent = "Rebooting...";
-      post(endpoints.reboot_screen + "/press").catch(function() {
+      rebootFrame().catch(function() {
       }).finally(function() {
         setTimeout(function() {
           rebootBtn.disabled = false;
@@ -5088,8 +3640,9 @@ to {
         try {
           await apiClient.waitForWrites();
           await apiClient.reset(mode);
-          showBanner("Reset accepted. The frame is restarting into first-time Wi-Fi setup.", "info");
-        } catch (_) {
+          if (nativeAdmin) window["espframeNativeAfterReset"](mode, frameIdentity == null ? void 0 : frameIdentity.ip_address, showBanner);
+          else showBanner("Reset accepted. The frame is restarting into first-time Wi-Fi setup.", "info");
+        } catch (_2) {
           action.disabled = false;
           action.textContent = title;
           showBanner("Reset could not be started. Check the device connection and try again.", "error");
@@ -5106,20 +3659,20 @@ to {
   }
   function makeDeveloperCard() {
     if (!developerPanelEnabledByUrl()) return null;
-    var devBadge = makeBadge(S.developer_features_enabled);
+    var devBadge = makeBadge(S2.developer_features_enabled);
     var devBody = el("div");
     devBody.appendChild(toggleSettingRow({
       label: "Enable in-development features",
-      value: S.developer_features_enabled,
+      value: S2.developer_features_enabled,
       getValue: function() {
-        return S.developer_features_enabled;
+        return S2.developer_features_enabled;
       },
       setValue: function(value) {
-        S.developer_features_enabled = value;
+        S2.developer_features_enabled = value;
       },
       badge: devBadge,
       onChange: function() {
-        saveSetting("developer_features_enabled", S.developer_features_enabled);
+        saveSetting("developer_features_enabled", S2.developer_features_enabled);
         renderSettings();
       }
     }).field);
@@ -5163,7 +3716,10 @@ to {
     var renderers = settingsCardRenderers();
     if (!Array.isArray(WEB_UI_CARDS) || !WEB_UI_CARDS.length) return [];
     return WEB_UI_CARDS.filter(function(card) {
-      return card && card.tab === tabId;
+      var _a, _b;
+      return card && card.tab === tabId && (!nativeAdmin || ((_b = (_a = window["espframeNativeCards"]) == null ? void 0 : _a[card.function]) == null ? void 0 : _b.every(function(key) {
+        return nativeSettings.has(key);
+      })));
     }).map(function(card) {
       var renderer = renderers[card.function];
       return renderer ? { section: card.section || "", element: renderer() } : null;
@@ -5202,7 +3758,7 @@ to {
     var wrap = el("div");
     var immichCards = renderSettingsCardsForTab("immich");
     var settingsCardEntries = renderSettingsCardEntriesForTab("settings");
-    if (!immichCards.length) immichCards = [
+    if (!immichCards.length && !nativeAdmin) immichCards = [
       makeConnectionCard(),
       makeFrequencyCard(),
       makePortraitPairingCard(),
@@ -5213,7 +3769,7 @@ to {
     ];
     appendCards(immichWrap, immichCards);
     immichApp.appendChild(immichWrap);
-    if (!settingsCardEntries.length) settingsCardEntries = [
+    if (!settingsCardEntries.length && !nativeAdmin) settingsCardEntries = [
       { section: "Display", element: makeScreenBrightnessCard() },
       { section: "Display", element: makeScreenToneCard() },
       { section: "Display", element: makeRotationCard() },
@@ -5229,43 +3785,50 @@ to {
       { section: "System", element: makeWireguardCard() }
     ];
     appendSettingsSections(wrap, settingsCardEntries);
+    if (nativeAdmin) {
+      var tools = document.createElement("a");
+      tools.className = "btn btn-secondary btn-sm";
+      tools.href = "/settings";
+      tools.textContent = "Photo sources & device tools";
+      wrap.appendChild(tools);
+    }
     app.appendChild(wrap);
     connectFieldLabels(app);
     connectFieldLabels(immichApp);
   }
-  function handleLiveEvent(d) {
-    if (!d || !d.id) return;
-    var id = d.id;
+  function handleLiveEvent(d2) {
+    if (!d2 || !d2.id) return;
+    var id = d2.id;
     var stateSpec = ENTITY_STATE_MAP[id];
     if (id === "update/Firmware: Update") {
       refreshFirmwareUi();
     } else if (stateSpec && stateSpec.key === "firmware_device") {
-      S.firmware_versions_loaded = false;
-      S.firmware_version_options = [];
+      S2.firmware_versions_loaded = false;
+      S2.firmware_version_options = [];
       fetchPublicFirmwareVersions();
     } else if (id === "text_sensor/Firmware: Version") {
       refreshFirmwareUi();
     } else if (stateSpec && (stateSpec.key === "c6_current_firmware" || stateSpec.key === "c6_available_firmware" || stateSpec.key === "c6_update_status" || stateSpec.key === "c6_auto_update")) {
       refreshC6FirmwareUi();
     } else if (id === "light/Screen: Backlight") {
-      S.backlight_on = d.state === "ON";
-      if (d.brightness != null) {
-        S.brightness = Math.round(d.brightness / 255 * 100);
-        S.brightness_current = S.brightness;
+      S2.backlight_on = d2.state === "ON";
+      if (d2.brightness != null) {
+        S2.brightness = Math.round(d2.brightness / 255 * 100);
+        S2.brightness_current = S2.brightness;
       }
     } else if (id === "switch/Clock: Show") {
-      settingSaves.receive("show_clock", d.state === "ON" || d.value === true);
+      settingSaves.receive("show_clock", d2.state === "ON" || d2.value === true);
     } else if (id === "text_sensor/Screen: Sunrise") {
-      S.sunrise = d.value || d.state || "";
+      S2.sunrise = d2.value || d2.state || "";
       updateSunInfoElement(document.getElementById("sun-info"));
     } else if (id === "text_sensor/Screen: Sunset") {
-      S.sunset = d.value || d.state || "";
+      S2.sunset = d2.value || d2.state || "";
       updateSunInfoElement(document.getElementById("sun-info"));
     } else if (stateSpec && (stateSpec.key === "wireguard_connected" || stateSpec.key === "wireguard_tunnel_enabled" || stateSpec.key === "wireguard_handshake_age")) {
-      applyEntityToState(d);
+      applyEntityToState(d2);
       updateWireguardStatusFromPage();
     } else if (stateSpec && LIVE_RENDER_STATE_KEYS.indexOf(stateSpec.key) !== -1) {
-      applyEntityToState(d);
+      applyEntityToState(d2);
       renderSettingsAfterEditing();
     } else if (stateSpec && LIVE_RENDER_STATE_PREFIXES.some(function(prefix) {
       return stateSpec.key.indexOf(prefix) === 0;
@@ -5275,23 +3838,23 @@ to {
   }
   function updateSunInfoElement(el2) {
     if (!el2) return;
-    if (!S.sunrise && !S.sunset) {
+    if (!S2.sunrise && !S2.sunset) {
       el2.style.display = "none";
       return;
     }
     el2.style.display = "";
     var t = "";
-    if (S.sunrise) t += "Sunrise: " + esc(S.sunrise);
-    if (S.sunrise && S.sunset) t += " \xA0/\xA0 ";
-    if (S.sunset) t += "Sunset: " + esc(S.sunset);
+    if (S2.sunrise) t += "Sunrise: " + esc(S2.sunrise);
+    if (S2.sunrise && S2.sunset) t += " \xA0/\xA0 ";
+    if (S2.sunset) t += "Sunset: " + esc(S2.sunset);
     el2.innerHTML = t;
   }
-  function formatHour(h) {
-    h = Math.round(h);
-    if (h === 0) return "12:00 AM";
-    if (h < 12) return h + ":00 AM";
-    if (h === 12) return "12:00 PM";
-    return h - 12 + ":00 PM";
+  function formatHour(h2) {
+    h2 = Math.round(h2);
+    if (h2 === 0) return "12:00 AM";
+    if (h2 < 12) return h2 + ":00 AM";
+    if (h2 === 12) return "12:00 PM";
+    return h2 - 12 + ":00 PM";
   }
   function normalizeScheduleWakeTimeout(value) {
     var seconds = Math.round(Number(value));
@@ -5313,16 +3876,16 @@ to {
     return seconds + " seconds";
   }
   function selectFromOptions(options, current, onChange, optionDisplayFn) {
-    var display = optionDisplayFn || function(o) {
-      return o;
+    var display = optionDisplayFn || function(o2) {
+      return o2;
     };
     var sel = document.createElement("select");
     sel.className = "select";
-    options.forEach(function(o) {
+    options.forEach(function(o2) {
       var opt = document.createElement("option");
-      opt.value = o;
-      opt.textContent = display(o);
-      if (o === current) opt.selected = true;
+      opt.value = o2;
+      opt.textContent = display(o2);
+      if (o2 === current) opt.selected = true;
       sel.appendChild(opt);
     });
     sel.onchange = function() {
@@ -5332,19 +3895,19 @@ to {
   }
   function productSelectSettingField(labelText, key, options) {
     var opts = options || {};
-    var f = field(labelText);
-    var current = opts.current !== void 0 ? opts.current : S[key];
-    f.appendChild(
-      selectFromOptions(productSettingOptions(key, opts.includeDeveloper), current, function(v) {
-        saveSetting(key, v);
-        if (opts.onChange) opts.onChange(v);
+    var f2 = field(labelText);
+    var current = opts.current !== void 0 ? opts.current : S2[key];
+    f2.appendChild(
+      selectFromOptions(productSettingOptions(key, opts.includeDeveloper), current, function(v2) {
+        saveSetting(key, v2);
+        if (opts.onChange) opts.onChange(v2);
       }, opts.optionDisplayFn)
     );
-    return f;
+    return f2;
   }
   function segmentedControl(options, current, onChange, optionDisplayFn) {
-    var display = optionDisplayFn || function(o) {
-      return o;
+    var display = optionDisplayFn || function(o2) {
+      return o2;
     };
     var seg = el("div", "segment");
     function setActive(value) {
@@ -5354,15 +3917,15 @@ to {
         button2.setAttribute("aria-pressed", active ? "true" : "false");
       });
     }
-    options.forEach(function(o) {
+    options.forEach(function(o2) {
       var btn = document.createElement("button");
       btn.type = "button";
-      btn.dataset.value = o;
-      btn.textContent = display(o);
-      btn.setAttribute("aria-pressed", o === current ? "true" : "false");
+      btn.dataset.value = o2;
+      btn.textContent = display(o2);
+      btn.setAttribute("aria-pressed", o2 === current ? "true" : "false");
       btn.onclick = function() {
-        setActive(o);
-        onChange(o);
+        setActive(o2);
+        onChange(o2);
       };
       seg.appendChild(btn);
     });
@@ -5371,10 +3934,10 @@ to {
   }
   function timezoneSelect(options, current, onChange) {
     current = normalizeTimezoneOption(current);
-    return selectFromOptions(options, current, function(v) {
-      onChange(normalizeTimezoneOption(v));
-    }, function(o) {
-      return timezoneDisplayLabel(o);
+    return selectFromOptions(options, current, function(v2) {
+      onChange(normalizeTimezoneOption(v2));
+    }, function(o2) {
+      return timezoneDisplayLabel(o2);
     });
   }
   function normalizeTimezoneOption(value) {
@@ -5382,7 +3945,7 @@ to {
     return value;
   }
   function timezoneDisplayLabel(option) {
-    var label = S.tz_labels && S.tz_labels[option] || option;
+    var label = S2.tz_labels && S2.tz_labels[option] || option;
     return label.replace(/_/g, " ");
   }
   function el(tag, cls) {
@@ -5477,7 +4040,7 @@ to {
   }
   function toggleSettingRow(options) {
     var opts = options || {};
-    var f = field("");
+    var f2 = field("");
     var row = el("div", "toggle-row");
     var label = el("span");
     label.textContent = opts.label || "";
@@ -5515,12 +4078,12 @@ to {
     };
     row.appendChild(label);
     row.appendChild(toggle);
-    f.appendChild(row);
-    return { field: f, toggle };
+    f2.appendChild(row);
+    return { field: f2, toggle };
   }
   function rangeSettingField(labelText, key, options) {
     var opts = options || {};
-    var f = field(labelText || "");
+    var f2 = field(labelText || "");
     var rw = el("div", "range-wrap");
     if (opts.leftLabel) {
       var left = el("span", "range-label");
@@ -5532,7 +4095,7 @@ to {
     slider.min = productNumberMin(key, opts.minFallback);
     slider.max = productNumberMax(key, opts.maxFallback);
     slider.step = productNumberStep(key, opts.stepFallback);
-    slider.value = S[key];
+    slider.value = S2[key];
     rw.appendChild(slider);
     if (opts.rightLabel) {
       var right = el("span", "range-label");
@@ -5541,7 +4104,7 @@ to {
     }
     if (opts.valueSuffix != null) {
       var value = el("span", "range-val");
-      value.textContent = Math.round(S[key]) + opts.valueSuffix;
+      value.textContent = Math.round(S2[key]) + opts.valueSuffix;
       slider.oninput = function() {
         value.textContent = slider.value + opts.valueSuffix;
       };
@@ -5551,28 +4114,28 @@ to {
       saveSetting(key, slider.value);
       if (opts.onChange) opts.onChange(slider.value);
     };
-    f.appendChild(rw);
-    return { field: f, input: slider };
+    f2.appendChild(rw);
+    return { field: f2, input: slider };
   }
   function hourSelectSettingField(labelText, key) {
     var min = productNumberMin(key, 0);
     var max = productNumberMax(key, 23);
     var options = [];
-    for (var h = min; h <= max; h++) options.push(h);
-    var f = field(labelText);
-    f.appendChild(
-      selectFromOptions(options, Math.round(S[key]), function(v) {
-        saveSetting(key, parseInt(v));
+    for (var h2 = min; h2 <= max; h2++) options.push(h2);
+    var f2 = field(labelText);
+    f2.appendChild(
+      selectFromOptions(options, Math.round(S2[key]), function(v2) {
+        saveSetting(key, parseInt(v2));
       }, formatHour)
     );
-    return f;
+    return f2;
   }
   function makeFieldError() {
     return el("div", "field-error");
   }
   function photoIdListField(options) {
     var opts = options || {};
-    var f = field(opts.label);
+    var f2 = field(opts.label);
     var list = el("div", "photo-id-list");
     var idInputs = [];
     var labelInputs = [];
@@ -5609,7 +4172,7 @@ to {
         list.insertBefore(rows[toIndex], row);
       }
       refreshRowButtons();
-      connectFieldLabels(f);
+      connectFieldLabels(f2);
       notify(opts.reorderChanges, 0);
     }
     function addRow(value, labelValue) {
@@ -5656,7 +4219,7 @@ to {
         labelInputs.splice(removeIndex, 1);
         row.parentNode.removeChild(row);
         refreshRowButtons();
-        connectFieldLabels(f);
+        connectFieldLabels(f2);
         notify(opts.clearChanges, 0);
       };
       idInput.oninput = function() {
@@ -5677,8 +4240,8 @@ to {
       labelInputs.push(labelInput);
       refreshRowButtons();
     }
-    var ids = splitPhotoIdList(S[opts.idKey]);
-    var labels = parsePhotoLabelList(S[opts.labelKey]);
+    var ids = H(S2[opts.idKey]);
+    var labels = J(S2[opts.labelKey]);
     for (var i = 0; i < Math.max(ids.length, labels.length, 1); i++) {
       addRow(ids[i] || "", labels[i] || "");
     }
@@ -5691,11 +4254,11 @@ to {
     addBtn.setAttribute("aria-label", opts.addText);
     addBtn.disabled = !!opts.disableEditing;
     addRowWrap.appendChild(addBtn);
-    f.appendChild(list);
-    f.appendChild(addRowWrap);
-    f.appendChild(error);
+    f2.appendChild(list);
+    f2.appendChild(addRowWrap);
+    f2.appendChild(error);
     return {
-      field: f,
+      field: f2,
       error,
       getIdsValue: function() {
         return idInputs.map(function(inputEl) {
@@ -5779,32 +4342,32 @@ to {
     return makeCollapsibleCard("Import Settings", importBody, false);
   }
   function field(labelText) {
-    var f = el("div", "field");
+    var f2 = el("div", "field");
     if (labelText) {
-      var l = document.createElement("label");
-      l.textContent = labelText;
-      f.appendChild(l);
+      var l3 = document.createElement("label");
+      l3.textContent = labelText;
+      f2.appendChild(l3);
     }
-    return f;
+    return f2;
   }
   function ntpServersField() {
-    var f = field("NTP Servers");
+    var f2 = field("NTP Servers");
     var list = el("div", "photo-id-list");
     [
       { key: "ntp_server_1", placeholder: "0.pool.ntp.org", label: "NTP Server 1" },
       { key: "ntp_server_2", placeholder: "1.pool.ntp.org", label: "NTP Server 2" },
       { key: "ntp_server_3", placeholder: "2.pool.ntp.org", label: "NTP Server 3" }
     ].forEach(function(spec) {
-      var serverInput = input("text", S[spec.key], spec.placeholder, MAX_NTP_SERVER_LENGTH);
+      var serverInput = input("text", S2[spec.key], spec.placeholder, MAX_NTP_SERVER_LENGTH);
       serverInput.setAttribute("aria-label", spec.label);
       serverInput.onchange = function() {
         saveSetting(spec.key, serverInput.value);
-        serverInput.value = S[spec.key];
+        serverInput.value = S2[spec.key];
       };
       list.appendChild(serverInput);
     });
-    f.appendChild(list);
-    return f;
+    f2.appendChild(list);
+    return f2;
   }
   function input(type, value, placeholder, maxLength) {
     var i = document.createElement("input");
@@ -5814,10 +4377,10 @@ to {
     if (maxLength != null && maxLength > 0) i.maxLength = maxLength;
     return i;
   }
-  function esc(s) {
-    var d = document.createElement("div");
-    d.textContent = s;
-    return d.innerHTML;
+  function esc(s4) {
+    var d2 = document.createElement("div");
+    d2.textContent = s4;
+    return d2.innerHTML;
   }
   var bannerTimer = null;
   function showBanner(msg, type, durationMs) {
@@ -5843,7 +4406,7 @@ to {
     var name = value.replace(/^[ \t\r\n\f\v]+|[ \t\r\n\f\v]+$/g, "");
     try {
       encodeURIComponent(name);
-    } catch (_) {
+    } catch (_2) {
       return false;
     }
     return new TextEncoder().encode(name).length <= 120 && !/[\u0000-\u001f\u007f-\u009f]/.test(name);
@@ -5893,7 +4456,7 @@ to {
     try {
       frameIdentity = await requestFrameIdentity();
       updateFrameTitle();
-    } catch (_) {
+    } catch (_2) {
     } finally {
       frameIdentityLoaded = true;
       if (rendered) renderSettingsAfterEditing();
@@ -5918,8 +4481,8 @@ to {
     if (!frameIdentity) return null;
     if (name === frameIdentity.name) return frameIdentity.hostname;
     if (!name || !frameIdentity.mac_suffix) return null;
-    var slug = name.replace(/[A-Z]/g, function(c) {
-      return c.toLowerCase();
+    var slug = name.replace(/[A-Z]/g, function(c4) {
+      return c4.toLowerCase();
     }).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "frame";
     return slug.slice(0, 19).replace(/-$/, "") + "-" + frameIdentity.mac_suffix;
   }
@@ -5988,13 +4551,13 @@ to {
         if (frameIdentity.restart_required) {
           var message = showFrameReconnectDialog(frameIdentity);
           try {
-            await post(endpoints.reboot_screen + "/press");
-          } catch (_) {
+            await rebootFrame();
+          } catch (_2) {
             message.textContent = "Name saved, but the restart failed. Close this dialog and choose Save & Restart to retry.";
             frameIdentityError = "Name saved, but the restart failed. Please retry.";
           }
         }
-      } catch (_) {
+      } catch (_2) {
       } finally {
         input2.disabled = false;
         sync();
@@ -6062,17 +4625,18 @@ to {
       dialog.showModal();
     });
   }
+  if (nativeAdmin) window["espframeNativeBackupSchema"](BACKUP_SCHEMA);
   function backupExportFieldValue(entry) {
     if (!entry || !Array.isArray(entry.state_keys) || !entry.state_keys.length) return "";
     if (entry.group === "screen" && entry.field === "schedule_wake_timeout") {
-      return normalizeScheduleWakeTimeout(S.schedule_wake_timeout);
+      return normalizeScheduleWakeTimeout(S2.schedule_wake_timeout);
     }
     if (entry.state_keys.length > 1) {
       return entry.state_keys.map(function(key) {
-        return S[key];
+        return S2[key];
       });
     }
-    return S[entry.state_keys[0]];
+    return S2[entry.state_keys[0]];
   }
   function buildBackupExportData() {
     var data = {
@@ -6080,7 +4644,7 @@ to {
       exported_at: (/* @__PURE__ */ new Date()).toISOString()
     };
     BACKUP_SCHEMA.forEach(function(entry) {
-      if (!entry || !entry.group || !entry.field) return;
+      if (!entry || !entry.group || !entry.field || nativeAdmin && !entry.state_keys.every((key) => nativeSettings.has(key))) return;
       if (!data[entry.group]) data[entry.group] = {};
       data[entry.group][entry.field] = backupExportFieldValue(entry);
     });
@@ -6164,7 +4728,8 @@ to {
     return "";
   }
   function migrateBackupConfig(data) {
-    return BACKUP_VERSION_MIGRATIONS[data.version](data);
+    var migrated = BACKUP_VERSION_MIGRATIONS[data.version](data);
+    return nativeAdmin ? window["espframeNativeBackupDefaults"](data, migrated) : migrated;
   }
   function downloadBackup() {
     if (!frameIdentityLoaded) return;
@@ -6184,7 +4749,9 @@ to {
     URL.revokeObjectURL(url);
   }
   function exportConfig() {
-    if (!frameIdentityLoaded) return;
+    if (nativeAdmin) return fetchDeviceSettingsState().then(downloadBackup).catch(function() {
+      showBanner("Could not read the settings to export.", "error");
+    });
     downloadBackup();
   }
   function backupEntryKey(entry) {
@@ -6207,6 +4774,7 @@ to {
   var BACKUP_IMPORT_MAX_BODY = 900;
   function queueBackupImportSetting(key, value) {
     if (!backupImportValues) return false;
+    if (nativeAdmin && !nativeSettings.has(key)) return skipBackupImportField(key.replace(/_/g, " ") + " is unavailable");
     backupImportValues[key] = value;
     return true;
   }
@@ -6252,7 +4820,7 @@ to {
     return batches;
   }
   function backupImportCanRetrySmaller(error) {
-    return error && (error.status === 413 || error.status === 422 || error.status === 400 && (!error.code || error.code === "invalid_json"));
+    return error && (error.status === 413 || error.status === 422 || error.status === 400 && (!error.code || error.code === "invalid_json" || error.code === "invalid_configuration"));
   }
   function saveBackupImportBatch(values, requestedRotation) {
     var keys = Object.keys(values);
@@ -6277,7 +4845,7 @@ to {
     });
   }
   function saveBackupImportSettings(values) {
-    var batches = backupImportSettingsBatches(values);
+    var batches = nativeAdmin ? [values] : backupImportSettingsBatches(values);
     return batches.reduce(function(chain, batch) {
       return chain.then(function(result) {
         return saveBackupImportBatch(batch, values.screen_rotation).then(function(batchResult) {
@@ -6314,7 +4882,7 @@ to {
   function validateProductSettingBackupImport(entry, value) {
     var stateKey = backupImportStateKey(entry);
     var spec = backupImportSettingSpec(entry);
-    if (!stateKey || !endpoints[stateKey]) {
+    if (!hasWritableSetting(stateKey)) {
       return backupImportValidation(false, value, backupImportFieldLabel(entry) + " is not supported");
     }
     if (!spec || !spec.domain) return backupImportValidation(true, value);
@@ -6388,75 +4956,68 @@ to {
     var entryKey = backupEntryKey(entry);
     if (/^photos\.excluded_(album|person|tag)_ids$/.test(entryKey)) {
       var excludedIds = String(value == null ? "" : value).trim();
-      if (photoIdFieldTooLong(excludedIds)) {
+      if (D(excludedIds)) {
         return skipBackupImportField("Excluded IDs exceed 255 characters - not imported");
       }
-      if (excludedIds && !isValidUuidList(excludedIds)) {
+      if (excludedIds && !F(excludedIds)) {
         return skipBackupImportField("Import skipped invalid excluded IDs");
       }
       return queueBackupImportSetting(backupImportStateKey(entry), excludedIds);
     }
     switch (backupEntryKey(entry)) {
       case "connection.immich_url":
-        var importUrl = normalizeImmichUrl(value);
+        var importUrl = normalizeConnectionUrl(value);
         if (importUrl.length > 255) return skipBackupImportField("Immich URL exceeds 255 characters - not imported");
-        if (importUrl && !isValidHttpUrl(importUrl)) return skipBackupImportField("Immich URL was invalid - not imported");
+        if (importUrl && !z(importUrl)) return skipBackupImportField("Immich URL was invalid - not imported");
         return queueBackupImportSetting("immich_url", importUrl);
-        return true;
       case "photos.album_ids":
         var importAlbum = String(value).trim();
-        if (photoIdFieldTooLong(importAlbum)) {
+        if (D(importAlbum)) {
           return skipBackupImportField("Album IDs exceed 255 characters - not imported");
-        } else if (!isValidUuidList(importAlbum)) {
+        } else if (!F(importAlbum)) {
           return skipBackupImportField("Import skipped invalid album IDs");
         } else {
-          queueBackupImportSetting("album_ids", importAlbum);
+          return queueBackupImportSetting("album_ids", importAlbum);
         }
-        return true;
       case "photos.album_labels":
         var importAlbumLabels = String(value).trim();
-        if (photoLabelFieldTooLong(importAlbumLabels)) {
+        if (T(importAlbumLabels)) {
           return skipBackupImportField("Album labels exceed 255 characters - not imported");
         } else {
-          queueBackupImportSetting("album_labels", importAlbumLabels);
+          return queueBackupImportSetting("album_labels", importAlbumLabels);
         }
-        return true;
       case "photos.person_ids":
         var importPerson = String(value).trim();
-        if (photoIdFieldTooLong(importPerson)) {
+        if (D(importPerson)) {
           return skipBackupImportField("Person IDs exceed 255 characters - not imported");
-        } else if (!isValidUuidList(importPerson)) {
+        } else if (!F(importPerson)) {
           return skipBackupImportField("Import skipped invalid person IDs");
         } else {
-          queueBackupImportSetting("person_ids", importPerson);
+          return queueBackupImportSetting("person_ids", importPerson);
         }
-        return true;
       case "photos.person_labels":
         var importPersonLabels = String(value).trim();
-        if (photoLabelFieldTooLong(importPersonLabels)) {
+        if (T(importPersonLabels)) {
           return skipBackupImportField("Person labels exceed 255 characters - not imported");
         } else {
-          queueBackupImportSetting("person_labels", importPersonLabels);
+          return queueBackupImportSetting("person_labels", importPersonLabels);
         }
-        return true;
       case "photos.tag_ids":
         var importTag = String(value).trim();
-        if (photoIdFieldTooLong(importTag)) {
+        if (D(importTag)) {
           return skipBackupImportField("Tag IDs exceed 255 characters - not imported");
-        } else if (!isValidUuidList(importTag)) {
+        } else if (!F(importTag)) {
           return skipBackupImportField("Import skipped invalid tag IDs");
         } else {
-          queueBackupImportSetting("tag_ids", importTag);
+          return queueBackupImportSetting("tag_ids", importTag);
         }
-        return true;
       case "photos.tag_labels":
         var importTagLabels = String(value).trim();
-        if (photoLabelFieldTooLong(importTagLabels)) {
+        if (T(importTagLabels)) {
           return skipBackupImportField("Tag labels exceed 255 characters - not imported");
         } else {
-          queueBackupImportSetting("tag_labels", importTagLabels);
+          return queueBackupImportSetting("tag_labels", importTagLabels);
         }
-        return true;
       case "clock.timezone":
         var importedTimezone = normalizeTimezoneOption(value);
         if (TIMEZONES.indexOf(importedTimezone) === -1) {
@@ -6466,14 +5027,14 @@ to {
       case "clock.ntp_servers":
         if (Array.isArray(value) && value.length <= 3) {
           for (var ntpIndex = 0; ntpIndex < value.length; ntpIndex++) {
-            var server = normalizeNtpServer(value[ntpIndex]);
+            var server = d(value[ntpIndex]);
             if (server.length > MAX_NTP_SERVER_LENGTH) {
               return skipBackupImportField("NTP servers exceeded 253 characters - not imported");
             }
           }
           ["ntp_server_1", "ntp_server_2", "ntp_server_3"].forEach(function(key, idx) {
             if (value[idx] === void 0) return;
-            queueBackupImportSetting(key, normalizeNtpServer(value[idx]));
+            queueBackupImportSetting(key, d(value[idx]));
           });
           return true;
         }
@@ -6514,7 +5075,7 @@ to {
           var data;
           try {
             data = JSON.parse(String(reader.result));
-          } catch (_) {
+          } catch (_2) {
             showBanner("Invalid file \u2014 could not parse JSON", "error");
             return;
           }
@@ -6552,13 +5113,12 @@ to {
             }
           });
           queuedCount = Object.keys(backupImportValues).length;
-          if (Object.keys(backupImportValues).length) {
-            trackBackupImportSave(saveBackupImportSettings(backupImportValues), Object.keys(backupImportValues).length);
-          }
+          var restore = queuedCount ? saveBackupImportSettings(backupImportValues) : Promise.resolve();
+          if (queuedCount) trackBackupImportSave(restore, queuedCount);
           if (restoreName) {
             queuedCount += 1;
-            trackBackupImportSave(saveFrameName(data.identity.name).then(function() {
-              return { ok: true };
+            trackBackupImportSave(restore.then(function() {
+              return saveFrameName(data.identity.name);
             }));
           }
           Promise.all(backupImportSaveTasks).then(function(results) {
@@ -6567,7 +5127,7 @@ to {
             }, 0);
             var appliedCount = queuedCount - failedCount;
             if (needsPhotoSourceApply && appliedCount) {
-              return post(endpoints.apply_photo_source + "/press").then(function() {
+              return applyPhotoSource().then(function() {
                 return { appliedCount, failedCount };
               }).catch(function() {
                 return { appliedCount, failedCount: failedCount + 1 };
@@ -6580,7 +5140,7 @@ to {
             backupImportInProgress = false;
             var resultMessage = backupImportSummaryMessage(appliedCount, skippedCount, failedCount);
             if (backupImportMessages.length) resultMessage += ". " + backupImportMessages.join("; ");
-            var apiKeyNeedsInput = !S.api_key_configured;
+            var apiKeyNeedsInput = !S2.api_key_configured;
             resultMessage += apiKeyNeedsInput ? ". Backups don\u2019t include the Immich API key. Enter it in the highlighted field on the Immich tab." : ". The destination\u2019s existing Immich API key was left unchanged.";
             highlightApiKeyAfterRestore = apiKeyNeedsInput;
             showBanner(
@@ -6600,7 +5160,7 @@ to {
             backupImportMessages = [];
             showBanner("Import failed. Please try again.", "error");
           });
-        } catch (_) {
+        } catch (_2) {
           backupImportInProgress = false;
           backupImportSaveTasks = null;
           backupImportValues = null;
@@ -6624,6 +5184,9 @@ to {
     fileInput.click();
   }
   buildUI();
-  initSSE();
+  if (nativeAdmin) {
+    tryRender();
+    startNativeSettingsSync();
+  } else initSSE();
   loadFrameIdentity();
 })();

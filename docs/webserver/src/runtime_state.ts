@@ -4,6 +4,18 @@
   var renderTimer = null;
   var renderAttemptInFlight = false;
   var logListenerAttached = false;
+  var pendingPhotoSettings = new Set();
+
+  function schedulePhotoSetting(timer, save, delay) {
+    clearTimeout(timer);
+    pendingPhotoSettings.delete(timer);
+    var next = setTimeout(function () {
+      pendingPhotoSettings.delete(next);
+      save();
+    }, delay);
+    pendingPhotoSettings.add(next);
+    return next;
+  }
 
   var ANSI_LEVEL = {
     "1;31": "sp-log-error",
@@ -176,7 +188,7 @@
     return getConfigurationSnapshot().then(function (snapshot) {
       applyConfigurationSnapshot(snapshot);
     }).catch(function (error) {
-      if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
+      if (nativeAdmin || !(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
       return fetchLegacyDeviceSettingsState();
     });
   }
@@ -269,10 +281,33 @@
     }, delayMs);
   }
 
+  function showSetup() {
+    renderWizard();
+  }
+
   function showConfiguredSettings() {
     rendered = true;
     renderAttemptInFlight = false;
     renderSettings();
+  }
+
+  function nativeSettingsRevision() {
+    if (!rendered || wizardActive || frameIdentityBusy || backupImportInProgress || pendingPhotoSettings.size ||
+        S.firmware_installing || S.firmware_uploading || S.c6_firmware_installing)
+      return null;
+    return settingSaves.idleRevision();
+  }
+
+  function startNativeSettingsSync() {
+    window["espframeSyncSettings"](els.root, nativeSettingsRevision, apiClient, () => frameIdentity,
+      () => withStartupTimeout(requestFrameIdentity(), 3000), function (snapshot, identity) {
+      var changed = applyConfigurationSnapshot(snapshot);
+      if (identity) {
+        frameIdentity = identity;
+        updateFrameTitle();
+      }
+      if (changed || identity) return S.immich_url ? renderSettings : showSetup;
+    });
   }
 
   var startupHydrationPromise = null;
@@ -289,7 +324,7 @@
           showConfiguredSettings();
         } else {
           rendered = true;
-          renderWizard();
+          showSetup();
         }
       } else if (S.immich_url) {
         renderSettingsAfterEditing();
@@ -319,7 +354,7 @@
         showConfiguredSettings();
       } else {
         rendered = true;
-        renderWizard();
+        showSetup();
       }
     }).catch(function () {
       renderAttemptInFlight = false;

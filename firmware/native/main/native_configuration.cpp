@@ -6,6 +6,7 @@
 #include "screen_control.h"
 #include "settings.h"
 #include "slideshow_interval.h"
+#include "solar_times.h"
 
 #include "cJSON.h"
 
@@ -27,12 +28,6 @@ const contract::ConfigurationField *find_field(std::string_view key) {
       return &field;
   }
   return nullptr;
-}
-
-// The native playback endpoint uses its own source names. The shared API
-// exposes the independent filters instead.
-bool passes_through(const char *key, const cJSON *playback) {
-  return std::string_view(key) != "photo_source" && cJSON_HasObjectItem(playback, key);
 }
 
 bool add_copy(cJSON *object, const char *key, const cJSON *value) {
@@ -152,7 +147,7 @@ cJSON *frame_status_snapshot(const FrameStatus &status, bool network_ready, bool
   return body.release();
 }
 
-cJSON *configuration_snapshot(const Settings &settings) {
+cJSON *configuration_snapshot(const Settings &settings, std::optional<SolarTimes> solar_times) {
   Json body(cJSON_CreateObject(), cJSON_Delete);
   Json playback(cJSON_CreateObject(), cJSON_Delete);
   if (!body || !playback || !settings.add_playback_fields(playback.get(), PhotoFilterUpdate::Compose) ||
@@ -162,18 +157,35 @@ cJSON *configuration_snapshot(const Settings &settings) {
     return nullptr;
   auto *values = cJSON_AddObjectToObject(body.get(), "values");
   auto *unavailable = cJSON_AddArrayToObject(body.get(), "unavailable");
+  const auto search_api = active_immich_search_api.load(std::memory_order_relaxed);
+  auto *secrets = cJSON_AddObjectToObject(body.get(), "secrets_configured");
+  if (!secrets || !cJSON_AddBoolToObject(secrets, "wireguard_private_key", !settings.wireguard.private_key.empty()) ||
+      !settings.wireguard.add_public_fields(playback.get()))
+    return nullptr;
+  if (!cJSON_AddBoolToObject(playback.get(), "c6_auto_update", settings.stock_update_preferences.wifi_auto_update.value_or(true)))
+    return nullptr;
   if (!values || !unavailable ||
       !cJSON_AddStringToObject(values, "interval", interval_label(settings.slide_seconds).c_str()) ||
       !cJSON_AddStringToObject(values, "frame_name", settings.frame_name.c_str()) ||
+      !cJSON_AddStringToObject(values, "immich_filter_support", search_api == ImmichSearchApi::Structured ? "structured" :
+                                                             search_api == ImmichSearchApi::Legacy ? "legacy" : "unknown") ||
       !cJSON_AddStringToObject(values, "portrait_pair_framing", pair_framing_name(settings.pair_framing)) ||
       !cJSON_AddStringToObject(values, "prepared_slide_url", settings.prepared_slide_url.c_str()) ||
-      !cJSON_AddBoolToObject(values, "prepared_slide_token_configured", settings.has_prepared_slides()))
+      !cJSON_AddBoolToObject(values, "prepared_slide_token_configured", settings.has_prepared_slides()) ||
+      !cJSON_AddBoolToObject(values, "auto_update", settings.stock_update_preferences.auto_update.value_or(true)) ||
+      !cJSON_AddStringToObject(values, "update_frequency", settings.stock_update_preferences.frequency.value_or("Daily").c_str()))
+    return nullptr;
+  const auto sunrise = solar_times ? format_time_12h(solar_times->sunrise / 60, solar_times->sunrise % 60) : "";
+  const auto sunset = solar_times ? format_time_12h(solar_times->sunset / 60, solar_times->sunset % 60) : "";
+  if (!cJSON_AddStringToObject(values, "sunrise", sunrise.c_str()) ||
+      !cJSON_AddStringToObject(values, "sunset", sunset.c_str()))
     return nullptr;
   for (const auto &field : contract::CONFIGURATION_FIELDS) {
-    if (field.secret || std::string_view(field.key) == "interval")
+    if (field.secret || std::string_view(field.key) == "interval" ||
+        std::string_view(field.key) == "auto_update" || std::string_view(field.key) == "update_frequency")
       continue;
-    if (passes_through(field.key, playback.get())) {
-      if (!add_copy(values, field.key, cJSON_GetObjectItemCaseSensitive(playback.get(), field.key)))
+    if (const auto *setting = cJSON_GetObjectItemCaseSensitive(playback.get(), field.key)) {
+      if (!add_copy(values, field.key, setting))
         return nullptr;
     } else {
       Json key(cJSON_CreateString(field.key), cJSON_Delete);
@@ -255,14 +267,40 @@ ConfigurationUpdate update_configuration(const char *json) {
 
   const Json update(cJSON_CreateObject(), cJSON_Delete);
   const Json playback(cJSON_CreateObject(), cJSON_Delete);
-  if (!update || !playback || !Settings{}.add_playback_fields(playback.get()))
+  const Settings defaults;
+  if (!update || !playback || !defaults.add_playback_fields(playback.get(), PhotoFilterUpdate::Compose) ||
+      !defaults.wireguard.add_public_fields(playback.get()))
     return {"500 Internal Server Error", "settings_unavailable", {}};
 
   size_t count = 0;
   std::optional<std::string> frame_name;
+  std::optional<PhotoPreset> source_preset;
   const cJSON *value;
   cJSON_ArrayForEach(value, values) {
     const std::string_view requested_key(value->string);
+    if (requested_key == "wireguard_private_key") {
+      if (!cJSON_IsString(value) || cJSON_HasObjectItem(update.get(), value->string))
+        return {"422 Unprocessable Entity", "invalid_value", value->string};
+      if (!add_copy(update.get(), value->string, value))
+        return {"500 Internal Server Error", "settings_unavailable", {}};
+      ++count;
+      continue;
+    }
+    if (requested_key == "c6_auto_update") {
+      if (!cJSON_IsBool(value) || cJSON_HasObjectItem(update.get(), value->string))
+        return {"422 Unprocessable Entity", "invalid_value", value->string};
+      if (!add_copy(update.get(), value->string, value))
+        return {"500 Internal Server Error", "settings_unavailable", {}};
+      ++count;
+      continue;
+    }
+    if (requested_key == "photo_source") {
+      const auto *name = cJSON_GetStringValue(value);
+      if (source_preset || !name || !(source_preset = parse_photo_preset(name)))
+        return {"422 Unprocessable Entity", "invalid_value", value->string};
+      ++count;
+      continue;
+    }
     if (requested_key == "frame_name") {
       const auto *input = cJSON_GetStringValue(value);
       std::string name;
@@ -271,6 +309,15 @@ ConfigurationUpdate update_configuration(const char *json) {
       if (!cJSON_AddStringToObject(update.get(), "frame_name", name.c_str()))
         return {"500 Internal Server Error", "settings_unavailable", {}};
       frame_name = std::move(name);
+      ++count;
+      continue;
+    }
+    if (requested_key == "auto_update" || requested_key == "update_frequency") {
+      auto *preferences = cJSON_GetObjectItemCaseSensitive(update.get(), "firmware_updates");
+      if (!preferences)
+        preferences = cJSON_AddObjectToObject(update.get(), "firmware_updates");
+      if (!preferences || cJSON_HasObjectItem(preferences, value->string) || !add_copy(preferences, value->string, value))
+        return {"422 Unprocessable Entity", "invalid_value", value->string};
       ++count;
       continue;
     }
@@ -301,7 +348,7 @@ ConfigurationUpdate update_configuration(const char *json) {
         if (!secret || !*secret)
           return {"422 Unprocessable Entity", "invalid_value", key};
         native_key = "immich_key";
-      } else if (field->secret || !passes_through(key, playback.get())) {
+      } else if (field->secret || !cJSON_HasObjectItem(playback.get(), key)) {
         return {"422 Unprocessable Entity", "unavailable", key};
       }
       if (cJSON_HasObjectItem(update.get(), native_key))
@@ -314,7 +361,7 @@ ConfigurationUpdate update_configuration(const char *json) {
 
   const auto result = count == 0 && !expected_epoch ? Settings::UpdateResult::Unchanged
                                                     : Settings::update_playback(update.get(), expected_epoch,
-                                                                                PhotoFilterUpdate::Compose);
+                                                                                PhotoFilterUpdate::Compose, source_preset);
   if (result == Settings::UpdateResult::Invalid)
     return {"422 Unprocessable Entity", "invalid_value", {}};
   if (result == Settings::UpdateResult::Stale)

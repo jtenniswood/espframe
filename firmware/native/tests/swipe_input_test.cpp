@@ -301,6 +301,35 @@ void only_a_continuous_stationary_hold_can_sleep() {
   assert(input.awake() && swipe.idle() && swipe.settled() == 2);
 }
 
+void only_a_short_stationary_contact_on_a_settled_photo_taps() {
+  Swipe swipe{width, 5, 2};
+  SwipeInput input;
+  input.update(swipe, report(1, 5'000, 800), initial_position);
+  auto jitter = report(2, 15'000, 802);
+  jitter.y += 4;
+  input.update(swipe, jitter, initial_position);
+  assert(input.update(swipe, report(3, 90'000, 0, 0), initial_position) == Effect::Tap);
+  assert(input.contact_y() == 200 && swipe.idle() && swipe.position() == initial_position);
+
+  input.update(swipe, report(4, 100'000, 800), initial_position);
+  jitter = report(5, 110'000, 800);
+  jitter.y += 30;
+  input.update(swipe, jitter, initial_position);
+  assert(input.update(swipe, report(6, 125'000, 0, 0), initial_position) == Effect::None);
+  input.update(swipe, report(7, 130'000, 800), initial_position);
+  input.update(swipe, report(8, 140'000, 0, 0, false), initial_position);
+  assert(input.update(swipe, report(9, 150'000, 0, 0), initial_position) == Effect::None);
+
+  const auto moving_handoff = initial_position + 200;
+  swipe.advance(160'000, Swipe::Transition::Glide);
+  input.update(swipe, report(10, 170'000, 800), moving_handoff);
+  assert(input.update(swipe, report(11, 200'000, 0, 0), moving_handoff) == Effect::None);
+
+  input.sleep(swipe);
+  assert(input.update(swipe, report(12, 210'000, 800), initial_position) == Effect::Wake);
+  assert(input.update(swipe, report(13, 220'000, 0, 0), initial_position) == Effect::None);
+}
+
 void scheduled_hours_preserve_manual_sleep_and_handle_midnight() {
   ScreenSchedule disabled{{false, 6, 22, 60}};
   assert(disabled.update(4, 100, false));
@@ -333,6 +362,37 @@ void entering_the_on_window_clears_a_temporary_wake() {
   // A local time correction can return to off-hours before the timer would
   // have expired. The previous off-hours tap no longer applies.
   assert(!schedule.update(5, 30'000, false));
+}
+
+void changing_the_schedule_reuses_an_active_wake() {
+  const espframe::native::ScreenScheduleSettings initial{true, 6, 22, 60};
+  ScreenSchedule schedule{initial};
+  assert(!schedule.update(23, 0, false));
+  schedule.wake(1'000'000);
+  auto updated = initial;
+  updated.wake_seconds = 30;
+  schedule.set_settings(updated);
+  assert(schedule.update(23, 30'999'999, false));
+  assert(!schedule.update(23, 31'000'000, false));
+  schedule.wake(32'000'000);
+  updated.wake_seconds = 75;
+  schedule.set_settings(updated);
+  assert(schedule.update(23, 106'999'999, false));
+  assert(!schedule.update(23, 107'000'000, false));
+
+  // Changing the hours can wake a schedule-slept screen, but preserves a
+  // manual sleep until the schedule is explicitly switched off.
+  updated.on_hour = 23;
+  updated.off_hour = 7;
+  schedule.set_settings(updated);
+  assert(schedule.update(23, 108'000'000, false));
+  schedule.sleep();
+  updated.off_hour = 8;
+  schedule.set_settings(updated);
+  assert(!schedule.update(23, 109'000'000, false));
+  updated.enabled = false;
+  schedule.set_settings(updated);
+  assert(schedule.update(23, 110'000'000, false));
 }
 
 void a_scheduled_wake_consumes_the_touch_and_expires_after_its_duration() {
@@ -426,6 +486,20 @@ void putting_the_screen_to_sleep_mid_swipe_waits_for_the_next_contact() {
   assert(swipe.idle() && swipe.settled() == 2);
 }
 
+void changing_the_viewport_requires_a_fresh_touch() {
+  Swipe swipe{800, 5, 2};
+  SwipeInput input;
+  input.wait_for_new_contact();
+  const auto position = swipe.position();
+  assert(input.update(swipe, report(7, 5'000, 550), position) == Effect::None);
+  assert(input.update(swipe, report(8, 10'000, 150), position) == Effect::None);
+  assert(input.update(swipe, report(9, 15'000, 0, 0), position) == Effect::None);
+  assert(!input.engaged() && swipe.idle());
+  input.update(swipe, report(10, 20'000, 550), position);
+  input.update(swipe, report(11, 25'000, 150), position);
+  assert(swipe.dragging() && swipe.position() == position + 400);
+}
+
 }  // namespace
 
 int main() {
@@ -441,9 +515,12 @@ int main() {
   a_second_finger_blocks_until_release_even_at_sequence_rollover();
   a_hold_sleeps_on_release_and_the_wake_contact_never_swipes();
   only_a_continuous_stationary_hold_can_sleep();
+  only_a_short_stationary_contact_on_a_settled_photo_taps();
   scheduled_hours_preserve_manual_sleep_and_handle_midnight();
   entering_the_on_window_clears_a_temporary_wake();
+  changing_the_schedule_reuses_an_active_wake();
   a_scheduled_wake_consumes_the_touch_and_expires_after_its_duration();
   web_commands_are_applied_through_the_same_schedule();
   putting_the_screen_to_sleep_mid_swipe_waits_for_the_next_contact();
+  changing_the_viewport_requires_a_fresh_touch();
 }

@@ -175,7 +175,8 @@ def validate_web_support(product: dict[str, Any], errors: list[str]) -> None:
         require_contains(text, "validateBackupConfigVersion", label, errors)
         require_contains(text, "BACKUP_VERSION_MIGRATIONS", label, errors)
         require_contains(text, "BACKUP_SCHEMA.forEach", label, errors)
-        require_contains(text, "normalizeScheduleWakeTimeout(S.schedule_wake_timeout)", label, errors)
+        if not re.search(r"\bnormalizeScheduleWakeTimeout\(S\d*\.schedule_wake_timeout\)", text):
+            errors.append(f"{label} must normalize the wake timeout when exporting settings")
         require_contains(text, "backupImportFieldPresent", label, errors)
         require_contains(text, "backupImportFieldValue", label, errors)
         require_contains(text, "applyBackupImportField", label, errors)

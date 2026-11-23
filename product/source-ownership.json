@@ -189,6 +189,13 @@
       "license": "Apache-2.0"
     },
     {
+      "usage": "Native WireGuard client using ESPHome's IPv4 tunnel library",
+      "declarations": ["firmware/native/main/idf_component.yml", "firmware/native/dependencies.lock", "firmware/native/installer/LICENSE-WireGuard.txt"],
+      "upstream": "https://github.com/esphome-libs/wireguard",
+      "revision": "Espressif Component Registry package 0.4.8",
+      "license": "BSD-3-Clause"
+    },
+    {
       "usage": "Native ESPHome API Noise transport and Home Assistant interoperability test",
       "declarations": ["firmware/native/home_assistant/idf_component.yml", "firmware/native/dependencies.lock", "firmware/native/tests/home_assistant/dependencies.lock", ".github/workflows/native-swipe.yml"],
       "upstream": "https://github.com/esphome-libs/noise-c",

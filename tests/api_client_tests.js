@@ -73,6 +73,32 @@ async function main() {
   assert.equal(secretsSnapshot.api_key_configured, true);
   assert.equal(secretsSnapshot.values.wireguard_private_key, undefined, "secret values are never part of the snapshot");
 
+  const pollingClient = new EspframeApiClient(contract.capabilities_path, 1000);
+  let nextEpoch = 3;
+  let writeEpoch;
+  context.fetch = async (url, init) => {
+    if (url.endsWith("/capabilities")) return response(contract);
+    if (init?.method === "POST") {
+      writeEpoch = JSON.parse(new URLSearchParams(init.body).get("configuration")).reset_epoch;
+      return response({ api_version: 1, status: "accepted" });
+    }
+    if (init?.headers?.["If-None-Match"] === 'W/"3"') return { status: 304 };
+    return {
+      ...response({ api_version: 1, reset_epoch: nextEpoch, values: { amount: 2 }, unavailable: [] }),
+      headers: { get: name => name === "ETag" ? 'W/"' + nextEpoch + '"' : null },
+    };
+  };
+  await pollingClient.getConfigurationSnapshot();
+  assert.equal(await pollingClient.pollConfiguration('W/"3"'), null, "an unchanged response has no JSON body");
+  nextEpoch = 4;
+  const observed = await pollingClient.pollConfiguration();
+  assert.equal(observed.etag, 'W/"4"');
+  await pollingClient.updateSettings({ amount: 5 }, []);
+  assert.equal(writeEpoch, 3, "an unaccepted background snapshot must not retag a local draft after a reset");
+  pollingClient.useConfigurationSnapshot(observed.snapshot);
+  await pollingClient.updateSettings({ amount: 5 }, []);
+  assert.equal(writeEpoch, 4, "accepting refreshed settings adopts the new reset epoch");
+
   for (const secrets of [true, [], { wireguard_private_key: "yes" }]) {
     const invalidClient = new EspframeApiClient(contract.capabilities_path, 1000);
     context.fetch = async (url) => {

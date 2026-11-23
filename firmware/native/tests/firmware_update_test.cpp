@@ -19,6 +19,7 @@ using espframe::native::FirmwareImage;
 using espframe::native::firmware_boot_status;
 using espframe::native::last_reset_reason;
 using espframe::native::request_frame_restart;
+using espframe::native::run_coprocessor_update;
 using espframe::native::stage_firmware;
 
 namespace {
@@ -197,6 +198,13 @@ int main(int argc, char **argv) {
   assert(fake.running == &factory && fake.boot == &slot);
   assert(fake.begins == 1 && fake.ends == 1 && fake.aborts == 0 && fake.boot_selections == 1);
   assert(stage_firmware(expected.size(), receive, &stream) == Result::RestartPending);
+  unsigned coprocessor_installs = 0;
+  const auto install_coprocessor = [](void *context) {
+    ++*static_cast<unsigned *>(context);
+    return true;
+  };
+  assert(!run_coprocessor_update(install_coprocessor, &coprocessor_installs));
+  assert(coprocessor_installs == 0);
   request_frame_restart();
   assert(fake.restarts == 0);
   fake.running = &slot;
@@ -207,8 +215,12 @@ int main(int argc, char **argv) {
   assert(fake.restarts == 0);
   fake.pending = false;
   assert(last_reset_reason() == "power-on event");
+  assert(!run_coprocessor_update([](void *) { return false; }, nullptr));
+  assert(fake.restarts == 0);
+  assert(run_coprocessor_update(install_coprocessor, &coprocessor_installs));
+  assert(coprocessor_installs == 1 && fake.restarts == 1);
   request_frame_restart();
-  assert(fake.restarts == 1 && last_reset_reason() == "software via esp_restart");
+  assert(fake.restarts == 2 && last_reset_reason() == "software via esp_restart");
   fake.last_reset = ESP_RST_TASK_WDT;
   assert(last_reset_reason() == "task watchdog");
   fake.last_reset = ESP_RST_UNKNOWN;

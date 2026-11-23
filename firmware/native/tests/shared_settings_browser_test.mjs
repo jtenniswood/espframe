@@ -128,6 +128,9 @@ const testScript = `
     const language = reloaded.elements.namedItem('device_language')
     language.value = 'he'
     language.dispatchEvent(new Event('change', {bubbles: true}))
+    const preparationUrl = reloaded.elements.namedItem('prepared_slide_url')
+    preparationUrl.value = ''
+    preparationUrl.dispatchEvent(new Event('input', {bubbles: true}))
     reloaded.requestSubmit()
     const applied = await waitFor(() => {
       const next = document.querySelector('#native-settings')
@@ -138,6 +141,8 @@ const testScript = `
     check(applied.elements.namedItem('conn_timeout').value === '45 seconds', 'Live connection timeout did not reload')
     check(applied.elements.namedItem('warm_tone_override').checked, 'Live warm tone override did not reload')
     check(applied.elements.namedItem('device_language').value === 'he', 'Live photo date language did not reload')
+    check(!applied.elements.namedItem('prepared_slide_url') && !applied.elements.namedItem('prepared_slide_token') &&
+      !applied.textContent.includes('Photo preparation service'), 'The preparation card remained after returning to direct Immich previews')
     check(applied.querySelector('button[type=submit]').disabled, 'The saved form still has pending edits')
     document.body.dataset.testResult = 'passed'
   }
@@ -208,42 +213,15 @@ const statusTest = `
     await waitFor(() => field('screen') === 'Asleep')
     if (field('playback') !== 'Paused' || field('source') !== 'On This Day' || notice())
       throw new Error('The recovered frame status is wrong')
-    if (!panel.querySelector('.native-screen-controls').hidden)
-      throw new Error('Screen controls appeared on an older frame')
+    if (panel.querySelector('button')) throw new Error('Frame status offered a screen action')
     await waitFor(() => field('playback') === 'Showing photos')
     if (field('screen') !== 'On' || field('immich') !== 'Responding') throw new Error('The frame did not recover')
     visibility(true)
     document.body.dataset.statusTest = 'passed'
   }
-  async function verifyScreen() {
-    const control = panel.querySelector('#native-screen-action')
-    const message = () => control.nextElementSibling.textContent
-    await waitFor(() => !control.parentElement.hidden && field('screen') === 'On')
-    if (control.textContent !== 'Sleep screen') throw new Error('The awake frame should offer sleep')
-    control.click()
-    if (!control.disabled || field('screen') !== 'On' || !message().includes('Putting screen to sleep'))
-      throw new Error('The page changed state before the player confirmed the command')
-    control.click()
-    await waitFor(() => field('screen') === 'Asleep' && !control.disabled)
-    if (control.textContent !== 'Wake screen' || message()) throw new Error('Sleep was not confirmed')
-    control.click()
-    await waitFor(() => message().includes('The frame is busy') && !control.disabled)
-    if (field('screen') !== 'Asleep') throw new Error('A rejected command changed the screen state')
-    control.click()
-    await waitFor(() => field('screen') === 'On' && !control.disabled)
-    if (control.textContent !== 'Sleep screen' || message()) throw new Error('Wake was not confirmed')
-    control.click()
-    await waitFor(() => message().includes('Couldn’t confirm'))
-    await waitFor(() => field('screen') === 'Asleep' && !control.disabled)
-    if (control.textContent !== 'Wake screen') throw new Error('Status did not recover after a missed confirmation')
-    visibility(true)
-    document.body.dataset.statusTest = 'passed'
-  }
-  const run = location.pathname === '/screen-test' ? verifyScreen : verify
-  run().catch(error => { document.body.dataset.statusTest = error.message })
+  verify().catch(error => { document.body.dataset.statusTest = error.message })
 `
 assets['/status-test'] = ['text/html', html.replace('</body>', '<script defer src="/verify-status.js"></script></body>')]
-assets['/screen-test'] = assets['/status-test']
 assets['/verify-status.js'] = ['text/javascript', statusTest]
 
 const requests = []
@@ -251,13 +229,6 @@ let reconnectFailures = 0
 let disconnected = false
 let withStatus = false
 let statusRequests = 0
-let controlsScreen = false
-const screenPath = '/espframe/api/v1/screen'
-const screenRequests = []
-let mockScreen = 'awake'
-let pendingAction = null
-let mockPending = false
-let missConfirmation = false
 const server = createServer(async (request, response) => {
   const json = (status, value) => response.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(value))
   if (request.url in assets) {
@@ -269,44 +240,14 @@ const server = createServer(async (request, response) => {
   } else if (request.url === '/espframe/api/v1/capabilities') {
     json(200, {
       ...capabilities,
-      ...(withStatus ? { status_path: statusPath } : {}),
-      ...(controlsScreen ? { screen_control_path: screenPath } : {}),
+      ...(withStatus ? { status_path: statusPath, screen_control_path: '/espframe/api/v1/screen' } : {}),
     })
-  } else if (request.url === screenPath) {
-    assert.equal(request.method, 'POST')
-    assert.equal(request.headers.origin, `http://127.0.0.1:${server.address().port}`)
-    assert.equal(request.headers['content-type'], 'application/x-www-form-urlencoded')
-    const chunks = []
-    for await (const chunk of request) chunks.push(chunk)
-    const form = Buffer.concat(chunks).toString()
-    screenRequests.push(form)
-    if (screenRequests.length === 2) {
-      json(409, { error: 'operation_in_progress' })
-    } else {
-      pendingAction = form === 'action=sleep' ? 'asleep' : 'awake'
-      mockPending = screenRequests.length !== 4
-      missConfirmation = screenRequests.length === 4
-      json(202, { status: 'accepted' })
-    }
   } else if (request.url === statusPath) {
     assert.equal(request.method, 'GET')
     assert.equal(request.headers['cache-control'], 'no-cache')
     statusRequests++
-    const base = { api_version: 1, restarting: false, notice: 'none' }
-    if (controlsScreen) {
-      if (!mockPending && pendingAction) {
-        mockScreen = pendingAction
-        pendingAction = null
-      }
-      if (missConfirmation) {
-        missConfirmation = false
-        json(503, { error: 'restarting' })
-      } else {
-        json(200, { ...base, screen: mockScreen, screen_pending: mockPending, source: 'all', immich: 'responding',
-          playback: mockScreen === 'awake' ? 'showing' : 'paused' })
-      }
-      mockPending = false
-    } else if (statusRequests === 1) {
+    const base = { api_version: 1, restarting: false, notice: 'none', screen_pending: false }
+    if (statusRequests === 1) {
       json(200, { ...base, screen: 'starting', playback: 'setup', source: 'none', immich: 'not_configured' })
     } else if (statusRequests === 2) {
       json(200, { ...base, screen: 'awake', playback: 'loading', source: 'custom', immich: 'rejected', notice: 'filters_unavailable' })
@@ -329,6 +270,7 @@ const server = createServer(async (request, response) => {
     } else {
       const { api_key, prepared_slide_token, ...settings } = post.values
       Object.assign(snapshot.values, settings)
+      if (settings.prepared_slide_url === '') snapshot.values.prepared_slide_token_configured = false
       disconnected = requests.length === 2
       json(200, { api_version: 1, status: 'accepted', updated: Object.keys(post.values).length,
         ...(disconnected ? { frame_hostname: 'salon-t-129a' } : { restart_required: false }) })
@@ -385,6 +327,7 @@ try {
     },
     { api_version: 1, reset_epoch: 0, values: {
       portrait_pairing: true, portrait_pair_framing: 'Fit', conn_timeout: '45 seconds', warm_tone_override: true, device_language: 'he',
+      prepared_slide_url: '',
     } },
   ])
   assert.equal(reconnectFailures, 1)
@@ -395,12 +338,6 @@ try {
   assert.match(result.page, /data-status-test="passed"/, result.page.match(/data-status-test="[^"]*"/)?.[0] || result.errors)
   assert.equal(statusRequests, 5)
   console.log('Frame status reports setup, key rejection, sleep and recovery, and pauses while hidden')
-  controlsScreen = true
-  const screenResult = await render('/screen-test', 15000)
-  assert.match(screenResult.page, /data-status-test="passed"/,
-    screenResult.page.match(/data-status-test="[^"]*"/)?.[0] || screenResult.errors)
-  assert.deepEqual(screenRequests, ['action=sleep', 'action=wake', 'action=wake', 'action=sleep'])
-  console.log('Screen controls confirm sleep and wake, prevent duplicate submissions and recover after a missed response')
 } finally {
   server.close()
 }

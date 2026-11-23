@@ -1,343 +1,369 @@
 // ESPFRAME: generated from typed docs/webserver/src and product/contract; run `npm run generate` to update.
 (() => {
-  var __defProp = Object.defineProperty;
-  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-  var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-
   // docs/webserver/src/api_client.ts
+  var f = Object.defineProperty;
+  var p = (u2, e, t) => e in u2 ? f(u2, e, { enumerable: true, configurable: true, writable: true, value: t }) : u2[e] = t;
+  var s = (u2, e, t) => p(u2, typeof e != "symbol" ? e + "" : e, t);
   var EspframeApiError = class extends Error {
-    constructor(kind, message, status, code, field2) {
-      super(message);
-      __publicField(this, "kind", kind);
-      __publicField(this, "status", status);
-      __publicField(this, "code", code);
-      __publicField(this, "field", field2);
+    constructor(t, n, i, r, a) {
+      super(n);
+      s(this, "kind", t);
+      s(this, "status", i);
+      s(this, "code", r);
+      s(this, "field", a);
       this.name = "EspframeApiError";
     }
   };
-  function object(value) {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
+  function c(u2) {
+    return typeof u2 == "object" && u2 !== null && !Array.isArray(u2);
   }
   var EspframeApiClient = class {
-    constructor(capabilitiesPath, timeoutMs = 5e3) {
-      __publicField(this, "capabilitiesPath", capabilitiesPath);
-      __publicField(this, "timeoutMs", timeoutMs);
-      __publicField(this, "queue", Promise.resolve());
-      __publicField(this, "capabilities", null);
-      __publicField(this, "negotiated");
-      __publicField(this, "resetEpoch");
-      __publicField(this, "resetAccepted", false);
+    constructor(e, t = 5e3) {
+      s(this, "capabilitiesPath", e);
+      s(this, "timeoutMs", t);
+      s(this, "queue", Promise.resolve());
+      s(this, "capabilities", null);
+      s(this, "negotiated");
+      s(this, "resetEpoch");
+      s(this, "resetAccepted", false);
     }
     waitForWrites() {
       return this.queue;
     }
-    enqueue(command) {
-      const request = this.queue.then(command);
-      this.queue = request.catch(() => void 0);
-      return request;
+    enqueue(e) {
+      const t = this.queue.then(e);
+      return this.queue = t.catch(() => {
+      }), t;
     }
-    error(status, message, payload) {
-      const body = object(payload) ? payload : {};
-      const kind = status === 404 || status === 405 ? "unavailable" : status === 409 ? "conflict" : status === 400 || status === 422 ? "validation" : "server";
+    error(e, t, n) {
+      const i = c(n) ? n : {}, r = e === 404 || e === 405 ? "unavailable" : e === 409 ? "conflict" : e === 400 || e === 422 ? "validation" : "server";
       return new EspframeApiError(
-        kind,
-        typeof body.error === "string" ? body.error : message,
-        status,
-        typeof body.error === "string" ? body.error : void 0,
-        typeof body.field === "string" ? body.field : void 0
+        r,
+        typeof i.error == "string" ? i.error : t,
+        e,
+        typeof i.error == "string" ? i.error : void 0,
+        typeof i.field == "string" ? i.field : void 0
       );
     }
-    async requestWith(url, init, consume) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    async requestWith(e, t, n) {
+      const i = new AbortController(), r = setTimeout(() => i.abort(), this.timeoutMs);
       try {
-        const response = await fetch(url, { ...init, signal: controller.signal });
-        return await consume(response);
-      } catch (error) {
-        if (error instanceof EspframeApiError) throw error;
-        if (error && typeof error === "object" && error.name === "AbortError") {
-          throw new EspframeApiError("timeout", "request_timeout");
-        }
-        throw new EspframeApiError("offline", "device_offline");
+        const a = await fetch(e, { ...t, signal: i.signal });
+        return await n(a);
+      } catch (a) {
+        throw a instanceof EspframeApiError ? a : a && typeof a == "object" && a.name === "AbortError" ? new EspframeApiError("timeout", "request_timeout") : new EspframeApiError("offline", "device_offline");
       } finally {
-        clearTimeout(timer);
+        clearTimeout(r);
       }
     }
-    request(url, init = {}) {
-      return this.requestWith(url, init, async (response) => response);
+    request(e, t = {}) {
+      return this.requestWith(e, t, async (n) => n);
     }
-    requestJson(url, init, message) {
-      return this.requestWith(url, init, (response) => this.json(response, message));
+    requestJson(e, t, n) {
+      return this.requestWith(e, t, (i) => this.json(i, n));
     }
-    async json(response, message) {
-      let payload = null;
+    async json(e, t) {
+      let n = null;
       try {
-        payload = await response.json();
-      } catch (error) {
-        if (error && typeof error === "object" && error.name === "AbortError") {
-          throw new EspframeApiError("timeout", "request_timeout");
-        }
-        if (!response.ok) throw this.error(response.status, message);
-        throw new EspframeApiError("server", "invalid_server_response", response.status);
+        n = await e.json();
+      } catch (i) {
+        throw i && typeof i == "object" && i.name === "AbortError" ? new EspframeApiError("timeout", "request_timeout") : e.ok ? new EspframeApiError("server", "invalid_server_response", e.status) : this.error(e.status, t);
       }
-      if (!response.ok) throw this.error(response.status, message, payload);
-      return payload;
+      if (!e.ok) throw this.error(e.status, t, n);
+      return n;
     }
-    parseCapabilities(value) {
-      if (!object(value) || typeof value.contract_version !== "number" || typeof value.api_version !== "number" || typeof value.configuration_path !== "string" || value.update_mode !== "atomic" || typeof value.configuration_available !== "boolean" || typeof value.configuration_read !== "boolean" || typeof value.configuration_write !== "boolean" || typeof value.legacy_entity_api !== "boolean") return null;
-      return value;
+    parseCapabilities(e) {
+      return !c(e) || typeof e.contract_version != "number" || typeof e.api_version != "number" || typeof e.configuration_path != "string" || e.update_mode !== "atomic" || typeof e.configuration_available != "boolean" || typeof e.configuration_read != "boolean" || typeof e.configuration_write != "boolean" || typeof e.legacy_entity_api != "boolean" ? null : e;
     }
     negotiate() {
-      if (this.negotiated !== void 0) return Promise.resolve(this.negotiated);
-      if (!this.capabilities) {
-        this.capabilities = this.requestJson(this.capabilitiesPath, { cache: "no-store" }, "capabilities_unavailable").then((payload) => {
-          const capabilities = this.parseCapabilities(payload);
-          if (!capabilities) {
-            this.negotiated = null;
-            return null;
-          }
-          this.negotiated = capabilities.configuration_available && capabilities.configuration_read && capabilities.configuration_write ? capabilities : null;
-          return this.negotiated;
-        }).catch((error) => {
-          if (error instanceof EspframeApiError && error.kind === "unavailable") {
-            this.negotiated = null;
-            return null;
-          }
-          this.capabilities = null;
-          throw error;
-        });
-      }
-      return this.capabilities;
+      return this.negotiated !== void 0 ? Promise.resolve(this.negotiated) : (this.capabilities || (this.capabilities = this.requestJson(this.capabilitiesPath, { cache: "no-store" }, "capabilities_unavailable").then((e) => {
+        const t = this.parseCapabilities(e);
+        return t ? (this.negotiated = t.configuration_available && t.configuration_read && t.configuration_write ? t : null, this.negotiated) : (this.negotiated = null, null);
+      }).catch((e) => {
+        if (e instanceof EspframeApiError && e.kind === "unavailable")
+          return this.negotiated = null, null;
+        throw this.capabilities = null, e;
+      })), this.capabilities);
     }
     async getConfigurationSnapshot() {
-      const capabilities = await this.negotiate();
-      if (!capabilities) throw new EspframeApiError("unavailable", "configuration_api_unavailable");
-      const payload = await this.requestJson(capabilities.configuration_path, { cache: "no-store" }, "configuration_api_failed");
-      if (!object(payload) || payload.api_version !== capabilities.api_version || capabilities.reset_path && !Number.isInteger(payload.reset_epoch) || !object(payload.values) || !Array.isArray(payload.unavailable) || !payload.unavailable.every((value) => typeof value === "string")) {
+      const e = await this.pollConfiguration();
+      if (!e) throw new EspframeApiError("server", "invalid_configuration_snapshot");
+      return this.useConfigurationSnapshot(e.snapshot), e.snapshot;
+    }
+    useConfigurationSnapshot(e) {
+      this.resetEpoch = e.reset_epoch;
+    }
+    async pollConfiguration(e) {
+      const t = await this.negotiate();
+      if (!t) throw new EspframeApiError("unavailable", "configuration_api_unavailable");
+      const n = await this.requestWith(t.configuration_path, {
+        cache: "no-store",
+        headers: e ? { "If-None-Match": e } : void 0
+      }, async (i) => {
+        var r;
+        return e && i.status === 304 ? null : {
+          payload: await this.json(i, "configuration_api_failed"),
+          etag: ((r = i.headers) == null ? void 0 : r.get("ETag")) || void 0
+        };
+      });
+      return n ? { snapshot: this.parseConfiguration(n.payload, t), etag: n.etag } : null;
+    }
+    parseConfiguration(e, t) {
+      if (!c(e) || e.api_version !== t.api_version || t.reset_path && !Number.isInteger(e.reset_epoch) || !c(e.values) || !Array.isArray(e.unavailable) || !e.unavailable.every((a) => typeof a == "string"))
         throw new EspframeApiError("server", "invalid_configuration_snapshot");
-      }
-      let apiKeyConfigured = typeof payload.api_key_configured === "boolean" ? payload.api_key_configured : void 0;
-      const values = {};
-      for (const [key, value] of Object.entries(payload.values)) {
-        if (key === "api_key") {
-          if (apiKeyConfigured !== void 0) throw new EspframeApiError("server", "invalid_configuration_snapshot");
-          apiKeyConfigured = !!value;
+      let n = typeof e.api_key_configured == "boolean" ? e.api_key_configured : void 0;
+      const i = {};
+      for (const [a, o] of Object.entries(e.values)) {
+        if (a === "api_key") {
+          if (n !== void 0) throw new EspframeApiError("server", "invalid_configuration_snapshot");
+          n = !!o;
           continue;
         }
-        if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
+        if (typeof o != "string" && typeof o != "number" && typeof o != "boolean")
           throw new EspframeApiError("server", "invalid_configuration_snapshot");
-        }
-        values[key] = value;
+        i[a] = o;
       }
-      if (apiKeyConfigured === void 0) apiKeyConfigured = false;
-      let secretsConfigured;
-      if (payload.secrets_configured !== void 0) {
-        if (!object(payload.secrets_configured)) throw new EspframeApiError("server", "invalid_configuration_snapshot");
-        secretsConfigured = {};
-        for (const [key, value] of Object.entries(payload.secrets_configured)) {
-          if (typeof value !== "boolean") throw new EspframeApiError("server", "invalid_configuration_snapshot");
-          secretsConfigured[key] = value;
+      n === void 0 && (n = false);
+      let r;
+      if (e.secrets_configured !== void 0) {
+        if (!c(e.secrets_configured)) throw new EspframeApiError("server", "invalid_configuration_snapshot");
+        r = {};
+        for (const [a, o] of Object.entries(e.secrets_configured)) {
+          if (typeof o != "boolean") throw new EspframeApiError("server", "invalid_configuration_snapshot");
+          r[a] = o;
         }
       }
-      this.resetEpoch = Number.isInteger(payload.reset_epoch) ? payload.reset_epoch : 0;
       return {
-        api_version: capabilities.api_version,
-        reset_epoch: this.resetEpoch,
-        api_key_configured: apiKeyConfigured,
-        secrets_configured: secretsConfigured,
-        values,
-        unavailable: payload.unavailable
+        api_version: t.api_version,
+        reset_epoch: Number.isInteger(e.reset_epoch) ? e.reset_epoch : 0,
+        api_key_configured: n,
+        secrets_configured: r,
+        values: i,
+        unavailable: e.unavailable
       };
     }
-    async legacyPost(url, body) {
-      return this.requestWith(url, body === void 0 ? { method: "POST" } : {
+    async legacyPost(e, t) {
+      return this.requestWith(e, t === void 0 ? { method: "POST" } : {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body
-      }, async (response) => {
-        if (!response.ok) {
-          let payload = null;
+        body: t
+      }, async (n) => {
+        if (!n.ok) {
+          let i = null;
           try {
-            payload = await response.json();
-          } catch (error) {
-            if (error && typeof error === "object" && error.name === "AbortError") {
+            i = await n.json();
+          } catch (r) {
+            if (r && typeof r == "object" && r.name === "AbortError")
               throw new EspframeApiError("timeout", "request_timeout");
-            }
           }
-          throw this.error(response.status, "legacy_write_failed", payload);
+          throw this.error(n.status, "legacy_write_failed", i);
         }
-        return response;
+        return n;
       });
     }
-    async legacyWrite(setting) {
-      if (setting.domain === "switch") {
-        await this.legacyPost(setting.url + (setting.value ? "/turn_on" : "/turn_off"));
+    async legacyWrite(e) {
+      if (e.domain === "switch") {
+        await this.legacyPost(e.url + (e.value ? "/turn_on" : "/turn_off"));
         return;
       }
-      const body = new URLSearchParams({ [setting.domain === "select" ? "option" : "value"]: String(setting.value) }).toString();
-      await this.legacyPost(setting.url + "/set", body);
+      const t = new URLSearchParams({ [e.domain === "select" ? "option" : "value"]: String(e.value) }).toString();
+      await this.legacyPost(e.url + "/set", t);
     }
-    updateSettings(values, legacy, compatibilityValues = values) {
+    updateSettings(e, t, n = e) {
       return this.enqueue(async () => {
         if (this.resetAccepted) throw new EspframeApiError("conflict", "reset_pending", 409, "reset_pending");
-        const capabilities = await this.negotiate();
-        if (!capabilities) {
-          for (const setting of legacy) await this.legacyWrite(setting);
+        const i = await this.negotiate();
+        if (!i) {
+          for (const o of t) await this.legacyWrite(o);
           return null;
         }
-        if (this.resetEpoch === void 0) await this.getConfigurationSnapshot();
-        const supportedValues = capabilities.firmware_rotation_policy === true ? values : compatibilityValues;
-        const body = new URLSearchParams({ [capabilities.configuration_parameter || "configuration"]: JSON.stringify({ api_version: capabilities.api_version, reset_epoch: this.resetEpoch, values: supportedValues }) }).toString();
+        this.resetEpoch === void 0 && await this.getConfigurationSnapshot();
+        const r = i.firmware_rotation_policy === true ? e : n, a = new URLSearchParams({ [i.configuration_parameter || "configuration"]: JSON.stringify({ api_version: i.api_version, reset_epoch: this.resetEpoch, values: r }) }).toString();
         try {
-          const payload = await this.requestJson(capabilities.configuration_path, {
+          const o = await this.requestJson(i.configuration_path, {
             method: "POST",
-            headers: { "Content-Type": capabilities.configuration_encoding || "application/x-www-form-urlencoded" },
-            body
+            headers: { "Content-Type": i.configuration_encoding || "application/x-www-form-urlencoded" },
+            body: a
           }, "configuration_update_failed");
-          if (!object(payload) || payload.status !== "accepted") throw new EspframeApiError("server", "configuration_update_failed");
-          await new Promise((resolve) => setTimeout(resolve, 100));
-          return payload;
-        } catch (error) {
-          if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
+          if (!c(o) || o.status !== "accepted") throw new EspframeApiError("server", "configuration_update_failed");
+          return await new Promise((l) => setTimeout(l, 100)), o;
+        } catch (o) {
+          if (!i.legacy_entity_api || !(o instanceof EspframeApiError) || o.kind !== "unavailable") throw o;
           this.negotiated = null;
-          for (const setting of legacy) await this.legacyWrite(setting);
+          for (const l of t) await this.legacyWrite(l);
           return null;
         }
       });
     }
-    reset(mode) {
+    reset(e) {
       return this.enqueue(async () => {
         if (this.resetAccepted) return;
-        const capabilities = await this.negotiate();
-        if (!capabilities || !capabilities.reset_path) {
+        const t = await this.negotiate();
+        if (!t || !t.reset_path)
           throw new EspframeApiError("unavailable", "reset_unavailable");
-        }
-        await this.legacyPost(capabilities.reset_path, new URLSearchParams({ mode }).toString());
-        this.resetAccepted = true;
+        await this.legacyPost(t.reset_path, new URLSearchParams({ mode: e }).toString()), this.resetAccepted = true;
       });
     }
-    post(url, params) {
+    post(e, t) {
       if (this.resetAccepted) return Promise.reject(new EspframeApiError("conflict", "reset_pending", 409, "reset_pending"));
-      const query = params ? "?" + new URLSearchParams(Object.entries(params).map(([key, value]) => [key, String(value)])).toString() : "";
-      return this.enqueue(() => this.legacyPost(url + query));
+      const n = t ? "?" + new URLSearchParams(Object.entries(t).map(([i, r]) => [i, String(r)])).toString() : "";
+      return this.enqueue(() => this.legacyPost(e + n));
     }
-    postText(url, value, useQueryFallback = false) {
-      if (this.resetAccepted) return Promise.reject(new EspframeApiError("conflict", "reset_pending", 409, "reset_pending"));
-      return this.enqueue(() => {
-        const body = new URLSearchParams({ value }).toString();
-        const query = useQueryFallback && (url + "?" + body).length <= 120 ? "?" + body : "";
-        return this.legacyPost(url + query, body);
+    postText(e, t, n = false) {
+      return this.resetAccepted ? Promise.reject(new EspframeApiError("conflict", "reset_pending", 409, "reset_pending")) : this.enqueue(() => {
+        const i = new URLSearchParams({ value: t }).toString(), r = n && (e + "?" + i).length <= 120 ? "?" + i : "";
+        return this.legacyPost(e + r, i);
       });
     }
-    getJson(url) {
-      return this.requestJson(url, { cache: "no-store" }, "legacy_read_failed");
+    getJson(e) {
+      return this.requestJson(e, { cache: "no-store" }, "legacy_read_failed");
     }
   };
 
   // docs/webserver/src/shared_controls.ts
-  function selectFromOptions(options, current, onChange, optionDisplayFn) {
-    var display = optionDisplayFn || function(o) {
-      return o;
-    };
-    var sel = document.createElement("select");
-    sel.className = "select";
-    options.forEach(function(o) {
-      var opt = document.createElement("option");
-      opt.value = o;
-      opt.textContent = display(o);
-      if (o === current) opt.selected = true;
-      sel.appendChild(opt);
-    });
-    sel.onchange = function() {
-      onChange(sel.value);
-    };
-    return sel;
+  function selectFromOptions(e, n, t, r) {
+    var i = r || function(a) {
+      return a;
+    }, o = document.createElement("select");
+    return o.className = "select", e.forEach(function(a) {
+      var d = document.createElement("option");
+      d.value = a, d.textContent = i(a), a === n && (d.selected = true), o.appendChild(d);
+    }), o.onchange = function() {
+      t(o.value);
+    }, o;
   }
-  function el(tag, cls) {
-    var e = document.createElement(tag);
-    if (cls) e.className = cls;
-    return e;
+  function el(e, n) {
+    var t = document.createElement(e);
+    return n && (t.className = n), t;
   }
-  function setStatus(target, msg, type, clearAfterMs) {
-    if (!target) return;
-    target.replaceChildren();
-    if (!msg) {
-      target.textContent = "";
-      return;
-    }
-    var dot = el("span", "dot " + (type || "green"));
-    target.appendChild(dot);
-    target.appendChild(document.createTextNode(" " + msg));
-    clearTimeout(target._t);
-    if (clearAfterMs) {
-      target._t = setTimeout(function() {
-        target.textContent = "";
-      }, clearAfterMs);
+  function setStatus(e, n, t, r) {
+    if (e) {
+      if (e.replaceChildren(), !n) {
+        e.textContent = "";
+        return;
+      }
+      var i = el("span", "dot " + (t || "green"));
+      e.appendChild(i), e.appendChild(document.createTextNode(" " + n)), clearTimeout(e._t), r && (e._t = setTimeout(function() {
+        e.textContent = "";
+      }, r));
     }
   }
-  function button(text, cls, onClick) {
-    var btn = el("button", cls || "btn btn-secondary");
-    btn.type = "button";
-    btn.textContent = text;
-    if (onClick) btn.onclick = onClick;
-    return btn;
+  function button(e, n, t) {
+    var r = el("button", n || "btn btn-secondary");
+    return r.type = "button", r.textContent = e, t && (r.onclick = t), r;
   }
-  var controlId = 0;
-  function bindDisclosure(toggle, panel, body, className, expandedWhenPresent) {
-    if (!body.id) body.id = "disclosure-" + ++controlId;
-    toggle.setAttribute("aria-controls", body.id);
-    function syncExpanded() {
-      toggle.setAttribute("aria-expanded", String(panel.classList.contains(className) === expandedWhenPresent));
+  var u = 0;
+  function bindDisclosure(e, n, t, r, i) {
+    t.id || (t.id = "disclosure-" + ++u), e.setAttribute("aria-controls", t.id);
+    function o() {
+      e.setAttribute("aria-expanded", String(n.classList.contains(r) === i));
     }
-    syncExpanded();
-    toggle.onclick = function(event) {
-      event.stopPropagation();
-      panel.classList.toggle(className);
-      syncExpanded();
+    o(), e.onclick = function(a) {
+      a.stopPropagation(), n.classList.toggle(r), o();
     };
   }
-  function connectFieldLabels(root) {
-    root.querySelectorAll(".field > label").forEach(function(label) {
-      var control = label.parentElement.querySelector("input,select,textarea");
-      if (!control) return;
-      if (!control.id) control.id = "setting-" + ++controlId;
-      label.htmlFor = control.id;
+  function connectFieldLabels(e) {
+    e.querySelectorAll(".field > label").forEach(function(n) {
+      var t = n.parentElement.querySelector("input,select,textarea");
+      t && (t.id || (t.id = "setting-" + ++u), n.htmlFor = t.id);
     });
   }
-  function makeCollapsibleCard(title, bodyElement, defaultCollapsed, badgeEl) {
-    var card = el("div", "card");
-    var header = el("div", "card-header");
-    var h3 = document.createElement("h3");
-    var toggle = el("button", "card-toggle");
-    toggle.type = "button";
-    toggle.textContent = title;
-    h3.appendChild(toggle);
-    var rightWrap = el("div", "card-header-right");
-    if (badgeEl) rightWrap.appendChild(badgeEl);
-    var chevron = el("span", "card-chevron");
-    chevron.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
-    rightWrap.appendChild(chevron);
-    header.appendChild(h3);
-    header.appendChild(rightWrap);
-    var body = el("div", "card-body");
-    body.appendChild(bodyElement);
-    card.appendChild(header);
-    card.appendChild(body);
-    if (defaultCollapsed) card.classList.add("collapsed");
-    bindDisclosure(toggle, card, body, "collapsed", false);
-    header.onclick = function() {
-      toggle.click();
-    };
-    return card;
+  function makeCollapsibleCard(e, n, t, r) {
+    var i = el("div", "card"), o = el("div", "card-header"), a = document.createElement("h3"), d = el("button", "card-toggle");
+    d.type = "button", d.textContent = e, a.appendChild(d);
+    var l = el("div", "card-header-right");
+    r && l.appendChild(r);
+    var p2 = el("span", "card-chevron");
+    p2.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>', l.appendChild(p2), o.appendChild(a), o.appendChild(l);
+    var c2 = el("div", "card-body");
+    return c2.appendChild(n), i.appendChild(o), i.appendChild(c2), t && i.classList.add("collapsed"), bindDisclosure(d, i, c2, "collapsed", false), o.onclick = function() {
+      d.click();
+    }, i;
   }
-  function field(labelText) {
-    var f = el("div", "field");
-    if (labelText) {
-      var l = document.createElement("label");
-      l.textContent = labelText;
-      f.appendChild(l);
+  function field(e) {
+    var n = el("div", "field");
+    if (e) {
+      var t = document.createElement("label");
+      t.textContent = e, n.appendChild(t);
     }
-    return f;
+    return n;
+  }
+
+  // docs/webserver/src/native_firmware.ts
+  var S = "/api/firmware/releases";
+  var _ = /^v\d+\.\d+\.\d+-preview\.\d+$/;
+  var P = {
+    checking: "Checking for updates\u2026",
+    unavailable: "Could not check for Native Preview releases.",
+    installing: "Downloading and installing firmware\u2026",
+    restarting: "Waiting for the frame to restart\u2026",
+    failed: "The frame could not install that release."
+  };
+  function j(i, c2) {
+    if (!_.test(c2)) return false;
+    const b = (e) => e.match(/\d+/g).map(Number), m = b(c2);
+    for (const [e, a] of b(i).entries())
+      if (a !== m[e]) return a > m[e];
+    return false;
+  }
+  function nativeFirmwarePanel() {
+    const i = el("div", "native-firmware"), c2 = (t) => {
+      const n = el("div", "fw-row"), s2 = el("span", "fw-label");
+      return s2.textContent = "\u2014", n.append(t, s2), i.append(n), s2;
+    }, b = c2("Current"), m = c2("Available"), e = el("p", "fw-status");
+    e.setAttribute("role", "status");
+    const a = button("Check for Update", "btn btn-secondary btn-sm"), d = button("Install Update", "btn btn-primary btn-sm"), h = button("Install version", "btn btn-secondary btn-sm"), T = el("div", "fw-actions");
+    T.append(a, d), i.append(T);
+    const v = field("Previous versions"), u2 = el("select", "select");
+    u2.setAttribute("aria-label", "Previous versions"), v.append(u2, h), i.append(v, e);
+    const C = el("a");
+    C.href = "/settings#firmware", C.textContent = "Install firmware from a file", i.append(C);
+    let o = "", f2 = false, w, p2 = "";
+    function k() {
+      a.disabled = true, d.hidden = true, v.hidden = true;
+    }
+    function R(t) {
+      b.textContent = t.current || "Unknown", o = t.versions[0] || "", m.textContent = o || "\u2014";
+      const n = ["checking", "installing", "restarting"].includes(t.status), s2 = o && j(o, t.current);
+      a.disabled = !t.available || n || f2, d.hidden = !s2, d.disabled = a.disabled;
+      const x = t.versions.filter((l) => l !== t.current && !(s2 && l === o)), q = Array.from(u2.options, (l) => l.value);
+      x.join("|") !== q.join("|") && u2.replaceChildren(...x.map((l) => new Option(l))), v.hidden = !x.length, h.disabled = a.disabled, p2 && p2 === t.current ? (e.textContent = "Firmware updated.", p2 = "") : e.textContent = P[t.status] || (t.available ? "" : "Release updates require a versioned Native Preview.");
+    }
+    async function g() {
+      try {
+        const t = await fetch(S, { cache: "no-store", signal: AbortSignal.timeout(2500) });
+        if (!t.ok) throw new Error("release_status_unavailable");
+        const n = await t.json();
+        n.versions = Array.isArray(n.versions) ? n.versions.filter((s2) => _.test(s2)) : [], R(n);
+      } catch (t) {
+        k(), e.textContent = p2 ? "Waiting for the frame to come back\u2026" : "Firmware release information is unavailable.";
+      } finally {
+        window.clearTimeout(w), i.isConnected && (w = window.setTimeout(g, 3e3));
+      }
+    }
+    async function y(t) {
+      if (!f2) {
+        f2 = true, window.clearTimeout(w), k(), e.textContent = t ? P.installing : P.checking;
+        try {
+          if (!(await fetch(S, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: t,
+            signal: AbortSignal.timeout(4e3)
+          })).ok) throw new Error("release_request_failed");
+          p2 = t, f2 = false, await g();
+        } catch (n) {
+          f2 = false, e.textContent = "Could not start the request. Check the frame connection and try again.", w = window.setTimeout(g, 3e3);
+        }
+      }
+    }
+    return a.onclick = () => {
+      y("");
+    }, d.onclick = () => {
+      y(o);
+    }, h.onclick = () => {
+      y(u2.value);
+    }, k(), g(), i;
   }
 
   // docs/webserver/src/app.ts
@@ -345,7 +371,6 @@
   var TIMEZONES = ["Pacific/Midway (GMT-11)", "Pacific/Pago_Pago (GMT-11)", "Pacific/Honolulu (GMT-10)", "America/Adak (GMT-10)", "America/Anchorage (GMT-9)", "America/Juneau (GMT-9)", "America/Los_Angeles (GMT-8)", "America/Vancouver (GMT-8)", "America/Tijuana (GMT-8)", "America/Denver (GMT-7)", "America/Phoenix (GMT-7)", "America/Edmonton (GMT-7)", "America/Boise (GMT-7)", "America/Chicago (GMT-6)", "America/Mexico_City (GMT-6)", "America/Winnipeg (GMT-6)", "America/Guatemala (GMT-6)", "America/Costa_Rica (GMT-6)", "America/New_York (GMT-5)", "America/Toronto (GMT-5)", "America/Detroit (GMT-5)", "America/Havana (GMT-5)", "America/Bogota (GMT-5)", "America/Lima (GMT-5)", "America/Jamaica (GMT-5)", "America/Panama (GMT-5)", "America/Halifax (GMT-4)", "America/Caracas (GMT-4)", "America/Santiago (GMT-4)", "America/La_Paz (GMT-4)", "America/Manaus (GMT-4)", "America/Barbados (GMT-4)", "America/Puerto_Rico (GMT-4)", "America/Santo_Domingo (GMT-4)", "America/St_Johns (GMT-3:30)", "America/Sao_Paulo (GMT-3)", "America/Argentina/Buenos_Aires (GMT-3)", "America/Montevideo (GMT-3)", "America/Paramaribo (GMT-3)", "Atlantic/South_Georgia (GMT-2)", "Atlantic/Azores (GMT-1)", "Atlantic/Cape_Verde (GMT-1)", "UTC (GMT+0)", "Europe/London (GMT+0)", "Europe/Dublin (GMT+0)", "Europe/Lisbon (GMT+0)", "Africa/Casablanca (GMT+1)", "Africa/Accra (GMT+0)", "Atlantic/Reykjavik (GMT+0)", "Europe/Paris (GMT+1)", "Europe/Berlin (GMT+1)", "Europe/Rome (GMT+1)", "Europe/Madrid (GMT+1)", "Europe/Amsterdam (GMT+1)", "Europe/Brussels (GMT+1)", "Europe/Vienna (GMT+1)", "Europe/Zurich (GMT+1)", "Europe/Stockholm (GMT+1)", "Europe/Oslo (GMT+1)", "Europe/Copenhagen (GMT+1)", "Europe/Warsaw (GMT+1)", "Europe/Prague (GMT+1)", "Europe/Budapest (GMT+1)", "Europe/Belgrade (GMT+1)", "Africa/Lagos (GMT+1)", "Africa/Tunis (GMT+1)", "Africa/Cairo (GMT+2)", "Europe/Athens (GMT+2)", "Europe/Bucharest (GMT+2)", "Europe/Helsinki (GMT+2)", "Europe/Kyiv (GMT+2)", "Europe/Istanbul (GMT+3)", "Africa/Johannesburg (GMT+2)", "Africa/Nairobi (GMT+3)", "Asia/Jerusalem (GMT+2)", "Asia/Amman (GMT+3)", "Asia/Beirut (GMT+2)", "Europe/Moscow (GMT+3)", "Asia/Baghdad (GMT+3)", "Asia/Riyadh (GMT+3)", "Asia/Kuwait (GMT+3)", "Asia/Qatar (GMT+3)", "Africa/Addis_Ababa (GMT+3)", "Asia/Tehran (GMT+3:30)", "Asia/Dubai (GMT+4)", "Asia/Muscat (GMT+4)", "Asia/Baku (GMT+4)", "Asia/Tbilisi (GMT+4)", "Indian/Mauritius (GMT+4)", "Asia/Kabul (GMT+4:30)", "Asia/Karachi (GMT+5)", "Asia/Tashkent (GMT+5)", "Asia/Yekaterinburg (GMT+5)", "Asia/Kolkata (GMT+5:30)", "Asia/Colombo (GMT+5:30)", "Asia/Kathmandu (GMT+5:45)", "Asia/Dhaka (GMT+6)", "Asia/Almaty (GMT+5)", "Asia/Rangoon (GMT+6:30)", "Asia/Bangkok (GMT+7)", "Asia/Jakarta (GMT+7)", "Asia/Ho_Chi_Minh (GMT+7)", "Asia/Singapore (GMT+8)", "Asia/Kuala_Lumpur (GMT+8)", "Asia/Shanghai (GMT+8)", "Asia/Hong_Kong (GMT+8)", "Asia/Taipei (GMT+8)", "Asia/Manila (GMT+8)", "Australia/Perth (GMT+8)", "Asia/Tokyo (GMT+9)", "Asia/Seoul (GMT+9)", "Asia/Pyongyang (GMT+9)", "Australia/Adelaide (GMT+9:30)", "Australia/Darwin (GMT+9:30)", "Australia/Sydney (GMT+10)", "Australia/Melbourne (GMT+10)", "Australia/Brisbane (GMT+10)", "Australia/Hobart (GMT+10)", "Pacific/Guam (GMT+10)", "Pacific/Port_Moresby (GMT+10)", "Asia/Vladivostok (GMT+10)", "Pacific/Noumea (GMT+11)", "Pacific/Norfolk (GMT+11)", "Asia/Magadan (GMT+11)", "Pacific/Auckland (GMT+12)", "Pacific/Fiji (GMT+12)", "Pacific/Chatham (GMT+12:45)", "Pacific/Tongatapu (GMT+13)", "Pacific/Apia (GMT+13)", "Pacific/Kiritimati (GMT+14)"];
   var TIMEZONE_LABELS = { "Pacific/Midway (GMT-11)": "Pacific/Midway (GMT-11)", "Pacific/Pago_Pago (GMT-11)": "Pacific/Pago_Pago (GMT-11)", "Pacific/Honolulu (GMT-10)": "Pacific/Honolulu (GMT-10)", "America/Adak (GMT-10)": "America/Adak (GMT-10; daylight GMT-9)", "America/Anchorage (GMT-9)": "America/Anchorage (GMT-9; daylight GMT-8)", "America/Juneau (GMT-9)": "America/Juneau (GMT-9; daylight GMT-8)", "America/Los_Angeles (GMT-8)": "America/Los_Angeles (GMT-8; daylight GMT-7)", "America/Vancouver (GMT-8)": "America/Vancouver (GMT-8; active GMT-7)", "America/Tijuana (GMT-8)": "America/Tijuana (GMT-8; daylight GMT-7)", "America/Denver (GMT-7)": "America/Denver (GMT-7; daylight GMT-6)", "America/Phoenix (GMT-7)": "America/Phoenix (GMT-7)", "America/Edmonton (GMT-7)": "America/Edmonton (GMT-7; active GMT-6)", "America/Boise (GMT-7)": "America/Boise (GMT-7; daylight GMT-6)", "America/Chicago (GMT-6)": "America/Chicago (GMT-6; daylight GMT-5)", "America/Mexico_City (GMT-6)": "America/Mexico_City (GMT-6)", "America/Winnipeg (GMT-6)": "America/Winnipeg (GMT-6; daylight GMT-5)", "America/Guatemala (GMT-6)": "America/Guatemala (GMT-6)", "America/Costa_Rica (GMT-6)": "America/Costa_Rica (GMT-6)", "America/New_York (GMT-5)": "America/New_York (GMT-5; daylight GMT-4)", "America/Toronto (GMT-5)": "America/Toronto (GMT-5; daylight GMT-4)", "America/Detroit (GMT-5)": "America/Detroit (GMT-5; daylight GMT-4)", "America/Havana (GMT-5)": "America/Havana (GMT-5; daylight GMT-4)", "America/Bogota (GMT-5)": "America/Bogota (GMT-5)", "America/Lima (GMT-5)": "America/Lima (GMT-5)", "America/Jamaica (GMT-5)": "America/Jamaica (GMT-5)", "America/Panama (GMT-5)": "America/Panama (GMT-5)", "America/Halifax (GMT-4)": "America/Halifax (GMT-4; daylight GMT-3)", "America/Caracas (GMT-4)": "America/Caracas (GMT-4)", "America/Santiago (GMT-4)": "America/Santiago (GMT-4; daylight GMT-3)", "America/La_Paz (GMT-4)": "America/La_Paz (GMT-4)", "America/Manaus (GMT-4)": "America/Manaus (GMT-4)", "America/Barbados (GMT-4)": "America/Barbados (GMT-4)", "America/Puerto_Rico (GMT-4)": "America/Puerto_Rico (GMT-4)", "America/Santo_Domingo (GMT-4)": "America/Santo_Domingo (GMT-4)", "America/St_Johns (GMT-3:30)": "America/St_Johns (GMT-3:30; daylight GMT-2:30)", "America/Sao_Paulo (GMT-3)": "America/Sao_Paulo (GMT-3)", "America/Argentina/Buenos_Aires (GMT-3)": "America/Argentina/Buenos_Aires (GMT-3)", "America/Montevideo (GMT-3)": "America/Montevideo (GMT-3)", "America/Paramaribo (GMT-3)": "America/Paramaribo (GMT-3)", "Atlantic/South_Georgia (GMT-2)": "Atlantic/South_Georgia (GMT-2)", "Atlantic/Azores (GMT-1)": "Atlantic/Azores (GMT-1; daylight GMT+0)", "Atlantic/Cape_Verde (GMT-1)": "Atlantic/Cape_Verde (GMT-1)", "UTC (GMT+0)": "UTC (GMT+0)", "Europe/London (GMT+0)": "Europe/London (GMT+0; daylight GMT+1)", "Europe/Dublin (GMT+0)": "Europe/Dublin (GMT+0; daylight GMT+1)", "Europe/Lisbon (GMT+0)": "Europe/Lisbon (GMT+0; daylight GMT+1)", "Africa/Casablanca (GMT+1)": "Africa/Casablanca (GMT+1)", "Africa/Accra (GMT+0)": "Africa/Accra (GMT+0)", "Atlantic/Reykjavik (GMT+0)": "Atlantic/Reykjavik (GMT+0)", "Europe/Paris (GMT+1)": "Europe/Paris (GMT+1; daylight GMT+2)", "Europe/Berlin (GMT+1)": "Europe/Berlin (GMT+1; daylight GMT+2)", "Europe/Rome (GMT+1)": "Europe/Rome (GMT+1; daylight GMT+2)", "Europe/Madrid (GMT+1)": "Europe/Madrid (GMT+1; daylight GMT+2)", "Europe/Amsterdam (GMT+1)": "Europe/Amsterdam (GMT+1; daylight GMT+2)", "Europe/Brussels (GMT+1)": "Europe/Brussels (GMT+1; daylight GMT+2)", "Europe/Vienna (GMT+1)": "Europe/Vienna (GMT+1; daylight GMT+2)", "Europe/Zurich (GMT+1)": "Europe/Zurich (GMT+1; daylight GMT+2)", "Europe/Stockholm (GMT+1)": "Europe/Stockholm (GMT+1; daylight GMT+2)", "Europe/Oslo (GMT+1)": "Europe/Oslo (GMT+1; daylight GMT+2)", "Europe/Copenhagen (GMT+1)": "Europe/Copenhagen (GMT+1; daylight GMT+2)", "Europe/Warsaw (GMT+1)": "Europe/Warsaw (GMT+1; daylight GMT+2)", "Europe/Prague (GMT+1)": "Europe/Prague (GMT+1; daylight GMT+2)", "Europe/Budapest (GMT+1)": "Europe/Budapest (GMT+1; daylight GMT+2)", "Europe/Belgrade (GMT+1)": "Europe/Belgrade (GMT+1; daylight GMT+2)", "Africa/Lagos (GMT+1)": "Africa/Lagos (GMT+1)", "Africa/Tunis (GMT+1)": "Africa/Tunis (GMT+1)", "Africa/Cairo (GMT+2)": "Africa/Cairo (GMT+2; daylight GMT+3)", "Europe/Athens (GMT+2)": "Europe/Athens (GMT+2; daylight GMT+3)", "Europe/Bucharest (GMT+2)": "Europe/Bucharest (GMT+2; daylight GMT+3)", "Europe/Helsinki (GMT+2)": "Europe/Helsinki (GMT+2; daylight GMT+3)", "Europe/Kyiv (GMT+2)": "Europe/Kyiv (GMT+2; daylight GMT+3)", "Europe/Istanbul (GMT+3)": "Europe/Istanbul (GMT+3)", "Africa/Johannesburg (GMT+2)": "Africa/Johannesburg (GMT+2)", "Africa/Nairobi (GMT+3)": "Africa/Nairobi (GMT+3)", "Asia/Jerusalem (GMT+2)": "Asia/Jerusalem (GMT+2; daylight GMT+3)", "Asia/Amman (GMT+3)": "Asia/Amman (GMT+3)", "Asia/Beirut (GMT+2)": "Asia/Beirut (GMT+2; daylight GMT+3)", "Europe/Moscow (GMT+3)": "Europe/Moscow (GMT+3)", "Asia/Baghdad (GMT+3)": "Asia/Baghdad (GMT+3)", "Asia/Riyadh (GMT+3)": "Asia/Riyadh (GMT+3)", "Asia/Kuwait (GMT+3)": "Asia/Kuwait (GMT+3)", "Asia/Qatar (GMT+3)": "Asia/Qatar (GMT+3)", "Africa/Addis_Ababa (GMT+3)": "Africa/Addis_Ababa (GMT+3)", "Asia/Tehran (GMT+3:30)": "Asia/Tehran (GMT+3:30)", "Asia/Dubai (GMT+4)": "Asia/Dubai (GMT+4)", "Asia/Muscat (GMT+4)": "Asia/Muscat (GMT+4)", "Asia/Baku (GMT+4)": "Asia/Baku (GMT+4)", "Asia/Tbilisi (GMT+4)": "Asia/Tbilisi (GMT+4)", "Indian/Mauritius (GMT+4)": "Indian/Mauritius (GMT+4)", "Asia/Kabul (GMT+4:30)": "Asia/Kabul (GMT+4:30)", "Asia/Karachi (GMT+5)": "Asia/Karachi (GMT+5)", "Asia/Tashkent (GMT+5)": "Asia/Tashkent (GMT+5)", "Asia/Yekaterinburg (GMT+5)": "Asia/Yekaterinburg (GMT+5)", "Asia/Kolkata (GMT+5:30)": "Asia/Kolkata (GMT+5:30)", "Asia/Colombo (GMT+5:30)": "Asia/Colombo (GMT+5:30)", "Asia/Kathmandu (GMT+5:45)": "Asia/Kathmandu (GMT+5:45)", "Asia/Dhaka (GMT+6)": "Asia/Dhaka (GMT+6)", "Asia/Almaty (GMT+5)": "Asia/Almaty (GMT+5)", "Asia/Rangoon (GMT+6:30)": "Asia/Rangoon (GMT+6:30)", "Asia/Bangkok (GMT+7)": "Asia/Bangkok (GMT+7)", "Asia/Jakarta (GMT+7)": "Asia/Jakarta (GMT+7)", "Asia/Ho_Chi_Minh (GMT+7)": "Asia/Ho_Chi_Minh (GMT+7)", "Asia/Singapore (GMT+8)": "Asia/Singapore (GMT+8)", "Asia/Kuala_Lumpur (GMT+8)": "Asia/Kuala_Lumpur (GMT+8)", "Asia/Shanghai (GMT+8)": "Asia/Shanghai (GMT+8)", "Asia/Hong_Kong (GMT+8)": "Asia/Hong_Kong (GMT+8)", "Asia/Taipei (GMT+8)": "Asia/Taipei (GMT+8)", "Asia/Manila (GMT+8)": "Asia/Manila (GMT+8)", "Australia/Perth (GMT+8)": "Australia/Perth (GMT+8)", "Asia/Tokyo (GMT+9)": "Asia/Tokyo (GMT+9)", "Asia/Seoul (GMT+9)": "Asia/Seoul (GMT+9)", "Asia/Pyongyang (GMT+9)": "Asia/Pyongyang (GMT+9)", "Australia/Adelaide (GMT+9:30)": "Australia/Adelaide (GMT+9:30; daylight GMT+10:30)", "Australia/Darwin (GMT+9:30)": "Australia/Darwin (GMT+9:30)", "Australia/Sydney (GMT+10)": "Australia/Sydney (GMT+10; daylight GMT+11)", "Australia/Melbourne (GMT+10)": "Australia/Melbourne (GMT+10; daylight GMT+11)", "Australia/Brisbane (GMT+10)": "Australia/Brisbane (GMT+10)", "Australia/Hobart (GMT+10)": "Australia/Hobart (GMT+10; daylight GMT+11)", "Pacific/Guam (GMT+10)": "Pacific/Guam (GMT+10)", "Pacific/Port_Moresby (GMT+10)": "Pacific/Port_Moresby (GMT+10)", "Asia/Vladivostok (GMT+10)": "Asia/Vladivostok (GMT+10)", "Pacific/Noumea (GMT+11)": "Pacific/Noumea (GMT+11)", "Pacific/Norfolk (GMT+11)": "Pacific/Norfolk (GMT+11; daylight GMT+12)", "Asia/Magadan (GMT+11)": "Asia/Magadan (GMT+11)", "Pacific/Auckland (GMT+12)": "Pacific/Auckland (GMT+12; daylight GMT+13)", "Pacific/Fiji (GMT+12)": "Pacific/Fiji (GMT+12)", "Pacific/Chatham (GMT+12:45)": "Pacific/Chatham (GMT+12:45; daylight GMT+13:45)", "Pacific/Tongatapu (GMT+13)": "Pacific/Tongatapu (GMT+13)", "Pacific/Apia (GMT+13)": "Pacific/Apia (GMT+13)", "Pacific/Kiritimati (GMT+14)": "Pacific/Kiritimati (GMT+14)" };
   var frameStatusPath = "/espframe/api/v1/status";
-  var screenControlPath = "/espframe/api/v1/screen";
   var NativeSettingsApi = class extends EspframeApiClient {
     async getFrameStatus() {
       const capabilities = await this.negotiate();
@@ -353,19 +378,8 @@
       const payload = await this.requestJson(frameStatusPath, { cache: "no-store" }, "frame_status_failed");
       if (!payload || typeof payload !== "object") throw new Error("invalid_frame_status");
       const status = payload;
-      const controlsScreen = capabilities.screen_control_path === screenControlPath;
-      if (status.api_version !== capabilities.api_version || typeof status.restarting !== "boolean" || typeof status.screen !== "string" || typeof status.playback !== "string" || typeof status.source !== "string" || typeof status.immich !== "string" || typeof status.notice !== "string" || controlsScreen && typeof status.screen_pending !== "boolean") throw new Error("invalid_frame_status");
-      return { ...status, screenPending: controlsScreen ? status.screen_pending : null };
-    }
-    async changeScreen(action) {
-      const payload = await this.requestJson(screenControlPath, {
-        method: "POST",
-        cache: "no-store",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ action })
-      }, "screen_control_failed");
-      if (!payload || typeof payload !== "object" || payload.status !== "accepted")
-        throw new Error("screen_control_failed");
+      if (status.api_version !== capabilities.api_version || typeof status.restarting !== "boolean" || typeof status.screen !== "string" || typeof status.playback !== "string" || typeof status.source !== "string" || typeof status.immich !== "string" || typeof status.notice !== "string") throw new Error("invalid_frame_status");
+      return status;
     }
   };
   var apiClient = new NativeSettingsApi("/espframe/api/v1/capabilities");
@@ -423,32 +437,15 @@
     const notice = el("p", "native-frame-notice");
     notice.setAttribute("role", "status");
     notice.hidden = true;
-    const screenButton = button("Sleep screen");
-    screenButton.id = "native-screen-action";
-    const actionStatus = el("span");
-    actionStatus.setAttribute("role", "status");
-    const controls = el("div", "native-screen-controls");
-    controls.hidden = true;
-    controls.append(screenButton, actionStatus);
-    panel.append(values, notice, controls);
+    panel.append(values, notice);
     let timer;
     let busy = false;
     let supported = true;
-    let commanding = false;
-    let commandVersion = 0;
-    let latest = null;
     const setNotice = (message) => {
       if (notice.textContent !== message) notice.textContent = message;
       notice.hidden = !message;
     };
-    const renderControl = () => {
-      controls.hidden = !latest || latest.restarting || latest.screenPending === null || latest.screen !== "awake" && latest.screen !== "asleep";
-      screenButton.disabled = commanding || (latest == null ? void 0 : latest.screenPending) === true;
-      const label = (latest == null ? void 0 : latest.screen) === "asleep" ? "Wake screen" : "Sleep screen";
-      if (screenButton.textContent !== label) screenButton.textContent = label;
-    };
     const render = (status) => {
-      latest = status;
       for (const [key, value] of Object.entries(status)) {
         const field2 = fields.get(key);
         if (!field2 || typeof value !== "string") continue;
@@ -460,23 +457,20 @@
       setNotice(status.restarting ? "The frame is restarting." : status.immich === "rejected" ? "Check the Immich API key and its permissions." : typeof detail === "string" ? detail : "");
       values.hidden = status.restarting;
       panel.hidden = false;
-      renderControl();
     };
     const scheduleRefresh = (delay = 5e3) => {
       window.clearTimeout(timer);
-      if (supported && !document.hidden && !commanding) timer = window.setTimeout(refresh, delay);
+      if (supported && !document.hidden) timer = window.setTimeout(refresh, delay);
     };
     const visibilityChanged = () => {
       window.clearTimeout(timer);
       if (!document.hidden) void refresh();
     };
     const refresh = async () => {
-      if (document.hidden || busy || commanding || !supported) return;
+      if (document.hidden || busy || !supported) return;
       busy = true;
-      const version = commandVersion;
       try {
         const status = await apiClient.getFrameStatus();
-        if (version !== commandVersion) return;
         if (!status) {
           supported = false;
           panel.hidden = true;
@@ -484,46 +478,12 @@
           return;
         }
         render(status);
-      } catch (_) {
-        if (version !== commandVersion) return;
-        latest = null;
+      } catch (_2) {
         values.hidden = true;
         setNotice("The frame is unavailable. Waiting to reconnect.");
-        renderControl();
       } finally {
         busy = false;
         scheduleRefresh();
-      }
-    };
-    screenButton.onclick = async () => {
-      if (commanding || screenButton.disabled || controls.hidden || !latest) return;
-      const action = latest.screen === "asleep" ? "wake" : "sleep";
-      const expected = action === "wake" ? "awake" : "asleep";
-      commanding = true;
-      commandVersion++;
-      window.clearTimeout(timer);
-      renderControl();
-      actionStatus.textContent = action === "wake" ? "Waking screen\u2026" : "Putting screen to sleep\u2026";
-      let confirmed = false;
-      try {
-        await apiClient.changeScreen(action);
-        for (let attempt = 0; attempt < 10; ++attempt) {
-          const status = await apiClient.getFrameStatus();
-          if (!status || status.restarting || status.screenPending === null) break;
-          render(status);
-          if (!status.screenPending) {
-            confirmed = status.screen === expected;
-            break;
-          }
-          await delayMs(125);
-        }
-        actionStatus.textContent = confirmed ? "" : "Couldn\u2019t confirm the screen change.";
-      } catch (error) {
-        actionStatus.textContent = error instanceof EspframeApiError && error.kind === "conflict" ? "The frame is busy. Try again when it\u2019s ready." : "Couldn\u2019t confirm the screen change.";
-      } finally {
-        commanding = false;
-        renderControl();
-        scheduleRefresh(confirmed ? 5e3 : 0);
       }
     };
     document.addEventListener("visibilitychange", visibilityChanged);
@@ -577,6 +537,7 @@
       ["warm_tone_intensity", "Nighttime warmth (%)"],
       ["warm_tone_override", "Warm tone until sunrise"]
     ]],
+    ["Firmware", [["auto_update", "Auto Update"], ["update_frequency", "Update Frequency"]]],
     ["Clock", [["show_clock", "Show clock"], ["clock_format", "Time format"], ["timezone", "Timezone"]]],
     ["Sleep schedule", [
       ["schedule_enabled", "Schedule screen off"],
@@ -588,10 +549,10 @@
   function nativeSecret(key) {
     return key === "api_key" || key === "prepared_slide_token";
   }
-  function nativeSettingControl(key, value) {
+  function nativeSettingControl(key, value, developer) {
     var _a, _b;
     const spec = PRODUCT_SETTINGS[key];
-    const options = key === "timezone" ? TIMEZONES.slice() : key === "portrait_pair_framing" ? ["Follow photo framing", "Fill", "Fit"] : (_b = (_a = spec == null ? void 0 : spec.options) == null ? void 0 : _a.slice()) != null ? _b : [];
+    const options = key === "timezone" ? TIMEZONES.slice() : key === "portrait_pair_framing" ? ["Follow photo framing", "Fill", "Fit"] : key === "screen_rotation" && !developer ? ["0", "180"] : (_b = (_a = spec == null ? void 0 : spec.options) == null ? void 0 : _a.slice()) != null ? _b : [];
     if (options.length) {
       const current = String(value);
       if (!options.includes(current)) options.push(current);
@@ -603,7 +564,7 @@
         if (key === "portrait_pair_framing" && option !== "Follow photo framing") {
           return option === "Fill" ? "Fill each half" : "Fit both full photos";
         }
-        if (key === "screen_rotation") return option === "180" ? "Upside down (180\xB0)" : "Normal";
+        if (key === "screen_rotation") return option === "0" ? "Normal" : option === "180" ? "Upside down (180\xB0)" : "Portrait (" + option + "\xB0)";
         return option;
       });
     }
@@ -647,9 +608,10 @@
       const body = el("div");
       for (const [key, label] of definitions) {
         const snapshotKey = key === "prepared_slide_token" ? "prepared_slide_url" : key;
+        if (snapshotKey === "prepared_slide_url" && !snapshot.values.prepared_slide_url) continue;
         if (unavailable.has(key) || key !== "api_key" && !Object.prototype.hasOwnProperty.call(snapshot.values, snapshotKey)) continue;
         const value = nativeSecret(key) ? "" : snapshot.values[key];
-        const control = nativeSettingControl(key, value);
+        const control = nativeSettingControl(key, value, snapshot.values.developer_features_enabled === true);
         if (key === "api_key" && control instanceof HTMLInputElement) control.required = !snapshot.api_key_configured;
         control.name = key;
         const row = field(key === "api_key" && !snapshot.api_key_configured ? "Immich API key" : label);
@@ -660,7 +622,7 @@
           hint.id = `native-${key}-hint`;
           if (key === "api_key") hint.textContent = snapshot.api_key_configured ? "Leave blank to keep the current key." : "Enter your API key to connect Immich.";
           if (key === "frame_name") hint.textContent = "Leave blank to use the device default.";
-          if (key === "prepared_slide_url") hint.textContent = "Optional. Clear the URL to use direct Immich previews exclusively.";
+          if (key === "prepared_slide_url") hint.textContent = "Clear the URL to return to direct Immich previews.";
           if (key === "prepared_slide_token") hint.textContent = snapshot.values.prepared_slide_token_configured ? "Leave blank to keep the current token. Enter a new token if you change the service URL." : "Enter the token from your preparation service.";
           control.setAttribute("aria-describedby", hint.id);
           row.append(control, hint);
@@ -670,6 +632,7 @@
         controls.set(key, { element: control, value });
         body.appendChild(row);
       }
+      if (title === "Firmware" && body.childElementCount) body.prepend(nativeFirmwarePanel());
       const openConnection = title === "Immich connection" && !snapshot.api_key_configured;
       if (body.childElementCount) fields.appendChild(makeCollapsibleCard(title, body, title !== "Playback" && !openConnection));
     }
@@ -755,7 +718,7 @@
       if (!restartRequired) {
         try {
           form.replaceWith(nativeSettingsForm(await apiClient.getConfigurationSnapshot(), "Settings saved."));
-        } catch (_) {
+        } catch (_2) {
           setStatus(status, "Settings saved. Reload this page to see the current values.");
           setSaving(false);
         }
@@ -775,7 +738,7 @@
         try {
           form.replaceWith(nativeSettingsForm(await apiClient.getConfigurationSnapshot()));
           return;
-        } catch (_) {
+        } catch (_2) {
           await delayMs(1500);
         }
       }
@@ -793,7 +756,7 @@
     content.replaceChildren(status);
     try {
       content.replaceChildren(nativeSettingsForm(await apiClient.getConfigurationSnapshot()));
-    } catch (_) {
+    } catch (_2) {
       status.textContent = "The frame settings could not be loaded.";
       content.appendChild(button("Try again", "btn btn-secondary", initNativeSettings));
     }

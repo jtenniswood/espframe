@@ -19,6 +19,8 @@ constexpr auto preview_path = "/assets/photo/thumbnail?size=preview";
 constexpr auto search_path = "/search/random";
 constexpr auto api_key = "test-key";
 constexpr auto query = "{\"size\":2}";
+std::string_view expected_base = base;
+const char *expected_api_key = api_key;
 
 enum class Fault {
   None, Open, Headers, Truncated, Cancel, Expire, SlowHeaders, SlowBody, StalledBody,
@@ -59,13 +61,14 @@ struct esp_http_client {
   int timeout_ms{};
   unsigned waits{};
   bool drained{true};
+  std::string api_key;
 };
 
 esp_err_t esp_crt_bundle_attach(void *) { return ESP_OK; }
 int64_t esp_timer_get_time() { return now_us; }
 
 esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t *config) {
-  assert(std::string_view(config->url).starts_with(base));
+  assert(std::string_view(config->url).starts_with(expected_base));
   assert(config->disable_auto_redirect && config->crt_bundle_attach == esp_crt_bundle_attach);
   return new esp_http_client;
 }
@@ -75,16 +78,16 @@ esp_err_t esp_http_client_cleanup(esp_http_client_handle_t client) {
   return ESP_OK;
 }
 
-esp_err_t esp_http_client_set_header(esp_http_client_handle_t, const char *name, const char *value) {
+esp_err_t esp_http_client_set_header(esp_http_client_handle_t client, const char *name, const char *value) {
   if (std::string_view(name) == "x-api-key")
-    assert(std::string_view(value) == api_key);
+    client->api_key = value;
   else
     assert(std::string_view(name) == "Content-Type" && std::string_view(value) == "application/json");
   return ESP_OK;
 }
 
 esp_err_t esp_http_client_set_url(esp_http_client_handle_t client, const char *url) {
-  assert(std::string_view(url).starts_with(base));
+  assert(std::string_view(url).starts_with(expected_base));
   client->url = url;
   return ESP_OK;
 }
@@ -102,6 +105,7 @@ esp_err_t esp_http_client_set_timeout_ms(esp_http_client_handle_t client, int ti
 
 esp_err_t esp_http_client_open(esp_http_client_handle_t client, int length) {
   assert(client->drained && !responses.empty());
+  assert(client->api_key == expected_api_key);
   client->response = std::move(responses.front());
   responses.pop_front();
   client->position = 0;
@@ -189,7 +193,8 @@ int main() {
   std::array<uint8_t, 5> output{};
   size_t received = 0;
   auto read = [&](std::string_view path = preview_path, std::string_view body = "", int64_t deadline = 0) {
-    return client.read(std::string(base) + std::string(path), api_key, body, output, received, deadline);
+    return client.read(std::string(expected_base) + std::string(path), expected_api_key, body, output, received,
+                       deadline);
   };
   auto text = [&] { return std::string_view(reinterpret_cast<const char *>(output.data()), received); };
 
@@ -281,4 +286,10 @@ int main() {
   responses = {{"stuck", true, false, 200, Fault::StalledBody}, {"next"}};
   assert(read() == 0 && received == 0 && now_us - wait_started == 12'000'000);
   assert(read() == 200 && text() == "next" && sockets == 17);
+
+  client.reset();
+  expected_base = "https://other-photos.test/api";
+  expected_api_key = "replacement-key";
+  responses = {{"new"}};
+  assert(read() == 200 && text() == "new" && sockets == 18);
 }

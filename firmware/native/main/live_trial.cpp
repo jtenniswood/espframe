@@ -24,6 +24,7 @@
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <iterator>
 #include <memory>
 #include <new>
 
@@ -328,6 +329,44 @@ void read_trial_presentation(nvs_handle_t storage, Settings &settings) {
   settings.pair_framing = PairFraming::Fill;
 }
 
+constexpr char trial_page_html[] = R"html(<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Espframe test build</title>
+<style>
+  :root { color-scheme: light dark; font: 1rem/1.55 system-ui, sans-serif; }
+  main { max-width: 34rem; margin: 10vh auto; padding: 0 1rem; }
+  h1 { font-size: 1.75rem; line-height: 1.2; }
+  dt { font-weight: 600; }
+  dd { margin: 0 0 0.75rem; }
+</style>
+<main>
+  <h1>Espframe test build</h1>
+  <dl>
+    <dt>Immich connection</dt><dd>%s</dd>
+    <dt>Photos ready ahead</dt><dd>%u</dd>
+  </dl>
+  <p>Restart the frame to return to ESPHome and open its settings.</p>
+  <p><a href="/api/trial">Trial diagnostics</a></p>
+</main>
+</html>)html";
+
+esp_err_t trial_page(httpd_req_t *request) {
+  const auto &network = *static_cast<const NativeNetwork *>(request->user_ctx);
+  char body[sizeof(trial_page_html) + 32]{};
+  const auto size = std::snprintf(body, sizeof(body), trial_page_html,
+                                  network.photo_connection() ? "Connected" : "Waiting for Immich",
+                                  ready_ahead.load(std::memory_order_relaxed));
+  if (size < 0 || static_cast<size_t>(size) >= sizeof(body))
+    return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not format trial page");
+  httpd_resp_set_type(request, "text/html; charset=utf-8");
+  httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+  httpd_resp_set_hdr(request, "X-Content-Type-Options", "nosniff");
+  httpd_resp_set_hdr(request, "Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'");
+  return httpd_resp_send(request, body, size);
+}
+
 esp_err_t status(httpd_req_t *request) {
   const auto &network = *static_cast<const NativeNetwork *>(request->user_ctx);
   const auto prepared = prepared_slides.load(std::memory_order_acquire);
@@ -469,32 +508,25 @@ bool read_live_trial_credentials(Settings &settings) {
 }
 
 bool start_live_trial_status(NativeNetwork &network) {
+  const httpd_uri_t routes[]{
+      {.uri = "/", .method = HTTP_GET, .handler = trial_page, .user_ctx = &network},
+      {.uri = "/api/trial", .method = HTTP_GET, .handler = status, .user_ctx = &network},
+      {.uri = "/api/trial/benchmark", .method = HTTP_GET, .handler = benchmark_status, .user_ctx = &network},
+      {.uri = "/api/trial/prepare", .method = HTTP_GET, .handler = preparation_status, .user_ctx = &network},
+  };
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.core_id = 0;
-  config.max_uri_handlers = 3;
+  config.max_uri_handlers = std::size(routes);
   httpd_handle_t server{};
   if (httpd_start(&server, &config) != ESP_OK)
     return false;
-  httpd_uri_t route{};
-  route.uri = "/api/trial";
-  route.method = HTTP_GET;
-  route.handler = status;
-  route.user_ctx = &network;
-  auto result = httpd_register_uri_handler(server, &route);
-  if (result == ESP_OK) {
-    route.uri = "/api/trial/benchmark";
-    route.handler = benchmark_status;
-    result = httpd_register_uri_handler(server, &route);
+  for (const auto &route : routes) {
+    if (httpd_register_uri_handler(server, &route) != ESP_OK) {
+      httpd_stop(server);
+      return false;
+    }
   }
-  if (result == ESP_OK) {
-    route.uri = "/api/trial/prepare";
-    route.handler = preparation_status;
-    result = httpd_register_uri_handler(server, &route);
-  }
-  if (result == ESP_OK)
-    return true;
-  httpd_stop(server);
-  return false;
+  return true;
 }
 
 void record_live_trial_wifi_link(int power_save, int rssi, unsigned channel) {

@@ -1390,6 +1390,8 @@
     },
     "web_local_state_keys": [
       "api_key_configured",
+      "immich_filter_support",
+      "portrait_pair_framing",
       "wireguard_available",
       "wireguard_private_key_configured",
       "backlight_on",
@@ -1889,6 +1891,7 @@
         "product/**",
         "scripts/firmware_release.py",
         "scripts/product_config.py",
+        "scripts/native_preview_releases.py",
         "package.json",
         "package-lock.json",
         ".github/workflows/docs.yml"
@@ -1915,6 +1918,10 @@
         "completed"
       ]
     },
+    "github_docs_workflow_run_targets": [
+      "Build Release",
+      "Native Swipe Prototype"
+    ],
     "github_docs_workflow_run_success_conclusion": "success",
     "github_workflow_jobs": {
       "compile": {
@@ -1961,8 +1968,8 @@
       "compile.validate": null,
       "compile.firmware-metadata": "github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'",
       "compile.compile": "github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'",
-      "docs.build-docs": "github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.display_title, 'Publish firmware '))",
-      "docs.download-firmware": "github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.display_title, 'Publish firmware '))",
+      "docs.build-docs": "github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'workflow_dispatch' && (startsWith(github.event.workflow_run.display_title, 'Publish firmware ') || startsWith(github.event.workflow_run.display_title, 'Publish native preview ')))",
+      "docs.download-firmware": "github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'workflow_dispatch' && (startsWith(github.event.workflow_run.display_title, 'Publish firmware ') || startsWith(github.event.workflow_run.display_title, 'Publish native preview ')))",
       "docs.deploy-docs": null,
       "release.release-metadata": null,
       "release.release-notes": "inputs.publish && github.ref_type == 'tag'",

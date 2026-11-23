@@ -10,13 +10,16 @@ namespace espframe::native {
 
 class SwipeInput {
  public:
-  enum class Effect { None, Sleep, Wake };
+  enum class Effect { None, Sleep, Wake, Tap };
   enum class DragEnd { None, Released, Cancelled };
 
   bool engaged() const { return down_ || wait_for_release_; }
   bool awake() const { return !sleeping_; }
   bool first_motion_pending() const { return first_motion_us_ != 0; }
   int64_t contact_started_us() const { return down_since_us_; }
+  int contact_y() const { return down_y_; }
+
+  void wait_for_new_contact() { wait_for_release_ = true; }
 
   void sleep(Swipe &swipe) {
     swipe.show(swipe.settled());
@@ -50,7 +53,9 @@ class SwipeInput {
       return Effect::None;
     }
     if (report.contacts == 0) {
-      const bool sleep = down_ && hold_candidate_ && report.sampled_us - down_since_us_ >= hold_duration_us;
+      const auto duration = report.sampled_us - down_since_us_;
+      const bool sleep = down_ && hold_candidate_ && duration >= hold_duration_us;
+      const bool tap = down_ && hold_candidate_ && tap_candidate_ && duration <= tap_duration_us;
       if (sleep) {
         this->sleep(swipe);
       } else if (down_) {
@@ -63,7 +68,9 @@ class SwipeInput {
       down_ = false;
       hold_candidate_ = false;
       wait_for_release_ = false;
-      return sleep ? Effect::Sleep : Effect::None;
+      if (sleep)
+        return Effect::Sleep;
+      return tap ? Effect::Tap : Effect::None;
     }
     if (wait_for_release_)
       return Effect::None;
@@ -74,6 +81,7 @@ class SwipeInput {
       return Effect::Wake;
     }
     if (!down_) {
+      tap_candidate_ = swipe.idle() && swipe.position() == handoff;
       swipe.press(report.x, report.y, handoff, report.sampled_us);
       first_motion_us_ = 0;
       down_ = true;
@@ -99,6 +107,7 @@ class SwipeInput {
 
  private:
   static constexpr int64_t hold_duration_us = 3'000'000;
+  static constexpr int64_t tap_duration_us = 280'000;
   static constexpr int hold_slop = 12;
 
   void cancel_(Swipe &swipe, int64_t now_us, DragEnd *drag_end) {
@@ -117,6 +126,7 @@ class SwipeInput {
   bool wait_for_release_{};
   bool sleeping_{};
   bool hold_candidate_{};
+  bool tap_candidate_{};
   unsigned errors_{};
   uint32_t sequence_{};
   int64_t first_motion_us_{};

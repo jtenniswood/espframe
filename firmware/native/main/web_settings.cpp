@@ -1,16 +1,21 @@
 #include "web_settings.h"
+#include "c6_firmware_update.h"
 #include "configuration_contract_generated.h"
 #include "firmware_update.h"
 #include "frame_identity.h"
 #include "frame_status.h"
 #include "native_configuration.h"
 #include "native_network.h"
+#include "native_release_updates.h"
 #include "screen_control.h"
+#include "web_logs.h"
+#include "native_wireguard.h"
 
 #include "cJSON.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
 #include "esp_netif.h"
+#include "esp_random.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"
@@ -19,6 +24,8 @@
 #include "mbedtls/base64.h"
 
 #include <array>
+#include <atomic>
+#include <charconv>
 #include <cinttypes>
 #include <cstdio>
 #include <cstring>
@@ -35,11 +42,18 @@ constexpr size_t auth_capacity = 120;
 namespace contract = esphome::espframe::contract;
 httpd_handle_t server{};
 esp_timer_handle_t restart_timer{};
+std::atomic<bool> guarded_restart{};
 std::optional<ResetMode> resetting;
 std::string authorization;
 
 extern const char page_start[] asm("_binary_settings_html_start");
 extern const char page_end[] asm("_binary_settings_html_end");
+extern const char admin_preview_start[] asm("_binary_admin_preview_html_start");
+extern const char admin_preview_end[] asm("_binary_admin_preview_html_end");
+extern const char admin_cards_start[] asm("_binary_admin_cards_js_start");
+extern const char admin_cards_end[] asm("_binary_admin_cards_js_end");
+extern const char admin_app_start[] asm("_binary_app_js_start");
+extern const char admin_app_end[] asm("_binary_app_js_end");
 extern const char shared_page_start[] asm("_binary_native_settings_html_start");
 extern const char shared_page_end[] asm("_binary_native_settings_html_end");
 extern const char shared_app_start[] asm("_binary_shared_settings_js_start");
@@ -61,21 +75,42 @@ extern const char recovery_end[] asm("_binary_recovery_html_end");
 extern const char recovery_script_start[] asm("_binary_recovery_js_start");
 extern const char recovery_script_end[] asm("_binary_recovery_js_end");
 
-void set_response_headers(httpd_req_t *request) {
+constexpr auto default_content_policy = "default-src 'self'; frame-ancestors 'none'; form-action 'none'";
+constexpr auto shared_admin_content_policy =
+    "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; form-action 'none'";
+
+void set_response_headers(httpd_req_t *request, const char *content_policy = default_content_policy) {
   httpd_resp_set_hdr(request, "Cache-Control", "no-store");
   httpd_resp_set_hdr(request, "X-Content-Type-Options", "nosniff");
-  httpd_resp_set_hdr(request, "Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'; form-action 'none'");
+  httpd_resp_set_hdr(request, "Content-Security-Policy", content_policy);
 }
 
 NativeNetwork &network(httpd_req_t *request) { return *static_cast<NativeNetwork *>(request->user_ctx); }
 
+uint32_t socket_ipv4(const sockaddr_storage &address, socklen_t length) {
+  if (address.ss_family == AF_INET && length >= sizeof(sockaddr_in))
+    return reinterpret_cast<const sockaddr_in &>(address).sin_addr.s_addr;
+#if CONFIG_LWIP_IPV6
+  if (address.ss_family == AF_INET6 && length >= sizeof(sockaddr_in6)) {
+    // The dual-stack HTTP listener represents IPv4 connections as ::ffff:a.b.c.d.
+    constexpr uint8_t mapped_prefix[]{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff};
+    const auto &bytes = reinterpret_cast<const sockaddr_in6 &>(address).sin6_addr.s6_addr;
+    if (std::memcmp(bytes, mapped_prefix, sizeof(mapped_prefix)) == 0) {
+      uint32_t ipv4;
+      std::memcpy(&ipv4, bytes + sizeof(mapped_prefix), sizeof(ipv4));
+      return ipv4;
+    }
+  }
+#endif
+  return 0;
+}
+
 uint32_t local_address(httpd_req_t *request) {
-  sockaddr_in address{};
+  sockaddr_storage address{};
   socklen_t length = sizeof(address);
-  if (getsockname(httpd_req_to_sockfd(request), reinterpret_cast<sockaddr *>(&address), &length) != 0 ||
-      address.sin_family != AF_INET)
+  if (getsockname(httpd_req_to_sockfd(request), reinterpret_cast<sockaddr *>(&address), &length) != 0)
     return 0;
-  return address.sin_addr.s_addr;
+  return socket_ipv4(address, length);
 }
 
 bool hotspot_socket(httpd_req_t *request) {
@@ -94,11 +129,27 @@ bool same_origin(httpd_req_t *request) {
          header_is(request, "Origin", std::string("http://") + host);
 }
 
+bool matches_station_host(httpd_req_t *request, uint32_t station) {
+  char header[80]{};
+  if (httpd_req_get_hdr_value_str(request, "Host", header, sizeof(header)) != ESP_OK)
+    return false;
+  std::string_view host(header);
+  if (host.ends_with(":80"))
+    host.remove_suffix(3);
+  char ipv4[INET_ADDRSTRLEN]{};
+  const in_addr address{station};
+  const auto &hostname = network(request).running_identity().hostname;
+  return (inet_ntop(AF_INET, &address, ipv4, sizeof(ipv4)) && host == ipv4) ||
+         (!hostname.empty() && host == hostname + ".local");
+}
+
 bool from_hotspot_client(httpd_req_t *request) {
-  sockaddr_in peer{};
+  sockaddr_storage peer{};
   socklen_t length = sizeof(peer);
-  if (getpeername(httpd_req_to_sockfd(request), reinterpret_cast<sockaddr *>(&peer), &length) != 0 ||
-      peer.sin_family != AF_INET)
+  if (getpeername(httpd_req_to_sockfd(request), reinterpret_cast<sockaddr *>(&peer), &length) != 0)
+    return false;
+  const auto ipv4 = socket_ipv4(peer, length);
+  if (!ipv4)
     return false;
 
   wifi_sta_list_t associated{};
@@ -106,17 +157,24 @@ bool from_hotspot_client(httpd_req_t *request) {
   if (esp_wifi_ap_get_sta_list(&associated) != ESP_OK || esp_wifi_ap_get_sta_list_with_ip(&associated, &addresses) != ESP_OK)
     return false;
   for (int i = 0; i < addresses.num; ++i) {
-    if (addresses.sta[i].ip.addr == peer.sin_addr.s_addr)
+    if (addresses.sta[i].ip.addr == ipv4)
       return true;
   }
   return false;
 }
 
-bool authorize(httpd_req_t *request) {
-  set_response_headers(request);
+bool authorize(httpd_req_t *request, const char *content_policy = default_content_policy) {
+  set_response_headers(request, content_policy);
   const auto station = network(request).address().ipv4;
-  if (!station || local_address(request) != station || hotspot_socket(request) || authorization.empty()) {
+  if (!station || local_address(request) != station || hotspot_socket(request) ||
+      (authorization.empty() && !matches_station_host(request, station))) {
     httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "Settings are unavailable on this connection.");
+    return false;
+  }
+  if (authorization.empty()) {
+    if (request->method != HTTP_POST || same_origin(request))
+      return true;
+    httpd_resp_send_err(request, HTTPD_403_FORBIDDEN, "Open settings on the frame to make changes.");
     return false;
   }
   std::array<char, auth_capacity> header{};
@@ -150,11 +208,30 @@ esp_err_t recovery_asset(httpd_req_t *request, const char *type, const char *sta
   return asset(request, type, start, end);
 }
 
-esp_err_t page(httpd_req_t *request) {
+esp_err_t admin_page(httpd_req_t *request) {
+  if (!authorize(request, shared_admin_content_policy))
+    return ESP_OK;
+  return asset(request, "text/html; charset=utf-8", admin_preview_start, admin_preview_end);
+}
+
+esp_err_t admin_cards(httpd_req_t *request) {
+  return serve(request, "text/javascript", admin_cards_start, admin_cards_end);
+}
+
+esp_err_t home_page(httpd_req_t *request) {
   if (hotspot_socket(request))
     return recovery_asset(request, "text/html; charset=utf-8", recovery_start, recovery_end);
+  return admin_page(request);
+}
+
+esp_err_t native_settings(httpd_req_t *request) {
   return serve(request, "text/html; charset=utf-8", shared_page_start, shared_page_end);
 }
+
+esp_err_t admin_app(httpd_req_t *request) {
+  return serve(request, "text/javascript", admin_app_start, admin_app_end);
+}
+
 esp_err_t device_tools(httpd_req_t *request) {
   return serve(request, "text/html; charset=utf-8", page_start, page_end);
 }
@@ -279,11 +356,14 @@ esp_err_t update(httpd_req_t *request) {
     received += bytes;
   }
   body[received] = '\0';
+  const auto previous_ntp_revision = ntp_settings_revision.load(std::memory_order_relaxed);
   bool restart_required = false;
   if (std::memchr(body.get(), '\0', received) || !Settings::save_playback(body.get(), &restart_required))
     return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Check the Immich connection and playback settings.");
   if (restart_required && esp_timer_start_once(restart_timer, 800'000) != ESP_OK)
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Saved. Restart the frame to apply settings.");
+  if (!restart_required && previous_ntp_revision != ntp_settings_revision.load(std::memory_order_relaxed))
+    static_cast<NativeNetwork *>(request->user_ctx)->request_time_sync();
   httpd_resp_set_type(request, "application/json");
   return httpd_resp_sendstr(request, restart_required ? "{\"saved\":true,\"restart_required\":true}"
                                                      : "{\"saved\":true,\"restart_required\":false}");
@@ -305,12 +385,76 @@ esp_err_t capabilities(httpd_req_t *request) {
   return send_configuration(request, document.get());
 }
 
+esp_err_t wireguard_state(httpd_req_t *request) {
+  if (!authorize(request))
+    return ESP_OK;
+  const auto state = wireguard_status();
+  const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> body(cJSON_CreateObject(), cJSON_Delete);
+  if (!body || !cJSON_AddBoolToObject(body.get(), "running", state.running) ||
+      !cJSON_AddBoolToObject(body.get(), "connected", state.connected) ||
+      (state.handshake_age && !cJSON_AddNumberToObject(body.get(), "handshake_age", *state.handshake_age)))
+    return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Unable to read WireGuard status.");
+  return send_configuration(request, body.get());
+}
+
+esp_err_t wifi_firmware(httpd_req_t *request) {
+  if (!authorize(request))
+    return ESP_OK;
+  if (request->method == HTTP_GET) {
+    const auto status = c6_firmware_status();
+    const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> body(cJSON_CreateObject(), cJSON_Delete);
+    if (!body || !cJSON_AddStringToObject(body.get(), "current", status.current.c_str()) ||
+        !cJSON_AddStringToObject(body.get(), "latest", status.latest.c_str()) ||
+        !cJSON_AddStringToObject(body.get(), "status", status.state))
+      return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Unable to read Wi-Fi firmware status.");
+    return send_configuration(request, body.get());
+  }
+  if (!same_origin(request))
+    return httpd_resp_send_err(request, HTTPD_403_FORBIDDEN, "Open settings on the frame to make changes.");
+  if (!header_is(request, "Content-Type", "text/plain") ||
+      (request->content_len != 5 && request->content_len != 7))
+    return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Choose check or install.");
+  std::array<char, 7> data{};
+  size_t offset = 0;
+  while (offset < request->content_len) {
+    const auto bytes = httpd_req_recv(request, data.data() + offset, request->content_len - offset);
+    if (bytes <= 0)
+      return ESP_FAIL;
+    offset += bytes;
+  }
+  const std::string_view action(data.data(), offset);
+  if (action != "check" && action != "install")
+    return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Choose check or install.");
+  if (esp_timer_is_active(restart_timer) || network(request).busy() ||
+      !request_c6_firmware_update(action == "install")) {
+    httpd_resp_set_status(request, "409 Conflict");
+    return httpd_resp_sendstr(request, "The frame is busy.");
+  }
+  httpd_resp_set_status(request, "202 Accepted");
+  return httpd_resp_sendstr(request, "Wi-Fi firmware request accepted.");
+}
+
 esp_err_t configuration(httpd_req_t *request) {
   if (!authorize(request))
     return ESP_OK;
+  static const auto boot = esp_random();
+  const auto revision = Settings::storage_revision();
+  const auto search_api = active_immich_search_api.load(std::memory_order_relaxed);
+  const auto solar_times = frame_status.solar_times();
+  char etag[44]{};
+  std::snprintf(etag, sizeof(etag), "W/\"%08" PRIx32 "-%08" PRIx32 "-%u-%d-%d\"", boot, revision,
+                static_cast<unsigned>(search_api), solar_times ? solar_times->sunrise : -1,
+                solar_times ? solar_times->sunset : -1);
+  if (header_is(request, "If-None-Match", etag)) {
+    httpd_resp_set_hdr(request, "ETag", etag);
+    httpd_resp_set_status(request, "304 Not Modified");
+    return httpd_resp_send(request, nullptr, 0);
+  }
   Settings settings;
   const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> document(
-      settings.read() ? configuration_snapshot(settings) : nullptr, cJSON_Delete);
+      settings.read() ? configuration_snapshot(settings, solar_times) : nullptr, cJSON_Delete);
+  if (document)
+    httpd_resp_set_hdr(request, "ETag", etag);
   return send_configuration(request, document.get());
 }
 
@@ -323,6 +467,46 @@ esp_err_t status(httpd_req_t *request) {
       frame_status_snapshot(frame_status.read(), network(request).photo_connection() != 0,
                             esp_timer_is_active(restart_timer), screen_pending), cJSON_Delete);
   return send_configuration(request, document.get());
+}
+
+esp_err_t logs(httpd_req_t *request) {
+  if (!authorize(request))
+    return ESP_OK;
+
+  uint32_t after = 0;
+  if (const auto length = httpd_req_get_url_query_len(request)) {
+    constexpr std::string_view prefix = "after=";
+    std::array<char, prefix.size() + 10 + 1> query{};
+    if (length >= query.size() || httpd_req_get_url_query_str(request, query.data(), query.size()) != ESP_OK ||
+        !std::string_view(query.data(), length).starts_with(prefix))
+      return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Invalid log position.");
+    const auto end = query.data() + length;
+    const auto parsed = std::from_chars(query.data() + prefix.size(), end, after);
+    if (parsed.ec != std::errc{} || parsed.ptr != end)
+      return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Invalid log position.");
+  }
+
+  std::array<WebLogLine, 12> lines{};
+  const auto page = read_web_logs(after, lines);
+  const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> body(cJSON_CreateObject(), cJSON_Delete);
+  if (!body || !cJSON_AddNumberToObject(body.get(), "boot", page.boot) ||
+      !cJSON_AddBoolToObject(body.get(), "more", page.more))
+    return send_configuration(request, nullptr);
+  auto *entries = cJSON_AddArrayToObject(body.get(), "lines");
+  if (!entries)
+    return send_configuration(request, nullptr);
+  for (size_t i = 0; i < page.count; ++i) {
+    const auto &line = lines[i];
+    auto *entry = cJSON_CreateObject();
+    if (!entry || !cJSON_AddItemToArray(entries, entry)) {
+      cJSON_Delete(entry);
+      return send_configuration(request, nullptr);
+    }
+    if (!cJSON_AddNumberToObject(entry, "id", line.id) || !cJSON_AddNumberToObject(entry, "level", line.level) ||
+        !cJSON_AddStringToObject(entry, "message", line.message.data()))
+      return send_configuration(request, nullptr);
+  }
+  return send_configuration(request, body.get());
 }
 
 esp_err_t configuration_reply(httpd_req_t *request, const ConfigurationUpdate &result) {
@@ -440,9 +624,13 @@ esp_err_t save_configuration(httpd_req_t *request) {
   const auto json = decode_configuration_form(form);
   if (!json)
     return configuration_reply(request, {"400 Bad Request", "invalid_configuration", {}});
+  const auto previous_ntp_revision = ntp_settings_revision.load(std::memory_order_relaxed);
   const auto result = update_configuration(json->c_str());
   if (!result.error && result.restart_required && esp_timer_start_once(restart_timer, 800'000) != ESP_OK)
     return configuration_reply(request, {"500 Internal Server Error", "restart_required", {}});
+  if (!result.error && !result.restart_required &&
+      previous_ntp_revision != ntp_settings_revision.load(std::memory_order_relaxed))
+    static_cast<NativeNetwork *>(request->user_ctx)->request_time_sync();
   return configuration_reply(request, result);
 }
 
@@ -493,6 +681,23 @@ int receive_firmware(void *context, uint8_t *buffer, size_t length) {
   return httpd_req_recv(static_cast<httpd_req_t *>(context), reinterpret_cast<char *>(buffer), length);
 }
 
+esp_err_t reboot_device(httpd_req_t *request) {
+  if (!authorize(request))
+    return ESP_OK;
+  if (!same_origin(request))
+    return configuration_reply(request, {"403 Forbidden", "invalid_origin", {}});
+  if (request->content_len != 0)
+    return configuration_reply(request, {"400 Bad Request", "invalid_request", {}});
+  if (esp_timer_is_active(restart_timer) || network(request).busy() || !frame_restart_available())
+    return configuration_reply(request, {"409 Conflict", "operation_in_progress", {}});
+  guarded_restart.store(true);
+  if (esp_timer_start_once(restart_timer, 800'000) != ESP_OK) {
+    guarded_restart.store(false);
+    return configuration_reply(request, {"500 Internal Server Error", "restart_unavailable", {}});
+  }
+  return configuration_reply(request, {"202 Accepted", nullptr, {}, 0, {}, true});
+}
+
 std::array<char, 2 * FirmwareImage{}.elf_sha256.size() + 1> firmware_hash(const FirmwareImage &image) {
   constexpr char digits[] = "0123456789abcdef";
   std::array<char, 2 * FirmwareImage{}.elf_sha256.size() + 1> hash{};
@@ -522,6 +727,33 @@ esp_err_t firmware_status(httpd_req_t *request) {
       (status.rejected && !add_firmware_image(document.get(), "rejected", *status.rejected)))
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Unable to read firmware status.");
   return send_configuration(request, document.get());
+}
+
+esp_err_t release_firmware(httpd_req_t *request) {
+  if (!authorize(request))
+    return ESP_OK;
+  if (request->method == HTTP_GET) {
+    const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> document(native_release_status(), cJSON_Delete);
+    return send_configuration(request, document.get());
+  }
+  if (!same_origin(request))
+    return httpd_resp_send_err(request, HTTPD_403_FORBIDDEN, "Open the frame settings to update firmware.");
+  std::array<char, 32> version{};
+  if (!header_is(request, "Content-Type", "text/plain") || request->content_len >= version.size())
+    return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Choose a published preview version.");
+  size_t received = 0;
+  while (received < request->content_len) {
+    const auto count = httpd_req_recv(request, version.data() + received, request->content_len - received);
+    if (count <= 0)
+      return ESP_FAIL;
+    received += count;
+  }
+  if (!request_native_release({version.data(), received})) {
+    httpd_resp_set_status(request, "409 Conflict");
+    return httpd_resp_sendstr(request, "A release update is unavailable or already in progress.");
+  }
+  httpd_resp_set_status(request, "202 Accepted");
+  return httpd_resp_sendstr(request, "Accepted");
 }
 
 esp_err_t update_firmware(httpd_req_t *request) {
@@ -566,7 +798,12 @@ esp_err_t update_firmware(httpd_req_t *request) {
   return ESP_FAIL;
 }
 
-void restart(void *) { esp_restart(); }
+void restart(void *) {
+  if (guarded_restart.exchange(false))
+    request_frame_restart();
+  else
+    esp_restart();
+}
 
 }  // namespace
 
@@ -591,12 +828,17 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
     return false;
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.lru_purge_enable = true;
-  config.stack_size = 6144;
+  // Configuration writes validate and persist a full settings record on this task.
+  config.stack_size = 12288;
   config.max_open_sockets = 4;
   config.recv_wait_timeout = 3;
 
   const httpd_uri_t routes[]{
-      {.uri = "/", .method = HTTP_GET, .handler = page, .user_ctx = &network},
+      {.uri = "/", .method = HTTP_GET, .handler = home_page, .user_ctx = &network},
+      {.uri = "/admin", .method = HTTP_GET, .handler = admin_page, .user_ctx = &network},
+      {.uri = "/native-settings", .method = HTTP_GET, .handler = native_settings, .user_ctx = &network},
+      {.uri = "/espframe/admin.js", .method = HTTP_GET, .handler = admin_app, .user_ctx = &network},
+      {.uri = "/espframe/admin-cards.js", .method = HTTP_GET, .handler = admin_cards, .user_ctx = &network},
       {.uri = "/settings", .method = HTTP_GET, .handler = device_tools, .user_ctx = &network},
       {.uri = "/espframe/app.js", .method = HTTP_GET, .handler = shared_app, .user_ctx = &network},
       {.uri = "/espframe/style.css", .method = HTTP_GET, .handler = shared_style, .user_ctx = &network},
@@ -609,6 +851,11 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
       {.uri = "/api/playback", .method = HTTP_POST, .handler = update, .user_ctx = &network},
       {.uri = contract::CAPABILITIES_PATH, .method = HTTP_GET, .handler = capabilities, .user_ctx = &network},
       {.uri = frame_status_path, .method = HTTP_GET, .handler = status, .user_ctx = &network},
+      {.uri = "/espframe/api/v1/logs", .method = HTTP_GET, .handler = logs, .user_ctx = &network},
+      {.uri = "/espframe/api/v1/wireguard", .method = HTTP_GET, .handler = wireguard_state, .user_ctx = &network},
+      {.uri = "/api/firmware/wifi", .method = HTTP_GET, .handler = wifi_firmware, .user_ctx = &network},
+      {.uri = "/api/firmware/wifi", .method = HTTP_POST, .handler = wifi_firmware, .user_ctx = &network},
+      {.uri = "/espframe/api/v1/reboot", .method = HTTP_POST, .handler = reboot_device, .user_ctx = &network},
       {.uri = frame_identity_path, .method = HTTP_GET, .handler = identity, .user_ctx = &network},
       {.uri = frame_identity_path, .method = HTTP_POST, .handler = identity, .user_ctx = &network},
       {.uri = screen_control_path, .method = HTTP_POST, .handler = change_screen, .user_ctx = &network},
@@ -618,6 +865,8 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
       {.uri = contract::RESET_PATH, .method = HTTP_POST, .handler = reset_settings, .user_ctx = &network},
       {.uri = "/api/firmware", .method = HTTP_GET, .handler = firmware_status, .user_ctx = &network},
       {.uri = "/api/firmware", .method = HTTP_POST, .handler = update_firmware, .user_ctx = &network},
+      {.uri = "/api/firmware/releases", .method = HTTP_GET, .handler = release_firmware, .user_ctx = &network},
+      {.uri = "/api/firmware/releases", .method = HTTP_POST, .handler = release_firmware, .user_ctx = &network},
       {.uri = "/recovery.js", .method = HTTP_GET, .handler = recovery_script, .user_ctx = &network},
       {.uri = "/api/recovery", .method = HTTP_GET, .handler = recovery_status, .user_ctx = &network},
       {.uri = "/api/recovery", .method = HTTP_POST, .handler = recover_wifi, .user_ctx = &network},
@@ -637,8 +886,7 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
   }
 
   esp_netif_ip_info_t ip{};
-  if (!settings.web_password.empty() &&
-      esp_netif_get_ip_info(esp_netif_get_handle_from_ifkey("WIFI_STA_DEF"), &ip) == ESP_OK && ip.ip.addr)
+  if (esp_netif_get_ip_info(esp_netif_get_handle_from_ifkey("WIFI_STA_DEF"), &ip) == ESP_OK && ip.ip.addr)
     ESP_LOGI(tag, "Settings page listening at http://" IPSTR "/", IP2STR(&ip.ip));
   return true;
 }

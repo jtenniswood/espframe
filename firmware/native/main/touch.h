@@ -9,13 +9,12 @@ namespace espframe::native {
 
 class TouchReader {
  public:
-  void start(ScreenRotation rotation);
-  bool poll(TouchReport &report) const;
+  void start();
+  bool poll(TouchReport &report, ScreenRotation rotation) const;
 
  private:
   static void run_(void *context);
   QueueHandle_t reports_{};
-  ScreenRotation rotation_{};
 };
 
 }  // namespace espframe::native

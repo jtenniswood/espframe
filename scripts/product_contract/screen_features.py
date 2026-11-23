@@ -260,7 +260,6 @@ def check_developer_features_metadata(product: dict, errors: list[str]) -> None:
         "internal: true",
         "developer_features_saved",
         "developerPanelEnabledByUrl",
-        "S.developer_features_enabled",
         'saveSetting("developer_features_enabled"',
     ):
         if needle in {"hidden developer setting", "must stay off"}:
@@ -270,6 +269,9 @@ def check_developer_features_metadata(product: dict, errors: list[str]) -> None:
         else:
             require_contains(web_template, needle, rel(WEB_TEMPLATE), errors)
             require_contains(web_text, needle, rel(WEB_APP), errors)
+    require_contains(web_template, "S.developer_features_enabled", rel(WEB_TEMPLATE), errors)
+    if not re.search(r"\bS\d*\.developer_features_enabled\b", web_text):
+        errors.append(f"{rel(WEB_APP)} must read the developer features setting")
 
 
 def check_screen_tone_metadata(product: dict, errors: list[str]) -> None:

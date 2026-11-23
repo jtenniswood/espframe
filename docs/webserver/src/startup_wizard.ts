@@ -55,14 +55,14 @@
       var nextBtn = el("button", "btn btn-primary");
       nextBtn.textContent = "Connect";
       nextBtn.onclick = function () {
-        var u = normalizeImmichUrl(urlInput.value);
+        var u = normalizeConnectionUrl(urlInput.value);
         var k = keyInput.value.trim();
         if (!u || !k) return;
         nextBtn.disabled = true;
         nextBtn.textContent = "Saving\u2026";
-        saveAndVerifyConnection(u, k)
-          .then(function (connection) {
-            urlInput.value = connection.url;
+        saveAndVerifyConnection({ immich_url: u, api_key: k })
+          .then(function () {
+            urlInput.value = u;
             step = 2;
             showStep();
           })
