@@ -135,7 +135,9 @@ ESPHome preferences.
 Open **Firmware** in the frame settings to see the installed Native Preview,
 check for a release, install an available version, or choose a previous one.
 Enable **Auto Update** and choose **Update Frequency** to install newer releases
-from the frame itself. The frame verifies the board and download checksum before
+from the frame itself. Turning **Auto Update** back on checks for a release
+immediately. **Check for Update** refreshes the list and leaves installation to
+you. The frame verifies the board and download checksum before
 restarting into the update. The native startup check can return to the previous
 firmware if startup fails.
 
@@ -282,7 +284,8 @@ files. The prototype checks image integrity and board identity and accepts
 unsigned firmware.
 
 The installer preserves ESPHome's update preferences in native settings
-exports for a future restore to ESPHome. Native updates use this manual upload flow.
+exports for a future restore to ESPHome. Manual upload also works with local
+builds and when the release feed is unavailable.
 
 The frame writes to an inactive slot and restarts after validating the image.
 The first boot must initialize the display, submit a frame and read the touch

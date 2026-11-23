@@ -1,4 +1,5 @@
 #include "native_release_index.h"
+#include "native_release_schedule.h"
 
 #include <cassert>
 #include <string>
@@ -32,4 +33,28 @@ int main() {
   assert(!read_release_index(index(entry("v0.1.0-preview.9", 4'194'305, 'a')), "v1"));
   assert(!read_release_index(index(entry("v0.1.0-preview.9", 3'500'000, 'x')), "v1"));
   assert(!read_release_index(index(latest) + "{}", "v1"));
+
+  constexpr int64_t hour = 3'600'000'000;
+  NativeReleaseSchedule schedule;
+  schedule.configure(0, true, "Daily");
+  assert(!schedule.due(hour - 1) && schedule.due(hour));
+  schedule.checked(hour, true);
+  schedule.configure(2 * hour, true, "Daily");
+  assert(!schedule.due(25 * hour - 1) && schedule.due(25 * hour));
+  schedule.configure(3 * hour, false, "Daily");
+  assert(!schedule.due(25 * hour));
+  schedule.configure(4 * hour, true, "Weekly");
+  assert(schedule.due(4 * hour));
+  schedule.checked(4 * hour, false);
+  assert(!schedule.due(4 * hour + hour / 4 - 1) && schedule.due(4 * hour + hour / 4));
+  schedule.configure(5 * hour, true, "Monthly");
+  assert(!schedule.due(725 * hour - 1) && schedule.due(725 * hour));
+
+  NativeReleaseSchedule disabled;
+  disabled.configure(0, false, "Hourly");
+  assert(!disabled.due(hour));
+  disabled.configure(hour, true, "Hourly");
+  assert(disabled.due(hour));
+  disabled.checked(hour, true);
+  assert(!disabled.due(2 * hour - 1) && disabled.due(2 * hour));
 }

@@ -4,6 +4,7 @@
 #include "firmware_update.h"
 #include "native_network.h"
 #include "native_release_index.h"
+#include "native_release_schedule.h"
 #include "settings.h"
 
 #include "cJSON.h"
@@ -119,34 +120,23 @@ bool install(const NativeRelease &release) {
          stage_firmware(release.size, Download::read_verified, &reader) == FirmwareUpdateResult::Staged;
 }
 
-int64_t interval(const StockUpdatePreferences &prefs) {
-  const auto name = prefs.frequency.value_or("Daily");
-  if (name == "Hourly") return 3600 * second;
-  if (name == "Weekly") return 7 * 86400 * second;
-  if (name == "Monthly") return 30 * 86400 * second;
-  return 86400 * second;
-}
-
 void run(void *context) {
   auto &network = *static_cast<NativeNetwork *>(context);
   const auto installed = *parse_preview_version(esp_app_get_description()->version);
-  int64_t next{};
-  int64_t previous_interval = 0;
+  NativeReleaseSchedule schedule;
+  uint32_t preferences_revision = Settings::storage_revision();
   int64_t refresh_preferences = 0;
-  int64_t cadence = 0;
-  bool auto_update = false;
   while (true) {
     const auto now = esp_timer_get_time();
-    if (now >= refresh_preferences) {
+    const auto revision = Settings::storage_revision();
+    if (now >= refresh_preferences || revision != preferences_revision) {
       Settings prefs;
-      auto_update = prefs.read() && prefs.stock_update_preferences.auto_update.value_or(true);
-      cadence = interval(prefs.stock_update_preferences);
-      if (cadence != previous_interval)
-        next = now + cadence;
-      previous_interval = cadence;
+      const bool enabled = prefs.read() && prefs.stock_update_preferences.auto_update.value_or(true);
+      schedule.configure(now, enabled, prefs.stock_update_preferences.frequency.value_or("Daily"));
+      preferences_revision = revision;
       refresh_preferences = now + 15 * second;
     }
-    const bool automatic = auto_update && now >= next;
+    const bool automatic = schedule.due(now);
     bool requested;
     {
       const std::lock_guard lock(mutex);
@@ -211,7 +201,7 @@ void run(void *context) {
       status = result;
     }
     if (automatic && !request)
-      next = esp_timer_get_time() + (std::string_view(result) == "unavailable" ? std::min(cadence, 900 * second) : cadence);
+      schedule.checked(esp_timer_get_time(), std::string_view(result) != "unavailable");
   }
 }
 
