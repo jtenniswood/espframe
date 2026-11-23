@@ -169,82 +169,52 @@ import {
     return new Promise(function (resolve) { setTimeout(resolve, ms); });
   }
 
-  function saveConnectionValue(path, value, useQueryFallback) {
-    // Legacy adapter compatibility: saveConnectionValue(endpoints.immich_url, ...)
-    // and saveConnectionValue(endpoints.api_key, ...) remain the per-entity form.
-    return postTextValueSet(path + "/set", value, useQueryFallback).then(function (r) {
-      if (!r || !r.ok) throw new Error("save_failed");
-      return delayMs(1200);
-    });
-  }
-
   function connectionResponseValue(resp) {
     return (resp && (resp.value || resp.state)) || "";
   }
 
-  function saveAndVerifyConnectionValue(path, value, useQueryFallback, isSaved) {
-    if (path === endpoints.api_key) return saveAndVerifyApiKey(value);
-    return settingSaves.save({ immich_url: value }, function () {
-      return saveConnectionValue(path, value, useQueryFallback)
-        .then(function () {
-          return safeGet(path);
-        })
-        .then(function (resp) {
-          var saved = connectionResponseValue(resp);
-          if (isSaved && !isSaved(saved)) throw Error("verify_failed");
-          return saved;
-        });
+  function saveAndVerifyConnectionUrl(value) {
+    if (nativeAdmin) return saveAndVerifyConnection({ immich_url: value });
+    return settingSaves.save({ immich_url: value }, async function () {
+      var path = endpoints.immich_url;
+      await postTextValueSet(path + "/set", value, true);
+      await delayMs(1200);
+      if (normalizeImmichUrl(connectionResponseValue(await safeGet(path))) !== value) throw Error("verify_failed");
     });
   }
 
   function saveAndVerifyApiKey(value) {
     var apiKey = String(value || "").trim();
     if (!apiKey) return Promise.reject(Error("missing_api_key"));
-    return settingSaves.save({ api_key_configured: true }, function () {
-      return apiClient.updateSettings({ api_key: apiKey }, [legacySettingWrite("api_key", apiKey)])
-        .then(function () { return delayMs(150); })
-        .then(function () { return getConfigurationSnapshot(); })
-        .then(function (snapshot) {
-          if (!snapshot.api_key_configured) throw Error("verify_failed");
-        })
-        .catch(function (error) {
-          if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
-          return safeGet(endpoints.api_key).then(function (resp) {
-            if (!resp || (!resp.api_key_configured && !connectionResponseValue(resp))) {
-              throw Error("verify_failed");
-            }
-          });
-        });
-    });
+    return saveAndVerifyConnection({ api_key: apiKey });
   }
 
-  function saveAndVerifyConnection(url, key) {
-    var normalizedUrl = normalizeImmichUrl(url);
-    var apiKey = String(key || "").trim();
-    if (!normalizedUrl || !apiKey) return Promise.reject(new Error("missing_connection"));
-    return settingSaves.save({ immich_url: normalizedUrl, api_key_configured: true }, function () {
-      return apiClient.updateSettings(
-        { immich_url: normalizedUrl, api_key: apiKey },
-        [legacySettingWrite("immich_url", normalizedUrl), legacySettingWrite("api_key", apiKey)]
-      )
-        .then(function () { return delayMs(150); })
-        .then(function () { return getConfigurationSnapshot(); })
-        .catch(function (error) {
-          if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
-          return Promise.all([safeGet(endpoints.immich_url), safeGet(endpoints.api_key)]);
-        })
-        .then(function (result) {
-          var savedUrl;
-          if (result && !Array.isArray(result)) {
-            savedUrl = normalizeImmichUrl(result.values.immich_url);
-            if (!result.api_key_configured) throw Error("verify_failed");
-          } else {
-            savedUrl = normalizeImmichUrl(connectionResponseValue(result[0]));
-            if (!connectionResponseValue(result[1])) throw Error("verify_failed");
-          }
-          if (savedUrl !== normalizedUrl) throw Error("verify_failed");
-          return { url: normalizedUrl, key: apiKey };
-        });
+  function saveAndVerifyConnection(changes: { immich_url?: string; api_key?: string }) {
+    var tracked: Record<string, string | boolean> = {};
+    if (changes.immich_url !== undefined) tracked.immich_url = changes.immich_url;
+    if (changes.api_key) tracked.api_key_configured = true;
+    return settingSaves.save(tracked, async function () {
+      var writes = Object.keys(changes).map(function (key) { return legacySettingWrite(key, changes[key]); });
+      var savedUrl, keyConfigured;
+      try {
+        var response = await apiClient.updateSettings(changes, writes);
+        await delayMs(150);
+        var snapshot = nativeAdmin && response?.restart_required
+          ? await window["espframeNativeReconnect"](getConfigurationSnapshot)
+          : await getConfigurationSnapshot();
+        savedUrl = snapshot.values.immich_url;
+        keyConfigured = snapshot.api_key_configured;
+      } catch (error) {
+        if (nativeAdmin || !(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
+        var [url, key] = await Promise.all([
+          changes.immich_url === undefined ? null : safeGet(endpoints.immich_url),
+          changes.api_key ? safeGet(endpoints.api_key) : null
+        ]);
+        savedUrl = connectionResponseValue(url);
+        keyConfigured = key && (key.api_key_configured || connectionResponseValue(key));
+      }
+      if ((changes.immich_url !== undefined && normalizeImmichUrl(savedUrl) !== changes.immich_url) ||
+          (changes.api_key && !keyConfigured)) throw Error("verify_failed");
     });
   }
 

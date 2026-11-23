@@ -119,12 +119,7 @@
     var urlInput = urlField.input;
     urlInput.onchange = function () {
       var normalized = normalizeImmichUrl(urlInput.value);
-      saveAndVerifyConnectionValue(
-        endpoints.immich_url,
-        normalized,
-        true,
-        function (saved) { return normalizeImmichUrl(saved) === normalized; }
-      ).then(function () {
+      saveAndVerifyConnectionUrl(normalized).then(function () {
         if (S.immich_url === normalized) urlInput.value = normalized;
         showSaved("URL saved");
       }).catch(function () {
@@ -159,12 +154,7 @@
           if (!v) return;
           saveBtn.disabled = true;
           saveBtn.textContent = "Saving\u2026";
-          saveAndVerifyConnectionValue(
-            endpoints.api_key,
-            v,
-            false,
-            function (saved) { return !!saved; }
-          ).then(function () {
+          saveAndVerifyApiKey(v).then(function () {
             var wasHighlighted = highlightApiKeyAfterRestore;
             highlightApiKeyAfterRestore = false;
             f2.classList.remove("api-key-restore-required");

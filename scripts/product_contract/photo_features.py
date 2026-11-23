@@ -438,8 +438,8 @@ def check_setup_flow_metadata(product: dict, errors: list[str]) -> None:
     for needle in (
         "renderWizard",
         "connect your photo frame",
-        "saveConnectionValue(endpoints.immich_url",
-        "saveConnectionValue(endpoints.api_key",
+        "saveAndVerifyConnection({ immich_url: u, api_key: k })",
+        "apiClient.updateSettings(changes, writes)",
         "safeGet(endpoints.immich_url)",
         "safeGet(endpoints.api_key)",
         "Done",

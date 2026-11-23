@@ -60,9 +60,9 @@
         if (!u || !k) return;
         nextBtn.disabled = true;
         nextBtn.textContent = "Saving\u2026";
-        saveAndVerifyConnection(u, k)
-          .then(function (connection) {
-            urlInput.value = connection.url;
+        saveAndVerifyConnection({ immich_url: u, api_key: k })
+          .then(function () {
+            urlInput.value = u;
             step = 2;
             showStep();
           })

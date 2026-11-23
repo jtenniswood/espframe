@@ -2321,74 +2321,48 @@ to {
       setTimeout(resolve, ms);
     });
   }
-  function saveConnectionValue(path, value, useQueryFallback) {
-    return postTextValueSet(path + "/set", value, useQueryFallback).then(function(r) {
-      if (!r || !r.ok) throw new Error("save_failed");
-      return delayMs(1200);
-    });
-  }
   function connectionResponseValue(resp) {
     return resp && (resp.value || resp.state) || "";
   }
-  function saveAndVerifyConnectionValue(path, value, useQueryFallback, isSaved) {
-    if (path === endpoints.api_key) return saveAndVerifyApiKey(value);
-    return settingSaves.save({ immich_url: value }, function() {
-      return saveConnectionValue(path, value, useQueryFallback).then(function() {
-        return safeGet(path);
-      }).then(function(resp) {
-        var saved = connectionResponseValue(resp);
-        if (isSaved && !isSaved(saved)) throw Error("verify_failed");
-        return saved;
-      });
+  function saveAndVerifyConnectionUrl(value) {
+    if (nativeAdmin) return saveAndVerifyConnection({ immich_url: value });
+    return settingSaves.save({ immich_url: value }, async function() {
+      var path = endpoints.immich_url;
+      await postTextValueSet(path + "/set", value, true);
+      await delayMs(1200);
+      if (normalizeImmichUrl(connectionResponseValue(await safeGet(path))) !== value) throw Error("verify_failed");
     });
   }
   function saveAndVerifyApiKey(value) {
     var apiKey = String(value || "").trim();
     if (!apiKey) return Promise.reject(Error("missing_api_key"));
-    return settingSaves.save({ api_key_configured: true }, function() {
-      return apiClient.updateSettings({ api_key: apiKey }, [legacySettingWrite("api_key", apiKey)]).then(function() {
-        return delayMs(150);
-      }).then(function() {
-        return getConfigurationSnapshot();
-      }).then(function(snapshot) {
-        if (!snapshot.api_key_configured) throw Error("verify_failed");
-      }).catch(function(error) {
-        if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
-        return safeGet(endpoints.api_key).then(function(resp) {
-          if (!resp || !resp.api_key_configured && !connectionResponseValue(resp)) {
-            throw Error("verify_failed");
-          }
-        });
-      });
-    });
+    return saveAndVerifyConnection({ api_key: apiKey });
   }
-  function saveAndVerifyConnection(url, key) {
-    var normalizedUrl = normalizeImmichUrl(url);
-    var apiKey = String(key || "").trim();
-    if (!normalizedUrl || !apiKey) return Promise.reject(new Error("missing_connection"));
-    return settingSaves.save({ immich_url: normalizedUrl, api_key_configured: true }, function() {
-      return apiClient.updateSettings(
-        { immich_url: normalizedUrl, api_key: apiKey },
-        [legacySettingWrite("immich_url", normalizedUrl), legacySettingWrite("api_key", apiKey)]
-      ).then(function() {
-        return delayMs(150);
-      }).then(function() {
-        return getConfigurationSnapshot();
-      }).catch(function(error) {
-        if (!(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
-        return Promise.all([safeGet(endpoints.immich_url), safeGet(endpoints.api_key)]);
-      }).then(function(result) {
-        var savedUrl;
-        if (result && !Array.isArray(result)) {
-          savedUrl = normalizeImmichUrl(result.values.immich_url);
-          if (!result.api_key_configured) throw Error("verify_failed");
-        } else {
-          savedUrl = normalizeImmichUrl(connectionResponseValue(result[0]));
-          if (!connectionResponseValue(result[1])) throw Error("verify_failed");
-        }
-        if (savedUrl !== normalizedUrl) throw Error("verify_failed");
-        return { url: normalizedUrl, key: apiKey };
+  function saveAndVerifyConnection(changes) {
+    var tracked = {};
+    if (changes.immich_url !== void 0) tracked.immich_url = changes.immich_url;
+    if (changes.api_key) tracked.api_key_configured = true;
+    return settingSaves.save(tracked, async function() {
+      var writes = Object.keys(changes).map(function(key2) {
+        return legacySettingWrite(key2, changes[key2]);
       });
+      var savedUrl, keyConfigured;
+      try {
+        var response = await apiClient.updateSettings(changes, writes);
+        await delayMs(150);
+        var snapshot = nativeAdmin && (response == null ? void 0 : response.restart_required) ? await window["espframeNativeReconnect"](getConfigurationSnapshot) : await getConfigurationSnapshot();
+        savedUrl = snapshot.values.immich_url;
+        keyConfigured = snapshot.api_key_configured;
+      } catch (error) {
+        if (nativeAdmin || !(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
+        var [url, key] = await Promise.all([
+          changes.immich_url === void 0 ? null : safeGet(endpoints.immich_url),
+          changes.api_key ? safeGet(endpoints.api_key) : null
+        ]);
+        savedUrl = connectionResponseValue(url);
+        keyConfigured = key && (key.api_key_configured || connectionResponseValue(key));
+      }
+      if (changes.immich_url !== void 0 && normalizeImmichUrl(savedUrl) !== changes.immich_url || changes.api_key && !keyConfigured) throw Error("verify_failed");
     });
   }
   var PHOTO_SOURCE_APPLY_SETTING_KEYS = [
@@ -3009,8 +2983,8 @@ to {
         if (!u || !k) return;
         nextBtn.disabled = true;
         nextBtn.textContent = "Saving\u2026";
-        saveAndVerifyConnection(u, k).then(function(connection) {
-          urlInput.value = connection.url;
+        saveAndVerifyConnection({ immich_url: u, api_key: k }).then(function() {
+          urlInput.value = u;
           step = 2;
           showStep();
         }).catch(function() {
@@ -3190,14 +3164,7 @@ to {
     var urlInput = urlField.input;
     urlInput.onchange = function() {
       var normalized = normalizeImmichUrl(urlInput.value);
-      saveAndVerifyConnectionValue(
-        endpoints.immich_url,
-        normalized,
-        true,
-        function(saved) {
-          return normalizeImmichUrl(saved) === normalized;
-        }
-      ).then(function() {
+      saveAndVerifyConnectionUrl(normalized).then(function() {
         if (S.immich_url === normalized) urlInput.value = normalized;
         showSaved("URL saved");
       }).catch(function() {
@@ -3229,14 +3196,7 @@ to {
           if (!v) return;
           saveBtn.disabled = true;
           saveBtn.textContent = "Saving\u2026";
-          saveAndVerifyConnectionValue(
-            endpoints.api_key,
-            v,
-            false,
-            function(saved) {
-              return !!saved;
-            }
-          ).then(function() {
+          saveAndVerifyApiKey(v).then(function() {
             var wasHighlighted = highlightApiKeyAfterRestore;
             highlightApiKeyAfterRestore = false;
             f2.classList.remove("api-key-restore-required");
@@ -4445,6 +4405,7 @@ to {
     clkBody.appendChild(makeInlineDisclosure("Advanced", ntpServersField(), false));
     return makeCollapsibleCard("Clock", clkBody, true, clockBadge);
   }
+  var nativeFirmware;
   function parseFirmwareVersion(value) {
     var match = /^v([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/i.exec(String(value || "").trim());
     if (!match) return null;
@@ -4596,7 +4557,7 @@ to {
     S.firmware_selected_version = selected ? selected.version : "";
     els.fwVersionSelect.value = S.firmware_selected_version;
     els.fwPreviousPanel.style.display = S.firmware_versions_loaded && infos.length ? "" : "none";
-    var busy = !!(S.firmware_checking || S.firmware_installing || S.firmware_uploading);
+    var busy = !!(S.firmware_checking || S.firmware_installing || S.firmware_uploading) || nativeAdmin && !(nativeFirmware == null ? void 0 : nativeFirmware.isAvailable());
     els.fwVersionSelect.disabled = busy;
     if (els.fwPreviousInstallBtn) {
       els.fwPreviousInstallBtn.disabled = busy || !selected;
@@ -4622,7 +4583,7 @@ to {
     }
     if (els.fwActionBtn) {
       var busy = !!(S.firmware_checking || S.firmware_installing || S.firmware_uploading);
-      els.fwActionBtn.disabled = busy;
+      els.fwActionBtn.disabled = busy || nativeAdmin && !(nativeFirmware == null ? void 0 : nativeFirmware.isAvailable());
       if (S.firmware_uploading) els.fwActionBtn.textContent = "Uploading\u2026";
       else if (S.firmware_installing) els.fwActionBtn.textContent = "Installing\u2026";
       else if (S.firmware_checking) els.fwActionBtn.textContent = "Checking\u2026";
@@ -4714,6 +4675,7 @@ to {
     refreshFirmwareUi();
   }
   function installPublicFirmware(info) {
+    if (nativeAdmin && info) return nativeFirmware.request(info.version);
     if (!info || !info.ota_url || S.firmware_uploading || S.firmware_installing) return Promise.resolve(false);
     S.firmware_install_error = "";
     S.firmware_uploading = true;
@@ -4762,6 +4724,7 @@ to {
   }
   function startFirmwareInstall() {
     if (!firmwareUpdateKnownAvailable()) return;
+    if (nativeAdmin) return installPublicFirmware(latestFirmwareInfo());
     S.firmware_install_error = "";
     S.firmware_installing = true;
     refreshFirmwareUi();
@@ -4776,6 +4739,7 @@ to {
   }
   function checkFirmwareUpdate(installAfterCheck) {
     if (S.firmware_checking || S.firmware_installing) return;
+    if (nativeAdmin) return nativeFirmware.request("");
     S.firmware_install_error = "";
     S.firmware_checking = true;
     refreshFirmwareUi();
@@ -4952,7 +4916,7 @@ to {
     els.c6FirmwareStatus = c6Status;
     var c6Badge = makeDisclosureBadge("Update available", "WiFi firmware update available");
     els.c6FirmwareBadge = c6Badge;
-    subpanels.appendChild(makeInlineDisclosure("WiFi firmware", wifiBody, false, c6Badge));
+    if (!nativeAdmin) subpanels.appendChild(makeInlineDisclosure("WiFi firmware", wifiBody, false, c6Badge));
     var previousBody = el("div");
     var versionField = field("Version");
     var versionSelect = document.createElement("select");
@@ -4980,9 +4944,13 @@ to {
     var cardBadge = makeBadge(false, "Update available", "Firmware update available");
     els.firmwareCardBadge = cardBadge;
     var firmwareCard = makeCollapsibleCard("Firmware", fwBody, true, cardBadge);
+    if (nativeAdmin) {
+      nativeFirmware = window["espframeNativeFirmware"](firmwareCard, S, refreshFirmwareUi, compareFirmwareVersions, showBanner);
+    } else {
+      refreshC6FirmwareUi();
+      fetchPublicFirmwareVersions();
+    }
     refreshFirmwareUi();
-    refreshC6FirmwareUi();
-    fetchPublicFirmwareVersions();
     return firmwareCard;
   }
   function makeDeviceRebootCard() {
