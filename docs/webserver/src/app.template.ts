@@ -500,6 +500,9 @@ import {
   // --- Init ---
 
   buildUI();
-  if (nativeAdmin) tryRender();
+  if (nativeAdmin) {
+    tryRender();
+    startNativeSettingsSync();
+  }
   else initSSE();
   loadFrameIdentity();

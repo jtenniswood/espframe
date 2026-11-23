@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from product_contract.common import ROOT, WEB_APP, WEB_TEMPLATE, read, read_web_source, rel, require_contains
 
 
@@ -63,7 +65,6 @@ def check_backup_metadata(product: dict, errors: list[str]) -> None:
         "JSON.stringify(data, null, 2)",
         "buildBackupExportData",
         "BACKUP_SCHEMA.forEach",
-        "normalizeScheduleWakeTimeout(S.schedule_wake_timeout)",
         "backupImportFieldPresent",
         "backupImportFieldValue",
         "applyBackupImportField",
@@ -79,7 +80,6 @@ def check_backup_metadata(product: dict, errors: list[str]) -> None:
             "JSON.stringify(data, null, 2)",
             "buildBackupExportData",
             "BACKUP_SCHEMA.forEach",
-            "normalizeScheduleWakeTimeout(S.schedule_wake_timeout)",
             "backupImportFieldPresent",
             "backupImportFieldValue",
             "applyBackupImportField",
@@ -95,3 +95,6 @@ def check_backup_metadata(product: dict, errors: list[str]) -> None:
             require_contains(web_text, needle, rel(WEB_APP), errors)
         else:
             require_contains(backup_docs, needle, "docs/backup.md", errors)
+    require_contains(web_template, "normalizeScheduleWakeTimeout(S.schedule_wake_timeout)", rel(WEB_TEMPLATE), errors)
+    if not re.search(r"\bnormalizeScheduleWakeTimeout\(S\d*\.schedule_wake_timeout\)", web_text):
+        errors.append(f"{rel(WEB_APP)} must normalize the wake timeout when exporting settings")

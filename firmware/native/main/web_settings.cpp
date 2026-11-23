@@ -14,6 +14,7 @@
 #include "esp_http_server.h"
 #include "esp_log.h"
 #include "esp_netif.h"
+#include "esp_random.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"
@@ -392,9 +393,22 @@ esp_err_t wifi_firmware(httpd_req_t *request) {
 esp_err_t configuration(httpd_req_t *request) {
   if (!authorize(request))
     return ESP_OK;
+  static const auto boot = esp_random();
+  const auto revision = Settings::storage_revision();
+  const auto search_api = active_immich_search_api.load(std::memory_order_relaxed);
+  char etag[30]{};
+  std::snprintf(etag, sizeof(etag), "W/\"%08" PRIx32 "-%08" PRIx32 "-%u\"", boot, revision,
+                static_cast<unsigned>(search_api));
+  if (header_is(request, "If-None-Match", etag)) {
+    httpd_resp_set_hdr(request, "ETag", etag);
+    httpd_resp_set_status(request, "304 Not Modified");
+    return httpd_resp_send(request, nullptr, 0);
+  }
   Settings settings;
   const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> document(
       settings.read() ? configuration_snapshot(settings) : nullptr, cJSON_Delete);
+  if (document)
+    httpd_resp_set_hdr(request, "ETag", etag);
   return send_configuration(request, document.get());
 }
 

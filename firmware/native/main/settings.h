@@ -111,6 +111,7 @@ struct Settings : PhotoFeedSettings {
   bool has_prepared_slides() const { return !prepared_slide_url.empty() && !prepared_slide_token.empty(); }
   bool prepared_slides_need_time() const { return prepared_slide_url.starts_with("https://"); }
   static constexpr size_t max_json_size = 6144;
+  static uint32_t storage_revision();
   bool read();
   bool read_esphome_trial();
   static bool save(const char *json, std::optional<uint32_t> expected_epoch = {});

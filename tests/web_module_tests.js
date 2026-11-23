@@ -66,7 +66,7 @@ assert.match(publicApp, /function renderWizard\(\)/, "public app should include 
 assert.ok(publicApp.includes("/espframe/api/v1/capabilities"), "public app should negotiate the versioned configuration API");
 assert.ok(publicApp.includes("api_key_configured"), "public app should use write-only API-key status");
 assert.ok(!runtimeStateSource.includes("S.api_key"), "browser runtime state must not retain the API key");
-assert.ok(!/\bS\.api_key\b/.test(publicApp), "browser app must not retain the API key in S.api_key");
+assert.ok(!/\bS\d*\.api_key\b/.test(publicApp), "browser app must not retain the API key in settings state");
 assert.ok(!publicApp.includes("values.api_key"), "configuration verification must not read the API key value");
 assert.ok(!backupImportSource.includes("include_secret=backup"), "backup export must not request the API key");
 assert.ok(!publicApp.includes("include_secret=backup"), "generated backup export must not request the API key");
@@ -122,7 +122,7 @@ assert.ok(!publicApp.includes("Advanced inclusion options"),
   "photo filters should not render the removed advanced inclusion panel");
 assert.ok(
   !publicApp.includes("if (nextValue && index > 0") &&
-    publicApp.includes("S[spec[1]] = nextValue"),
+    /\bS\d*\[spec\[1\]\] = nextValue/.test(publicApp),
   "location fields should be independently saveable"
 );
 const filterFlush = immichFilterSource.slice(
@@ -407,7 +407,7 @@ assert.equal(Object.prototype.hasOwnProperty.call(emptyExclusions.photos, "tags_
 // legacy id ("domain-object_id"). ENTITY_STATE_MAP and the REST endpoints both use the
 // name form, so live events must be resolved via name_id or nothing ever matches.
 assert.ok(
-  publicApp.includes("d.name_id"),
+  /\b(d\d*)\.id = \1\.name_id/.test(publicApp),
   "live state events should be resolved by name_id, not the legacy object-id form"
 );
 

@@ -1,343 +1,292 @@
 // ESPFRAME: generated from typed docs/webserver/src and product/contract; run `npm run generate` to update.
 (() => {
-  var __defProp = Object.defineProperty;
-  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-  var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-
   // docs/webserver/src/api_client.ts
+  var f = Object.defineProperty;
+  var p = (u2, e, t) => e in u2 ? f(u2, e, { enumerable: true, configurable: true, writable: true, value: t }) : u2[e] = t;
+  var s = (u2, e, t) => p(u2, typeof e != "symbol" ? e + "" : e, t);
   var EspframeApiError = class extends Error {
-    constructor(kind, message, status, code, field2) {
-      super(message);
-      __publicField(this, "kind", kind);
-      __publicField(this, "status", status);
-      __publicField(this, "code", code);
-      __publicField(this, "field", field2);
+    constructor(t, n, i, r, a) {
+      super(n);
+      s(this, "kind", t);
+      s(this, "status", i);
+      s(this, "code", r);
+      s(this, "field", a);
       this.name = "EspframeApiError";
     }
   };
-  function object(value) {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
+  function c(u2) {
+    return typeof u2 == "object" && u2 !== null && !Array.isArray(u2);
   }
   var EspframeApiClient = class {
-    constructor(capabilitiesPath, timeoutMs = 5e3) {
-      __publicField(this, "capabilitiesPath", capabilitiesPath);
-      __publicField(this, "timeoutMs", timeoutMs);
-      __publicField(this, "queue", Promise.resolve());
-      __publicField(this, "capabilities", null);
-      __publicField(this, "negotiated");
-      __publicField(this, "resetEpoch");
-      __publicField(this, "resetAccepted", false);
+    constructor(e, t = 5e3) {
+      s(this, "capabilitiesPath", e);
+      s(this, "timeoutMs", t);
+      s(this, "queue", Promise.resolve());
+      s(this, "capabilities", null);
+      s(this, "negotiated");
+      s(this, "resetEpoch");
+      s(this, "resetAccepted", false);
     }
     waitForWrites() {
       return this.queue;
     }
-    enqueue(command) {
-      const request = this.queue.then(command);
-      this.queue = request.catch(() => void 0);
-      return request;
+    enqueue(e) {
+      const t = this.queue.then(e);
+      return this.queue = t.catch(() => {
+      }), t;
     }
-    error(status, message, payload) {
-      const body = object(payload) ? payload : {};
-      const kind = status === 404 || status === 405 ? "unavailable" : status === 409 ? "conflict" : status === 400 || status === 422 ? "validation" : "server";
+    error(e, t, n) {
+      const i = c(n) ? n : {}, r = e === 404 || e === 405 ? "unavailable" : e === 409 ? "conflict" : e === 400 || e === 422 ? "validation" : "server";
       return new EspframeApiError(
-        kind,
-        typeof body.error === "string" ? body.error : message,
-        status,
-        typeof body.error === "string" ? body.error : void 0,
-        typeof body.field === "string" ? body.field : void 0
+        r,
+        typeof i.error == "string" ? i.error : t,
+        e,
+        typeof i.error == "string" ? i.error : void 0,
+        typeof i.field == "string" ? i.field : void 0
       );
     }
-    async requestWith(url, init, consume) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    async requestWith(e, t, n) {
+      const i = new AbortController(), r = setTimeout(() => i.abort(), this.timeoutMs);
       try {
-        const response = await fetch(url, { ...init, signal: controller.signal });
-        return await consume(response);
-      } catch (error) {
-        if (error instanceof EspframeApiError) throw error;
-        if (error && typeof error === "object" && error.name === "AbortError") {
-          throw new EspframeApiError("timeout", "request_timeout");
-        }
-        throw new EspframeApiError("offline", "device_offline");
+        const a = await fetch(e, { ...t, signal: i.signal });
+        return await n(a);
+      } catch (a) {
+        throw a instanceof EspframeApiError ? a : a && typeof a == "object" && a.name === "AbortError" ? new EspframeApiError("timeout", "request_timeout") : new EspframeApiError("offline", "device_offline");
       } finally {
-        clearTimeout(timer);
+        clearTimeout(r);
       }
     }
-    request(url, init = {}) {
-      return this.requestWith(url, init, async (response) => response);
+    request(e, t = {}) {
+      return this.requestWith(e, t, async (n) => n);
     }
-    requestJson(url, init, message) {
-      return this.requestWith(url, init, (response) => this.json(response, message));
+    requestJson(e, t, n) {
+      return this.requestWith(e, t, (i) => this.json(i, n));
     }
-    async json(response, message) {
-      let payload = null;
+    async json(e, t) {
+      let n = null;
       try {
-        payload = await response.json();
-      } catch (error) {
-        if (error && typeof error === "object" && error.name === "AbortError") {
-          throw new EspframeApiError("timeout", "request_timeout");
-        }
-        if (!response.ok) throw this.error(response.status, message);
-        throw new EspframeApiError("server", "invalid_server_response", response.status);
+        n = await e.json();
+      } catch (i) {
+        throw i && typeof i == "object" && i.name === "AbortError" ? new EspframeApiError("timeout", "request_timeout") : e.ok ? new EspframeApiError("server", "invalid_server_response", e.status) : this.error(e.status, t);
       }
-      if (!response.ok) throw this.error(response.status, message, payload);
-      return payload;
+      if (!e.ok) throw this.error(e.status, t, n);
+      return n;
     }
-    parseCapabilities(value) {
-      if (!object(value) || typeof value.contract_version !== "number" || typeof value.api_version !== "number" || typeof value.configuration_path !== "string" || value.update_mode !== "atomic" || typeof value.configuration_available !== "boolean" || typeof value.configuration_read !== "boolean" || typeof value.configuration_write !== "boolean" || typeof value.legacy_entity_api !== "boolean") return null;
-      return value;
+    parseCapabilities(e) {
+      return !c(e) || typeof e.contract_version != "number" || typeof e.api_version != "number" || typeof e.configuration_path != "string" || e.update_mode !== "atomic" || typeof e.configuration_available != "boolean" || typeof e.configuration_read != "boolean" || typeof e.configuration_write != "boolean" || typeof e.legacy_entity_api != "boolean" ? null : e;
     }
     negotiate() {
-      if (this.negotiated !== void 0) return Promise.resolve(this.negotiated);
-      if (!this.capabilities) {
-        this.capabilities = this.requestJson(this.capabilitiesPath, { cache: "no-store" }, "capabilities_unavailable").then((payload) => {
-          const capabilities = this.parseCapabilities(payload);
-          if (!capabilities) {
-            this.negotiated = null;
-            return null;
-          }
-          this.negotiated = capabilities.configuration_available && capabilities.configuration_read && capabilities.configuration_write ? capabilities : null;
-          return this.negotiated;
-        }).catch((error) => {
-          if (error instanceof EspframeApiError && error.kind === "unavailable") {
-            this.negotiated = null;
-            return null;
-          }
-          this.capabilities = null;
-          throw error;
-        });
-      }
-      return this.capabilities;
+      return this.negotiated !== void 0 ? Promise.resolve(this.negotiated) : (this.capabilities || (this.capabilities = this.requestJson(this.capabilitiesPath, { cache: "no-store" }, "capabilities_unavailable").then((e) => {
+        const t = this.parseCapabilities(e);
+        return t ? (this.negotiated = t.configuration_available && t.configuration_read && t.configuration_write ? t : null, this.negotiated) : (this.negotiated = null, null);
+      }).catch((e) => {
+        if (e instanceof EspframeApiError && e.kind === "unavailable")
+          return this.negotiated = null, null;
+        throw this.capabilities = null, e;
+      })), this.capabilities);
     }
     async getConfigurationSnapshot() {
-      const capabilities = await this.negotiate();
-      if (!capabilities) throw new EspframeApiError("unavailable", "configuration_api_unavailable");
-      const payload = await this.requestJson(capabilities.configuration_path, { cache: "no-store" }, "configuration_api_failed");
-      if (!object(payload) || payload.api_version !== capabilities.api_version || capabilities.reset_path && !Number.isInteger(payload.reset_epoch) || !object(payload.values) || !Array.isArray(payload.unavailable) || !payload.unavailable.every((value) => typeof value === "string")) {
+      const e = await this.pollConfiguration();
+      if (!e) throw new EspframeApiError("server", "invalid_configuration_snapshot");
+      return this.useConfigurationSnapshot(e.snapshot), e.snapshot;
+    }
+    useConfigurationSnapshot(e) {
+      this.resetEpoch = e.reset_epoch;
+    }
+    async pollConfiguration(e) {
+      const t = await this.negotiate();
+      if (!t) throw new EspframeApiError("unavailable", "configuration_api_unavailable");
+      const n = await this.requestWith(t.configuration_path, {
+        cache: "no-store",
+        headers: e ? { "If-None-Match": e } : void 0
+      }, async (i) => {
+        var r;
+        return e && i.status === 304 ? null : {
+          payload: await this.json(i, "configuration_api_failed"),
+          etag: ((r = i.headers) == null ? void 0 : r.get("ETag")) || void 0
+        };
+      });
+      return n ? { snapshot: this.parseConfiguration(n.payload, t), etag: n.etag } : null;
+    }
+    parseConfiguration(e, t) {
+      if (!c(e) || e.api_version !== t.api_version || t.reset_path && !Number.isInteger(e.reset_epoch) || !c(e.values) || !Array.isArray(e.unavailable) || !e.unavailable.every((a) => typeof a == "string"))
         throw new EspframeApiError("server", "invalid_configuration_snapshot");
-      }
-      let apiKeyConfigured = typeof payload.api_key_configured === "boolean" ? payload.api_key_configured : void 0;
-      const values = {};
-      for (const [key, value] of Object.entries(payload.values)) {
-        if (key === "api_key") {
-          if (apiKeyConfigured !== void 0) throw new EspframeApiError("server", "invalid_configuration_snapshot");
-          apiKeyConfigured = !!value;
+      let n = typeof e.api_key_configured == "boolean" ? e.api_key_configured : void 0;
+      const i = {};
+      for (const [a, o] of Object.entries(e.values)) {
+        if (a === "api_key") {
+          if (n !== void 0) throw new EspframeApiError("server", "invalid_configuration_snapshot");
+          n = !!o;
           continue;
         }
-        if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
+        if (typeof o != "string" && typeof o != "number" && typeof o != "boolean")
           throw new EspframeApiError("server", "invalid_configuration_snapshot");
-        }
-        values[key] = value;
+        i[a] = o;
       }
-      if (apiKeyConfigured === void 0) apiKeyConfigured = false;
-      let secretsConfigured;
-      if (payload.secrets_configured !== void 0) {
-        if (!object(payload.secrets_configured)) throw new EspframeApiError("server", "invalid_configuration_snapshot");
-        secretsConfigured = {};
-        for (const [key, value] of Object.entries(payload.secrets_configured)) {
-          if (typeof value !== "boolean") throw new EspframeApiError("server", "invalid_configuration_snapshot");
-          secretsConfigured[key] = value;
+      n === void 0 && (n = false);
+      let r;
+      if (e.secrets_configured !== void 0) {
+        if (!c(e.secrets_configured)) throw new EspframeApiError("server", "invalid_configuration_snapshot");
+        r = {};
+        for (const [a, o] of Object.entries(e.secrets_configured)) {
+          if (typeof o != "boolean") throw new EspframeApiError("server", "invalid_configuration_snapshot");
+          r[a] = o;
         }
       }
-      this.resetEpoch = Number.isInteger(payload.reset_epoch) ? payload.reset_epoch : 0;
       return {
-        api_version: capabilities.api_version,
-        reset_epoch: this.resetEpoch,
-        api_key_configured: apiKeyConfigured,
-        secrets_configured: secretsConfigured,
-        values,
-        unavailable: payload.unavailable
+        api_version: t.api_version,
+        reset_epoch: Number.isInteger(e.reset_epoch) ? e.reset_epoch : 0,
+        api_key_configured: n,
+        secrets_configured: r,
+        values: i,
+        unavailable: e.unavailable
       };
     }
-    async legacyPost(url, body) {
-      return this.requestWith(url, body === void 0 ? { method: "POST" } : {
+    async legacyPost(e, t) {
+      return this.requestWith(e, t === void 0 ? { method: "POST" } : {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body
-      }, async (response) => {
-        if (!response.ok) {
-          let payload = null;
+        body: t
+      }, async (n) => {
+        if (!n.ok) {
+          let i = null;
           try {
-            payload = await response.json();
-          } catch (error) {
-            if (error && typeof error === "object" && error.name === "AbortError") {
+            i = await n.json();
+          } catch (r) {
+            if (r && typeof r == "object" && r.name === "AbortError")
               throw new EspframeApiError("timeout", "request_timeout");
-            }
           }
-          throw this.error(response.status, "legacy_write_failed", payload);
+          throw this.error(n.status, "legacy_write_failed", i);
         }
-        return response;
+        return n;
       });
     }
-    async legacyWrite(setting) {
-      if (setting.domain === "switch") {
-        await this.legacyPost(setting.url + (setting.value ? "/turn_on" : "/turn_off"));
+    async legacyWrite(e) {
+      if (e.domain === "switch") {
+        await this.legacyPost(e.url + (e.value ? "/turn_on" : "/turn_off"));
         return;
       }
-      const body = new URLSearchParams({ [setting.domain === "select" ? "option" : "value"]: String(setting.value) }).toString();
-      await this.legacyPost(setting.url + "/set", body);
+      const t = new URLSearchParams({ [e.domain === "select" ? "option" : "value"]: String(e.value) }).toString();
+      await this.legacyPost(e.url + "/set", t);
     }
-    updateSettings(values, legacy, compatibilityValues = values) {
+    updateSettings(e, t, n = e) {
       return this.enqueue(async () => {
         if (this.resetAccepted) throw new EspframeApiError("conflict", "reset_pending", 409, "reset_pending");
-        const capabilities = await this.negotiate();
-        if (!capabilities) {
-          for (const setting of legacy) await this.legacyWrite(setting);
+        const i = await this.negotiate();
+        if (!i) {
+          for (const o of t) await this.legacyWrite(o);
           return null;
         }
-        if (this.resetEpoch === void 0) await this.getConfigurationSnapshot();
-        const supportedValues = capabilities.firmware_rotation_policy === true ? values : compatibilityValues;
-        const body = new URLSearchParams({ [capabilities.configuration_parameter || "configuration"]: JSON.stringify({ api_version: capabilities.api_version, reset_epoch: this.resetEpoch, values: supportedValues }) }).toString();
+        this.resetEpoch === void 0 && await this.getConfigurationSnapshot();
+        const r = i.firmware_rotation_policy === true ? e : n, a = new URLSearchParams({ [i.configuration_parameter || "configuration"]: JSON.stringify({ api_version: i.api_version, reset_epoch: this.resetEpoch, values: r }) }).toString();
         try {
-          const payload = await this.requestJson(capabilities.configuration_path, {
+          const o = await this.requestJson(i.configuration_path, {
             method: "POST",
-            headers: { "Content-Type": capabilities.configuration_encoding || "application/x-www-form-urlencoded" },
-            body
+            headers: { "Content-Type": i.configuration_encoding || "application/x-www-form-urlencoded" },
+            body: a
           }, "configuration_update_failed");
-          if (!object(payload) || payload.status !== "accepted") throw new EspframeApiError("server", "configuration_update_failed");
-          await new Promise((resolve) => setTimeout(resolve, 100));
-          return payload;
-        } catch (error) {
-          if (!capabilities.legacy_entity_api || !(error instanceof EspframeApiError) || error.kind !== "unavailable") throw error;
+          if (!c(o) || o.status !== "accepted") throw new EspframeApiError("server", "configuration_update_failed");
+          return await new Promise((l) => setTimeout(l, 100)), o;
+        } catch (o) {
+          if (!i.legacy_entity_api || !(o instanceof EspframeApiError) || o.kind !== "unavailable") throw o;
           this.negotiated = null;
-          for (const setting of legacy) await this.legacyWrite(setting);
+          for (const l of t) await this.legacyWrite(l);
           return null;
         }
       });
     }
-    reset(mode) {
+    reset(e) {
       return this.enqueue(async () => {
         if (this.resetAccepted) return;
-        const capabilities = await this.negotiate();
-        if (!capabilities || !capabilities.reset_path) {
+        const t = await this.negotiate();
+        if (!t || !t.reset_path)
           throw new EspframeApiError("unavailable", "reset_unavailable");
-        }
-        await this.legacyPost(capabilities.reset_path, new URLSearchParams({ mode }).toString());
-        this.resetAccepted = true;
+        await this.legacyPost(t.reset_path, new URLSearchParams({ mode: e }).toString()), this.resetAccepted = true;
       });
     }
-    post(url, params) {
+    post(e, t) {
       if (this.resetAccepted) return Promise.reject(new EspframeApiError("conflict", "reset_pending", 409, "reset_pending"));
-      const query = params ? "?" + new URLSearchParams(Object.entries(params).map(([key, value]) => [key, String(value)])).toString() : "";
-      return this.enqueue(() => this.legacyPost(url + query));
+      const n = t ? "?" + new URLSearchParams(Object.entries(t).map(([i, r]) => [i, String(r)])).toString() : "";
+      return this.enqueue(() => this.legacyPost(e + n));
     }
-    postText(url, value, useQueryFallback = false) {
-      if (this.resetAccepted) return Promise.reject(new EspframeApiError("conflict", "reset_pending", 409, "reset_pending"));
-      return this.enqueue(() => {
-        const body = new URLSearchParams({ value }).toString();
-        const query = useQueryFallback && (url + "?" + body).length <= 120 ? "?" + body : "";
-        return this.legacyPost(url + query, body);
+    postText(e, t, n = false) {
+      return this.resetAccepted ? Promise.reject(new EspframeApiError("conflict", "reset_pending", 409, "reset_pending")) : this.enqueue(() => {
+        const i = new URLSearchParams({ value: t }).toString(), r = n && (e + "?" + i).length <= 120 ? "?" + i : "";
+        return this.legacyPost(e + r, i);
       });
     }
-    getJson(url) {
-      return this.requestJson(url, { cache: "no-store" }, "legacy_read_failed");
+    getJson(e) {
+      return this.requestJson(e, { cache: "no-store" }, "legacy_read_failed");
     }
   };
 
   // docs/webserver/src/shared_controls.ts
-  function selectFromOptions(options, current, onChange, optionDisplayFn) {
-    var display = optionDisplayFn || function(o) {
-      return o;
-    };
-    var sel = document.createElement("select");
-    sel.className = "select";
-    options.forEach(function(o) {
-      var opt = document.createElement("option");
-      opt.value = o;
-      opt.textContent = display(o);
-      if (o === current) opt.selected = true;
-      sel.appendChild(opt);
-    });
-    sel.onchange = function() {
-      onChange(sel.value);
-    };
-    return sel;
+  function selectFromOptions(e, n, t, r) {
+    var i = r || function(a) {
+      return a;
+    }, o = document.createElement("select");
+    return o.className = "select", e.forEach(function(a) {
+      var d = document.createElement("option");
+      d.value = a, d.textContent = i(a), a === n && (d.selected = true), o.appendChild(d);
+    }), o.onchange = function() {
+      t(o.value);
+    }, o;
   }
-  function el(tag, cls) {
-    var e = document.createElement(tag);
-    if (cls) e.className = cls;
-    return e;
+  function el(e, n) {
+    var t = document.createElement(e);
+    return n && (t.className = n), t;
   }
-  function setStatus(target, msg, type, clearAfterMs) {
-    if (!target) return;
-    target.replaceChildren();
-    if (!msg) {
-      target.textContent = "";
-      return;
-    }
-    var dot = el("span", "dot " + (type || "green"));
-    target.appendChild(dot);
-    target.appendChild(document.createTextNode(" " + msg));
-    clearTimeout(target._t);
-    if (clearAfterMs) {
-      target._t = setTimeout(function() {
-        target.textContent = "";
-      }, clearAfterMs);
+  function setStatus(e, n, t, r) {
+    if (e) {
+      if (e.replaceChildren(), !n) {
+        e.textContent = "";
+        return;
+      }
+      var i = el("span", "dot " + (t || "green"));
+      e.appendChild(i), e.appendChild(document.createTextNode(" " + n)), clearTimeout(e._t), r && (e._t = setTimeout(function() {
+        e.textContent = "";
+      }, r));
     }
   }
-  function button(text, cls, onClick) {
-    var btn = el("button", cls || "btn btn-secondary");
-    btn.type = "button";
-    btn.textContent = text;
-    if (onClick) btn.onclick = onClick;
-    return btn;
+  function button(e, n, t) {
+    var r = el("button", n || "btn btn-secondary");
+    return r.type = "button", r.textContent = e, t && (r.onclick = t), r;
   }
-  var controlId = 0;
-  function bindDisclosure(toggle, panel, body, className, expandedWhenPresent) {
-    if (!body.id) body.id = "disclosure-" + ++controlId;
-    toggle.setAttribute("aria-controls", body.id);
-    function syncExpanded() {
-      toggle.setAttribute("aria-expanded", String(panel.classList.contains(className) === expandedWhenPresent));
+  var u = 0;
+  function bindDisclosure(e, n, t, r, i) {
+    t.id || (t.id = "disclosure-" + ++u), e.setAttribute("aria-controls", t.id);
+    function o() {
+      e.setAttribute("aria-expanded", String(n.classList.contains(r) === i));
     }
-    syncExpanded();
-    toggle.onclick = function(event) {
-      event.stopPropagation();
-      panel.classList.toggle(className);
-      syncExpanded();
+    o(), e.onclick = function(a) {
+      a.stopPropagation(), n.classList.toggle(r), o();
     };
   }
-  function connectFieldLabels(root) {
-    root.querySelectorAll(".field > label").forEach(function(label) {
-      var control = label.parentElement.querySelector("input,select,textarea");
-      if (!control) return;
-      if (!control.id) control.id = "setting-" + ++controlId;
-      label.htmlFor = control.id;
+  function connectFieldLabels(e) {
+    e.querySelectorAll(".field > label").forEach(function(n) {
+      var t = n.parentElement.querySelector("input,select,textarea");
+      t && (t.id || (t.id = "setting-" + ++u), n.htmlFor = t.id);
     });
   }
-  function makeCollapsibleCard(title, bodyElement, defaultCollapsed, badgeEl) {
-    var card = el("div", "card");
-    var header = el("div", "card-header");
-    var h3 = document.createElement("h3");
-    var toggle = el("button", "card-toggle");
-    toggle.type = "button";
-    toggle.textContent = title;
-    h3.appendChild(toggle);
-    var rightWrap = el("div", "card-header-right");
-    if (badgeEl) rightWrap.appendChild(badgeEl);
-    var chevron = el("span", "card-chevron");
-    chevron.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
-    rightWrap.appendChild(chevron);
-    header.appendChild(h3);
-    header.appendChild(rightWrap);
-    var body = el("div", "card-body");
-    body.appendChild(bodyElement);
-    card.appendChild(header);
-    card.appendChild(body);
-    if (defaultCollapsed) card.classList.add("collapsed");
-    bindDisclosure(toggle, card, body, "collapsed", false);
-    header.onclick = function() {
-      toggle.click();
-    };
-    return card;
+  function makeCollapsibleCard(e, n, t, r) {
+    var i = el("div", "card"), o = el("div", "card-header"), a = document.createElement("h3"), d = el("button", "card-toggle");
+    d.type = "button", d.textContent = e, a.appendChild(d);
+    var l = el("div", "card-header-right");
+    r && l.appendChild(r);
+    var p2 = el("span", "card-chevron");
+    p2.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>', l.appendChild(p2), o.appendChild(a), o.appendChild(l);
+    var c2 = el("div", "card-body");
+    return c2.appendChild(n), i.appendChild(o), i.appendChild(c2), t && i.classList.add("collapsed"), bindDisclosure(d, i, c2, "collapsed", false), o.onclick = function() {
+      d.click();
+    }, i;
   }
-  function field(labelText) {
-    var f = el("div", "field");
-    if (labelText) {
-      var l = document.createElement("label");
-      l.textContent = labelText;
-      f.appendChild(l);
+  function field(e) {
+    var n = el("div", "field");
+    if (e) {
+      var t = document.createElement("label");
+      t.textContent = e, n.appendChild(t);
     }
-    return f;
+    return n;
   }
 
   // docs/webserver/src/app.ts

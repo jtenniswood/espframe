@@ -1018,8 +1018,7 @@
         pendingPhotoSourceSave.tagLabel = pendingPhotoSourceSave.tagLabel || !!changes.tagLabel;
         pendingPhotoSourceSave.tagMatching = pendingPhotoSourceSave.tagMatching || !!changes.tagMatching;
       }
-      clearTimeout(photoSourceApplyTimer);
-      photoSourceApplyTimer = setTimeout(applyPhotoSourceInputs, delayMs == null ? 600 : delayMs);
+      photoSourceApplyTimer = schedulePhotoSetting(photoSourceApplyTimer, applyPhotoSourceInputs, delayMs == null ? 600 : delayMs);
     }
 
     fSrc.appendChild(srcSel);
@@ -1174,8 +1173,7 @@
     }
 
     function scheduleFilterApply() {
-      clearTimeout(filterApplyTimer);
-      filterApplyTimer = setTimeout(applyFilterSettings, 300);
+      filterApplyTimer = schedulePhotoSetting(filterApplyTimer, applyFilterSettings, 300);
     }
 
     filterBody.appendChild(filterDetails);

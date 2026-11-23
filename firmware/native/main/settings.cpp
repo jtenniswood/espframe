@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstring>
 #include <initializer_list>
 #include <limits>
@@ -33,6 +34,7 @@ constexpr size_t legacy_max_json_size = 3072;
 constexpr auto new_setup_framing = DisplayMode::Fill;
 constexpr std::array ntp_fields{"ntp_server_1", "ntp_server_2", "ntp_server_3"};
 std::mutex storage_mutex;
+std::atomic<uint32_t> revision{};
 std::optional<PhotoFeedSettings> published_feed;
 
 bool load_string(nvs_handle_t storage, const char *key, std::string &value, size_t maximum) {
@@ -671,7 +673,10 @@ bool write(const char *json, bool clear_legacy) {
 
 bool write_document(const cJSON *document, bool clear_legacy = false) {
   const std::unique_ptr<char, decltype(&cJSON_free)> serialized(cJSON_PrintUnformatted(document), cJSON_free);
-  return serialized && write(serialized.get(), clear_legacy);
+  if (!serialized || !write(serialized.get(), clear_legacy))
+    return false;
+  revision.fetch_add(1, std::memory_order_release);
+  return true;
 }
 
 bool put_wifi(cJSON *document, const char *ssid, const char *password) {
@@ -831,6 +836,10 @@ bool Settings::read() {
     return false;
   *this = std::move(candidate);
   return true;
+}
+
+uint32_t Settings::storage_revision() {
+  return revision.load(std::memory_order_acquire);
 }
 
 bool WireguardSettings::add_public_fields(cJSON *object) const {

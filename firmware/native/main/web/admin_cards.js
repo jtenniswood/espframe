@@ -132,22 +132,93 @@ window.espframeNativeAfterReset = async function (mode, address, showBanner) {
   }
 };
 
-window.espframeWatchFilters = async function (state, readSettings, renderSettings) {
-  if (state.immich_filter_support !== "unknown") return;
-  for (let attempt = 0; attempt < 8; ++attempt) {
-    await new Promise(resolve => setTimeout(resolve, 2000));
+window.espframeSyncSettings = function (root, revision, api, getIdentity, readIdentity, applySettings) {
+  let timer;
+  let reading = false;
+  let etag;
+
+  function currentRevision() {
+    const focus = document.activeElement;
+    if (document.hidden || document.querySelector("dialog[open]") ||
+        (root.contains(focus) && focus.matches("input, select, textarea, [contenteditable]")) ||
+        [...root.querySelectorAll(".input-group input")].some(input => input.value.trim()))
+      return null;
+    return revision();
+  }
+
+  function schedule(delay = 2000) {
+    clearTimeout(timer);
+    if (!reading && !document.hidden) timer = setTimeout(read, delay);
+  }
+
+  async function read() {
+    const startedAt = currentRevision();
+    if (startedAt === null) {
+      schedule();
+      return;
+    }
+    reading = true;
+    const stillCurrent = () => currentRevision() === startedAt;
     try {
-      const { values } = await readSettings();
-      if (values.immich_filter_support === "structured" || values.immich_filter_support === "legacy") {
-        state.immich_filter_support = values.immich_filter_support;
-        renderSettings();
-        return;
-      }
+      const update = await api.pollConfiguration(etag);
+      if (!update || !stillCurrent()) return;
+      const name = update.snapshot.values.frame_name;
+      const previous = getIdentity();
+      const identity = previous && typeof name === "string" && name !== previous.name ? await readIdentity() : null;
+      if (!stillCurrent()) return;
+      api.useConfigurationSnapshot(update.snapshot);
+      const render = applySettings(update.snapshot, identity);
+      if (render) refreshSettings(root, render);
+      etag = update.etag;
     } catch (_) {
-      // Reconnects are expected while the frame is starting.
+      // Keep showing the current settings while the frame restarts.
+    } finally {
+      reading = false;
+      schedule();
     }
   }
+  document.addEventListener("visibilitychange", () => schedule(0));
+  schedule();
 };
+
+function refreshSettings(root, renderSettings) {
+  function disclosures() {
+    const result = new Map();
+    for (const card of root.querySelectorAll(".card")) {
+      const toggle = card.querySelector(".card-toggle");
+      if (!toggle) continue;
+      const title = toggle.textContent.trim();
+      result.set(title, toggle);
+      for (const button of card.querySelectorAll(".inline-disclosure-button")) {
+        result.set(title + "/" + button.firstElementChild.textContent.trim(), button);
+      }
+      for (const details of card.querySelectorAll("details")) {
+        const summary = details.querySelector("summary");
+        if (summary) result.set(title + "/" + summary.textContent.trim(), details);
+      }
+    }
+    return result;
+  }
+
+  function expanded(element) {
+    return element.tagName === "DETAILS" ? element.open : element.getAttribute("aria-expanded") === "true";
+  }
+
+  const focus = document.activeElement;
+  const previous = disclosures();
+  renderSettings();
+  for (const [name, element] of disclosures()) {
+    const old = previous.get(name);
+    if (!old) continue;
+    if (expanded(old) !== expanded(element)) {
+      if (element.tagName === "DETAILS") element.open = old.open;
+      else element.click();
+    }
+    if (old === focus) element.focus({ preventScroll: true });
+    if (old.tagName === "DETAILS" && old.contains(focus))
+      element.querySelector("summary").focus({ preventScroll: true });
+  }
+}
 
 window.espframePairFraming = function (field, select, current, save) {
   const labels = { "Follow photo framing": "Follow photo framing", Fill: "Fill each half", Fit: "Fit both full photos" };

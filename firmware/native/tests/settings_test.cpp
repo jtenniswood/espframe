@@ -1375,4 +1375,13 @@ int main() {
   assert(current.read() && current.wireguard.private_key.empty() && current.wireguard.endpoint == "vpn.example.test");
   assert(Settings::reset(ResetMode::Customization));
   assert(current.read() && !current.wireguard.enabled && current.wireguard.endpoint.empty());
+  const auto stored = Settings::storage_revision();
+  assert(!update_configuration(R"({"values":{"brightness_day":70}})").error);
+  assert(Settings::storage_revision() == stored + 1);
+  assert(!update_configuration(R"({"values":{"brightness_day":70}})").error);
+  assert(Settings::storage_revision() == stored + 1);
+  fail_commit = true;
+  assert(update_configuration(R"({"values":{"brightness_day":75}})").error);
+  fail_commit = false;
+  assert(Settings::storage_revision() == stored + 1);
 }

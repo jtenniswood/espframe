@@ -27,6 +27,10 @@ let restartPending = false
 let restartsObserved = 0
 let bootChecks = 0
 let configurationReads = 0
+let configurationBoot = 1
+let configurationTag = 0
+let lastConfiguration
+let unchangedReads = 0
 let release = { current: 'v0.1.0-preview.9', versions: [], status: 'idle', available: true }
 let wifi = { current: '2.12.8', latest: '', status: 'idle' }
 let wireguard = { running: false, connected: false }
@@ -282,6 +286,29 @@ const browserTest = String.raw`
         backup.firmware_updates.wifi_auto_update !== false) {
       throw new Error('Backup included a secret or lost a native setting')
     }
+    tab('Immich').click()
+    const frequency = openCard('Frequency')
+    const liveSelect = frequency.querySelector('select')
+    const albumPanel = [...openCard('Filters').querySelectorAll('details')].find(panel =>
+      panel.querySelector('summary').textContent === 'Included Albums')
+    albumPanel.open = true
+    const draft = [...openCard('WireGuard VPN').querySelectorAll('label')].find(label => label.textContent === 'Server Address').control
+    draft.focus()
+    draft.value = 'unsaved.example.test'
+    await fetch('/test/remote-settings', { method: 'POST' })
+    await new Promise(resolve => setTimeout(resolve, 2200))
+    if (document.activeElement !== draft || draft.value !== 'unsaved.example.test' || liveSelect.value !== '30 seconds') {
+      throw new Error('A remote change interrupted an active edit')
+    }
+    draft.blur()
+    await until(() => card('Frequency').closest('.card').querySelector('select').value === '15 seconds', 'a remote settings change')
+    if (card('Frequency').getAttribute('aria-expanded') !== 'true' ||
+        ![...card('Filters').closest('.card').querySelectorAll('details')].some(panel =>
+          panel.open && panel.querySelector('summary').textContent === 'Included Albums')) {
+      throw new Error('Live settings refresh closed an open panel')
+    }
+    await until(() => document.title.includes('Hallway'), 'the remote frame name after restart')
+    tab('Device').click()
     const reboot = button(openCard('Device Reboot'), 'Reboot Screen')
     reboot.click()
     await until(() => !reboot.disabled, 'the reboot action')
@@ -340,7 +367,24 @@ const server = createServer(async (req, res) => {
         return res.writeHead(503).end()
       }
       if (++configurationReads > 1) snapshot.values.immich_filter_support = 'structured'
-      return json(snapshot)
+      const payload = JSON.stringify(snapshot)
+      if (payload !== lastConfiguration) {
+        lastConfiguration = payload
+        ++configurationTag
+      }
+      const etag = 'W/"' + configurationBoot + '-' + configurationTag + '"'
+      res.setHeader('etag', etag)
+      if (req.headers['if-none-match'] === etag) {
+        ++unchangedReads
+        return res.writeHead(304).end()
+      }
+      return send(payload, 'application/json')
+    case '/test/remote-settings':
+      assert.equal(req.method, 'POST')
+      snapshot.values.interval = '15 seconds'
+      snapshot.values.frame_name = 'Hallway'
+      ++configurationBoot
+      return res.writeHead(204).end()
     case '/espframe/api/v1/reboot':
       assert.equal(req.method, 'POST')
       assert.equal(req.headers.origin, 'http://' + req.headers.host)
@@ -402,7 +446,8 @@ const server = createServer(async (req, res) => {
       if (bootChecks > 1) release.status = 'ready'
       return json({ boot_verified: bootChecks > 1 })
     case '/espframe/api/v1/identity':
-      return json({ name: 'Living Room', friendly_name: 'Living Room', hostname: 'living-room', ip_address: '192.168.0.12', restart_required: false })
+      return json({ name: snapshot.values.frame_name, friendly_name: snapshot.values.frame_name,
+        hostname: snapshot.values.frame_name.toLowerCase().replaceAll(' ', '-'), ip_address: '192.168.0.12', restart_required: false })
     case '/favicon.ico':
       return res.writeHead(404).end()
     default:
@@ -451,6 +496,7 @@ try {
   assert.deepEqual(releaseRequests, ['', '', 'v0.1.0-preview.10', 'v0.1.0-preview.8'])
   assert.deepEqual(wifiRequests, ['check', 'install'])
   assert.equal(restartsObserved, 4)
+  assert.ok(unchangedReads > 0, 'idle polling should receive empty 304 replies')
   assert.ok(bootChecks > 2)
   assert.deepEqual(unexpected, [])
   console.log('Shared admin verified live logs, settings, release requests, backup, reboot and first-time setup')

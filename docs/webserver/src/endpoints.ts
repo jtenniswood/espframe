@@ -41,14 +41,21 @@
   }
 
   function applyConfigurationSnapshot(snapshot) {
+    var changed = false;
+    function receive(key, value) {
+      var previous = S[key];
+      settingSaves.receive(key, value);
+      changed ||= S[key] !== previous;
+    }
     if (nativeAdmin) nativeSettings = new Set(Object.keys(snapshot.values));
-    settingSaves.receive("api_key_configured", snapshot.api_key_configured);
+    receive("api_key_configured", snapshot.api_key_configured);
     var secrets = snapshot.secrets_configured || {};
-    settingSaves.receive("wireguard_available", typeof secrets.wireguard_private_key === "boolean");
-    settingSaves.receive("wireguard_private_key_configured", secrets.wireguard_private_key === true);
+    receive("wireguard_available", typeof secrets.wireguard_private_key === "boolean");
+    receive("wireguard_private_key_configured", secrets.wireguard_private_key === true);
     Object.keys(snapshot.values).forEach(function (key) {
-      settingSaves.receive(key, snapshot.values[key]);
+      receive(key, snapshot.values[key]);
     });
+    return changed;
   }
 
   function registerManualEntityEndpoints() {
