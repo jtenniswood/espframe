@@ -122,19 +122,23 @@ def assert_no_unreplaced_placeholders(text: str) -> None:
         raise RuntimeError("Unreplaced web app placeholders: " + ", ".join(leftovers))
 
 
+def compile_web_source(path: str | Path, *options: str) -> str:
+    compiled = subprocess.run(
+        ["node", str(ROOT / "scripts" / "build_web_app.mjs"), str(path), *options],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if compiled.returncode:
+        raise RuntimeError("Web app bundle failed:\n" + compiled.stdout + compiled.stderr)
+    return compiled.stdout
+
+
 def compile_typescript(source: str) -> str:
     with tempfile.NamedTemporaryFile("w", suffix=".ts", encoding="utf-8") as source_file:
         source_file.write(source)
         source_file.flush()
-        compiled = subprocess.run(
-            ["node", str(ROOT / "scripts" / "build_web_app.mjs"), source_file.name],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-        )
-        if compiled.returncode:
-            raise RuntimeError("Web app bundle failed:\n" + compiled.stdout + compiled.stderr)
-        return compiled.stdout
+        return compile_web_source(source_file.name)
 
 
 def setting_state_types() -> str:
@@ -164,7 +168,7 @@ def legacy_shared_controls(source: str) -> str:
     return source
 
 
-def web_app_source() -> str:
+def web_app_source(embedded_css: str | None = None) -> str:
     source_paths = [
         WEB_TEMPLATE_PATH,
         *WEB_IMPORTED_MODULE_PATHS,
@@ -181,7 +185,7 @@ def web_app_source() -> str:
         for placeholder, path in WEB_MODULE_PATHS.items()
     }
     web_modules["__ESPFRAME_WEB_LIVE_HELPERS__"] = legacy_shared_controls(web_modules["__ESPFRAME_WEB_LIVE_HELPERS__"])
-    css = WEB_STYLE_PATH.read_text().rstrip("\n")
+    css = WEB_STYLE_PATH.read_text().rstrip("\n") if embedded_css is None else embedded_css
     timezones_json = json.dumps(timezone_options(), separators=(",", ":"))
     timezone_labels_json = json.dumps(timezone_labels(), separators=(",", ":"))
     product_settings_json = json.dumps(web_settings_metadata(), separators=(",", ":"))
@@ -243,7 +247,7 @@ def web_app_source() -> str:
 
 
 def web_app_bundle() -> str:
-    return compile_typescript(web_app_source())
+    return compile_typescript(web_app_source(compile_web_source(WEB_STYLE_PATH, "--embedded-css")))
 
 
 def native_web_app_bundle() -> str:

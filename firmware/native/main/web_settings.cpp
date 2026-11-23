@@ -19,6 +19,7 @@
 #include "mbedtls/base64.h"
 
 #include <array>
+#include <atomic>
 #include <cinttypes>
 #include <cstdio>
 #include <cstring>
@@ -35,6 +36,7 @@ constexpr size_t auth_capacity = 120;
 namespace contract = esphome::espframe::contract;
 httpd_handle_t server{};
 esp_timer_handle_t restart_timer{};
+std::atomic<bool> guarded_restart{};
 std::optional<ResetMode> resetting;
 std::string authorization;
 
@@ -517,6 +519,23 @@ int receive_firmware(void *context, uint8_t *buffer, size_t length) {
   return httpd_req_recv(static_cast<httpd_req_t *>(context), reinterpret_cast<char *>(buffer), length);
 }
 
+esp_err_t reboot_device(httpd_req_t *request) {
+  if (!authorize(request))
+    return ESP_OK;
+  if (!same_origin(request))
+    return configuration_reply(request, {"403 Forbidden", "invalid_origin", {}});
+  if (request->content_len != 0)
+    return configuration_reply(request, {"400 Bad Request", "invalid_request", {}});
+  if (esp_timer_is_active(restart_timer) || network(request).busy() || !frame_restart_available())
+    return configuration_reply(request, {"409 Conflict", "operation_in_progress", {}});
+  guarded_restart.store(true);
+  if (esp_timer_start_once(restart_timer, 800'000) != ESP_OK) {
+    guarded_restart.store(false);
+    return configuration_reply(request, {"500 Internal Server Error", "restart_unavailable", {}});
+  }
+  return configuration_reply(request, {"202 Accepted", nullptr, {}, 0, {}, true});
+}
+
 std::array<char, 2 * FirmwareImage{}.elf_sha256.size() + 1> firmware_hash(const FirmwareImage &image) {
   constexpr char digits[] = "0123456789abcdef";
   std::array<char, 2 * FirmwareImage{}.elf_sha256.size() + 1> hash{};
@@ -590,7 +609,12 @@ esp_err_t update_firmware(httpd_req_t *request) {
   return ESP_FAIL;
 }
 
-void restart(void *) { esp_restart(); }
+void restart(void *) {
+  if (guarded_restart.exchange(false))
+    request_frame_restart();
+  else
+    esp_restart();
+}
 
 }  // namespace
 
@@ -636,6 +660,7 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
       {.uri = "/api/playback", .method = HTTP_POST, .handler = update, .user_ctx = &network},
       {.uri = contract::CAPABILITIES_PATH, .method = HTTP_GET, .handler = capabilities, .user_ctx = &network},
       {.uri = frame_status_path, .method = HTTP_GET, .handler = status, .user_ctx = &network},
+      {.uri = "/espframe/api/v1/reboot", .method = HTTP_POST, .handler = reboot_device, .user_ctx = &network},
       {.uri = frame_identity_path, .method = HTTP_GET, .handler = identity, .user_ctx = &network},
       {.uri = frame_identity_path, .method = HTTP_POST, .handler = identity, .user_ctx = &network},
       {.uri = screen_control_path, .method = HTTP_POST, .handler = change_screen, .user_ctx = &network},

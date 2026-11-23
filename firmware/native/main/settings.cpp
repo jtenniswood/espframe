@@ -85,9 +85,9 @@ bool normalize(Settings &settings) {
     return false;
   }
   auto &url = settings.immich_url;
-  if (url.empty() && settings.immich_key.empty())
-    return !settings.has_prepared_slides();
-  if (!settings.has_immich() || !normalize_http_base(url))
+  if (url.empty())
+    return settings.immich_key.empty() && !settings.has_prepared_slides();
+  if (!normalize_http_base(url) || (settings.has_prepared_slides() && !settings.has_immich()))
     return false;
   if (url.find('/', url.find("://") + 3) == std::string::npos || !url.ends_with("/api"))
     url += "/api";

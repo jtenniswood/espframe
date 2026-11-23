@@ -574,13 +574,17 @@
     return firmwareCard;
   }
 
+  function rebootFrame() {
+    return post(nativeAdmin ? "/espframe/api/v1/reboot" : endpoints.reboot_screen + "/press");
+  }
+
   function makeDeviceRebootCard() {
     var rebootBody = el("div", "fw-body");
     var rebootLabel = textLabel("", "Device Reboot");
     var rebootBtn = button("Reboot Screen", "btn btn-secondary btn-sm", function () {
       rebootBtn.disabled = true;
       rebootBtn.textContent = "Rebooting...";
-      post(endpoints.reboot_screen + "/press")
+      rebootFrame()
         .catch(function () {
           // Shared request helpers already surface failures in the UI.
         })
@@ -697,7 +701,8 @@
         try {
           await apiClient.waitForWrites();
           await apiClient.reset(mode);
-          showBanner("Reset accepted. The frame is restarting into first-time Wi-Fi setup.", "info");
+          if (nativeAdmin) window["espframeNativeAfterReset"](mode, frameIdentity?.ip_address, showBanner);
+          else showBanner("Reset accepted. The frame is restarting into first-time Wi-Fi setup.", "info");
         } catch (_) {
           action.disabled = false;
           action.textContent = title;

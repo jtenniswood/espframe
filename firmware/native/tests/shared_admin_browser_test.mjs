@@ -14,8 +14,10 @@ const [html, bundle, cards, css] = await Promise.all([
 
 const capabilities = '/espframe/api/v1/capabilities'
 const configuration = '/espframe/api/v1/configuration'
+const resetPath = '/espframe/api/v1/reset'
 const releasePath = '/api/firmware/releases'
 const writes = []
+const deviceActions = []
 const releaseRequests = []
 const unexpected = []
 let restartPending = false
@@ -78,6 +80,38 @@ const browserTest = String.raw`
       const response = await fetch('/espframe/api/v1/configuration')
       return (await response.json()).values[key] === expected
     }
+    if (sessionStorage.getItem('test-after-reset')) {
+      await until(() => button(document, 'Connect') && card('Import Settings'), 'the shared setup wizard')
+      document.querySelector('input[type="url"]').value = 'setup-photos.test'
+      document.querySelector('input[type="password"]').value = 'setup-key'
+      button(document, 'Connect').click()
+      await until(() => button(document, 'Done'), 'the wizard to advance after the frame reconnects')
+      button(document, 'Done').click()
+      await until(() => card('Backup') && card('Connection'), 'the configured admin')
+
+      const click = HTMLInputElement.prototype.click
+      HTMLInputElement.prototype.click = function () {
+        if (this.type !== 'file') return click.call(this)
+        const transfer = new DataTransfer()
+        transfer.items.add(new File([JSON.stringify({
+          version: 3,
+          connection: { immich_url: 'backup-photos.test', api_key: 'ignore-test-key' },
+          photos: { portrait_pair_framing: 'Fit' },
+          screen: { brightness_day: 75 },
+          firmware_updates: { wifi_auto_update: true },
+        })], 'fixture.json'))
+        this.files = transfer.files
+        this.dispatchEvent(new Event('change'))
+      }
+      tab('Device').click()
+      button(openCard('Backup'), 'Import').click()
+      await until(() => document.body.textContent.includes('Backup restored successfully; 1 skipped setting'), 'the backup restore')
+      if (!await savedValue('immich_url', 'https://backup-photos.test/api') || !await savedValue('portrait_pair_framing', 'Fit')) {
+        throw new Error('Backup did not restore the URL and portrait framing')
+      }
+      document.body.dataset.result = 'passed'
+      return
+    }
     await until(() => card('Frequency') && card('Photo Display') && card('Connection'), 'Immich cards')
     if (tab('Immich').getAttribute('aria-selected') !== 'true') throw new Error('Immich did not open first')
     if (tab('Logs') || card('WireGuard VPN') || card('Screen Tone')) throw new Error('Unavailable controls appeared')
@@ -124,7 +158,7 @@ const browserTest = String.raw`
     await until(() => savedValue('date_filter_enabled', true), 'the date range to save')
     const connection = openCard('Connection')
     const url = connection.querySelector('input[type="url"]')
-    change(url, 'new-photos.test/api/')
+    change(url, 'new-photos.test')
     await until(() => connection.querySelector('#conn-status').textContent.trim() === 'URL saved', 'URL save and reconnect')
     if (url.value !== 'https://new-photos.test/api') throw new Error('Immich URL was not normalized')
     button(connection, 'Change').click()
@@ -181,7 +215,40 @@ const browserTest = String.raw`
       return values.brightness_day === 85 && values.auto_update === false && values.update_frequency === 'Weekly'
     }, 'brightness and update preference saves')
     if (!document.querySelector('a.sp-tab-docs')) throw new Error('Shared Docs link is missing')
-    document.body.dataset.result = 'passed'
+    let exported
+    const createObjectURL = URL.createObjectURL.bind(URL)
+    URL.createObjectURL = blob => {
+      exported = blob.text().then(JSON.parse)
+      return createObjectURL(blob)
+    }
+    const click = HTMLAnchorElement.prototype.click
+    HTMLAnchorElement.prototype.click = function () {
+      if (!this.download) click.call(this)
+    }
+    const exportButton = button(openCard('Backup'), 'Export')
+    await until(() => !exportButton.disabled, 'backup export')
+    exportButton.click()
+    await until(() => exported, 'the exported backup')
+    const backup = await exported
+    if (backup.version !== 3 || backup.photos.portrait_pair_framing !== 'Fill' ||
+        backup.connection.api_key !== undefined || backup.firmware_updates.wifi_auto_update !== undefined) {
+      throw new Error('Backup included an unavailable field or lost native portrait framing')
+    }
+    const reboot = button(openCard('Device Reboot'), 'Reboot Screen')
+    reboot.click()
+    await until(() => !reboot.disabled, 'the reboot action')
+    const reset = openCard('Factory Reset')
+    const partial = reset.querySelector('.reset-action-panel button')
+    const complete = reset.querySelector('.reset-action-danger button')
+    complete.click()
+    await until(() => document.querySelector('.reset-confirm-dialog'), 'factory reset confirmation')
+    const dialog = document.querySelector('.reset-confirm-dialog')
+    if (!button(dialog, 'Complete reset').disabled) throw new Error('Factory reset needs explicit confirmation')
+    button(dialog, 'Cancel').click()
+    sessionStorage.setItem('test-after-reset', 'true')
+    partial.click()
+    await until(() => document.querySelector('.reset-confirm-dialog'), 'partial reset confirmation')
+    button(document.querySelector('.reset-confirm-dialog'), 'Partial reset').click()
   }
   verify().catch(error => { document.body.dataset.result = error.message })
 `
@@ -202,7 +269,7 @@ const server = createServer(async (req, res) => {
       return send(css, 'text/css')
     case capabilities:
       return json({
-        contract_version: 2, api_version: 1, configuration_path: configuration, update_mode: 'atomic',
+        contract_version: 2, api_version: 1, configuration_path: configuration, reset_path: resetPath, update_mode: 'atomic',
         configuration_available: true, configuration_read: true, configuration_write: true, legacy_entity_api: false,
       })
     case configuration:
@@ -224,6 +291,23 @@ const server = createServer(async (req, res) => {
       }
       if (++configurationReads > 1) snapshot.values.immich_filter_support = 'structured'
       return json(snapshot)
+    case '/espframe/api/v1/reboot':
+      assert.equal(req.method, 'POST')
+      assert.equal(req.headers.origin, 'http://' + req.headers.host)
+      deviceActions.push('reboot')
+      return json({ status: 'accepted', restart_required: true })
+    case resetPath:
+      if (req.method === 'POST') {
+        const chunks = []
+        for await (const chunk of req) chunks.push(chunk)
+        const mode = new URLSearchParams(Buffer.concat(chunks).toString()).get('mode')
+        deviceActions.push(mode)
+        snapshot.values.immich_url = ''
+        snapshot.api_key_configured = false
+        ++snapshot.reset_epoch
+        return json({ status: 'accepted', restart_required: true })
+      }
+      return json({ status: 'ready', epoch: snapshot.reset_epoch })
     case releasePath:
       if (req.method === 'POST') {
         const chunks = []
@@ -239,6 +323,7 @@ const server = createServer(async (req, res) => {
       return json(release)
     case '/api/firmware':
       ++bootChecks
+      if (bootChecks > 1) release.status = 'ready'
       return json({ boot_verified: bootChecks > 1 })
     case '/espframe/api/v1/identity':
       return json({ name: 'Living Room', friendly_name: 'Living Room', hostname: 'living-room', ip_address: '192.168.0.12', restart_required: false })
@@ -253,7 +338,7 @@ const server = createServer(async (req, res) => {
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
 try {
   const chrome = spawn(process.env.CHROME_BIN || 'google-chrome', [
-    '--headless', '--no-sandbox', '--disable-background-networking', '--dump-dom', '--virtual-time-budget=20000',
+    '--headless', '--no-sandbox', '--disable-background-networking', '--dump-dom', '--virtual-time-budget=38000',
     'http://127.0.0.1:' + server.address().port + '/admin',
   ], { signal: AbortSignal.timeout(18000) })
   let page = ''
@@ -263,7 +348,7 @@ try {
     chrome.on('close', code => code === 0 ? resolve() : reject(new Error('Chrome exited with ' + code)))
   })
   assert.equal(page.match(/data-result="([^"]*)"/)?.[1], 'passed')
-  assert.deepEqual(writes, [
+  assert.deepEqual(writes.slice(0, -2), [
     { interval: '30 seconds' },
     { portrait_pair_framing: 'Fill' },
     { photo_source: 'Memories' },
@@ -276,11 +361,16 @@ try {
     { update_frequency: 'Weekly' },
     { auto_update: false },
   ].map(values => ({ api_version: 1, reset_epoch: 2, values })))
+  assert.deepEqual(writes.slice(-2), [
+    { api_version: 1, reset_epoch: 3, values: { immich_url: 'https://setup-photos.test/api', api_key: 'setup-key' } },
+    { api_version: 1, reset_epoch: 3, values: { immich_url: 'https://backup-photos.test/api', brightness_day: 75, portrait_pair_framing: 'Fit' } },
+  ])
+  assert.deepEqual(deviceActions, ['reboot', 'customization'])
   assert.deepEqual(releaseRequests, ['', '', 'v0.1.0-preview.10', 'v0.1.0-preview.8'])
-  assert.equal(restartsObserved, 2)
+  assert.equal(restartsObserved, 4)
   assert.ok(bootChecks > 2)
   assert.deepEqual(unexpected, [])
-  console.log('Shared admin saved native Memories, photo filters, portrait fill, connection, brightness and update preferences')
+  console.log('Shared admin verified native settings, release requests, backup export and restore, reboot and first-time setup')
 } finally {
   server.close()
 }

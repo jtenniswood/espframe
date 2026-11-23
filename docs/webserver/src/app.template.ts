@@ -165,6 +165,11 @@ import {
     return (resp && (resp.value || resp.state)) || "";
   }
 
+  function normalizeConnectionUrl(value) {
+    var url = normalizeImmichUrl(value);
+    return nativeAdmin ? window["espframeNativeUrl"](url) : url;
+  }
+
   function saveAndVerifyConnectionUrl(value) {
     if (nativeAdmin) return saveAndVerifyConnection({ immich_url: value });
     return settingSaves.save({ immich_url: value }, async function () {
@@ -290,6 +295,7 @@ import {
       var response = await apiClient.updateSettings(values, Object.keys(legacyValues).map(function (key) {
         return legacySettingWrite(key, legacyValues[key]);
       }), legacyValues);
+      if (nativeAdmin && response?.restart_required) await window["espframeNativeReconnect"](getConfigurationSnapshot);
       if (response && affectsRotationPolicy) {
         try {
           var snapshot = await apiClient.getConfigurationSnapshot();
@@ -309,8 +315,8 @@ import {
   }
 
   function saveGenericSetting(key, value) {
-    if (!key || !(endpoints[key] || nativeSettings.has(key))) return Promise.resolve(null);
     if (key === "api_key") return saveAndVerifyApiKey(value);
+    if (!hasWritableSetting(key)) return Promise.resolve(null);
     var domain = settingEntityDomain(key);
     var savedValue = value;
     if (domain === "switch") savedValue = !!value;
@@ -320,6 +326,10 @@ import {
     }
     if (domain === "select" || domain === "text") savedValue = value == null ? "" : String(value);
     return saveSettingValues({ [key]: savedValue });
+  }
+
+  function hasWritableSetting(key) {
+    return nativeAdmin ? nativeSettings.has(key) : !!endpoints[key];
   }
 
   function saveNtpServer(key, value) {

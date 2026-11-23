@@ -55,7 +55,7 @@
       var nextBtn = el("button", "btn btn-primary");
       nextBtn.textContent = "Connect";
       nextBtn.onclick = function () {
-        var u = normalizeImmichUrl(urlInput.value);
+        var u = normalizeConnectionUrl(urlInput.value);
         var k = keyInput.value.trim();
         if (!u || !k) return;
         nextBtn.disabled = true;

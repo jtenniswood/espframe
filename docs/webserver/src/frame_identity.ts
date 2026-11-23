@@ -161,7 +161,7 @@
         await saveFrameName(input.value);
         if (frameIdentity.restart_required) {
           var message = showFrameReconnectDialog(frameIdentity);
-          try { await post(endpoints.reboot_screen + "/press"); }
+          try { await rebootFrame(); }
           catch (_) {
             message.textContent = "Name saved, but the restart failed. Close this dialog and choose Save & Restart to retry.";
             frameIdentityError = "Name saved, but the restart failed. Please retry.";

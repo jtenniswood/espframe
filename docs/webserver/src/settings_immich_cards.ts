@@ -118,7 +118,7 @@
     var urlField = makeConnectionUrlField(S.immich_url);
     var urlInput = urlField.input;
     urlInput.onchange = function () {
-      var normalized = normalizeImmichUrl(urlInput.value);
+      var normalized = normalizeConnectionUrl(urlInput.value);
       saveAndVerifyConnectionUrl(normalized).then(function () {
         if (S.immich_url === normalized) urlInput.value = normalized;
         showSaved("URL saved");

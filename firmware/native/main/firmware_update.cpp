@@ -106,6 +106,13 @@ bool boot_trial(const esp_partition_t *running) {
          state == ESP_OTA_IMG_PENDING_VERIFY;
 }
 
+bool can_restart_running_image() {
+  const auto *running = esp_ota_get_running_partition();
+  const auto *boot = esp_ota_get_boot_partition();
+  // Let a staged upload finish its response and a trial image finish startup.
+  return running && boot && running->address == boot->address && !boot_trial(running);
+}
+
 void reject_boot() {
   ESP_LOGW(tag, "Firmware trial failed the display and touch startup check");
   const auto result = esp_ota_mark_app_invalid_rollback_and_reboot();
@@ -209,14 +216,14 @@ std::string_view last_reset_reason() {
   }
 }
 
+bool frame_restart_available() {
+  const std::unique_lock operation(firmware_operation, std::try_to_lock);
+  return operation.owns_lock() && can_restart_running_image();
+}
+
 void request_frame_restart() {
   const std::unique_lock operation(firmware_operation, std::try_to_lock);
-  if (!operation.owns_lock())
-    return;
-  const auto *running = esp_ota_get_running_partition();
-  const auto *boot = esp_ota_get_boot_partition();
-  // Let the uploader finish its response and a new image finish startup.
-  if (running && boot && running->address == boot->address && !boot_trial(running))
+  if (operation.owns_lock() && can_restart_running_image())
     esp_restart();
 }
 

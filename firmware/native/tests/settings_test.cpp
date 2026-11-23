@@ -694,10 +694,17 @@ int main() {
   const auto stale = update_configuration(R"({"reset_epoch":0,"values":{"brightness_day":83}})");
   assert(std::string_view(stale.status) == "409 Conflict" && stored == after_reset);
   assert(!Settings::save_playback(R"({"reset_epoch":0,"immich_url":"http://stale.test","immich_key":"stale-key"})"));
-  assert(update_configuration(R"({"reset_epoch":1,"values":{"immich_url":"http://photos.test"}})").error);
-  assert(stored == after_reset);
-  assert(!update_configuration(R"({"reset_epoch":1,"values":{"immich_url":"http://photos.test","api_key":"fresh-key"}})").error);
-  assert(current.read() && current.immich_key == "fresh-key" && current.reset_epoch == 1);
+  const auto restored_draft = update_configuration(R"({"reset_epoch":1,"values":{
+      "immich_url":"http://photos.test","brightness_day":83,"portrait_pair_framing":"Fill"}})");
+  assert(!restored_draft.error && restored_draft.restart_required);
+  assert(current.read() && !current.has_immich() && current.immich_url == "http://photos.test/api");
+  const Json incomplete(configuration_snapshot(current), cJSON_Delete);
+  assert(cJSON_IsFalse(cJSON_GetObjectItemCaseSensitive(incomplete.get(), "api_key_configured")));
+  assert(update_configuration(R"({"reset_epoch":1,"values":{
+      "prepared_slide_url":"https://prepare.test","prepared_slide_token":"0123456789abcdef0123456789abcdef"}})").error);
+  assert(!update_configuration(R"({"reset_epoch":1,"values":{"api_key":"fresh-key"}})").error);
+  assert(current.read() && current.has_immich() && current.immich_key == "fresh-key" && current.reset_epoch == 1);
+  assert(current.brightness_day == 83 && current.pair_framing == espframe::native::PairFraming::Fill);
   assert(Settings::save_wifi(*new_wifi, 1));
   assert(Settings::save(R"({"immich_url":"http://photos.test","immich_key":"reprovisioned","reset_epoch":0,"reset_epoch":2})"));
   assert(current.read() && current.immich_key == "reprovisioned" && current.reset_epoch == 1);

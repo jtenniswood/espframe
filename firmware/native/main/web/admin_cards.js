@@ -15,6 +15,50 @@ window.espframeNativeCards = {
   makeClockCard: ["show_clock", "clock_format", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3"],
   makeFrameNameCard: ["frame_name"],
   makeFirmwareCard: ["auto_update", "update_frequency"],
+  makeBackupCard: [],
+  makeDeviceRebootCard: [],
+  makeResetCard: [],
+};
+
+window.espframeNativeUrl = function (url) {
+  if (!/^https?:\/\//.test(url)) return url;
+  const hasPath = url.indexOf("/", url.indexOf("://") + 3) >= 0;
+  return hasPath && url.endsWith("/api") ? url : url + "/api";
+};
+
+window.espframeNativeBackupSchema = function (schema) {
+  schema.push({ group: "photos", field: "portrait_pair_framing", state_keys: ["portrait_pair_framing"] });
+};
+
+window.espframeNativeBackupDefaults = function (original, migrated) {
+  const photos = migrated.photos;
+  if (photos && !Object.hasOwn(photos, "portrait_pair_framing") &&
+      (original.version < 3 || Object.hasOwn(original, "firmware_updates")) &&
+      (typeof photos.portrait_pairing === "boolean" || ["Fill", "Fit"].includes(photos.display_mode))) {
+    return { ...migrated, photos: { ...photos, portrait_pair_framing: "Fill" } };
+  }
+  return migrated;
+};
+
+window.espframeNativeAfterReset = async function (mode, address, showBanner) {
+  if (mode === "factory") {
+    showBanner("Factory reset accepted. Follow the Wi-Fi setup instructions on the frame after it restarts.", "info", 0);
+    return;
+  }
+  showBanner("Settings reset. The frame is restarting…", "info", 0);
+  try {
+    await window.espframeNativeReconnect(async () => {
+      const response = await fetch("/espframe/api/v1/reset", { cache: "no-store", signal: AbortSignal.timeout(2500) });
+      if (!response.ok || (await response.json()).status !== "ready") throw Error("reset_pending");
+    });
+    location.reload();
+  } catch (_) {
+    if (address && /^(?:\d{1,3}\.){3}\d{1,3}$/.test(address) && address !== location.hostname) {
+      location.href = "http://" + address + "/admin";
+      return;
+    }
+    showBanner("Settings reset. Reload this page when the frame reconnects.", "info", 0);
+  }
 };
 
 window.espframeWatchFilters = async function (state, readSettings, renderSettings) {

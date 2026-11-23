@@ -270,8 +270,7 @@
   }
 
   function showSetup() {
-    if (nativeAdmin) location.replace("/");
-    else renderWizard();
+    renderWizard();
   }
 
   function showConfiguredSettings() {

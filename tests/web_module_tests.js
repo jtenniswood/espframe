@@ -351,7 +351,7 @@ assert.equal(
 );
 assert.ok(publicApp.includes('image.alt = "Buy Me A Coffee"'), "support button image should have accessible text");
 
-const backupImportContext = { JSON };
+const backupImportContext = { JSON, nativeAdmin: false };
 require("vm").runInNewContext(require("esbuild").transformSync(backupImportSource, { loader: "ts" }).code, backupImportContext);
 const connectionOnlyBackup = backupImportContext.migrateBackupConfig({
   version: 1,
