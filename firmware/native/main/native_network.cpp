@@ -54,7 +54,7 @@ FrameMac read_frame_mac() {
 
 void NativeNetwork::start(const Settings &settings) {
   settings_ = &settings;
-  if (!settings.web_password.empty())
+  if constexpr (!trial_immich)
     web_status_.store(WebStatus::Starting, std::memory_order_relaxed);
   if (xTaskCreatePinnedToCore(run_, "native-network", 6144, this, 2, nullptr, network_core) != pdPASS)
     ESP_LOGW(tag, "Could not allocate the Wi-Fi task");
@@ -471,8 +471,8 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
         if constexpr (trial_immich) {
           web_started = start_live_trial_status(*this);
         } else {
-          web_started = settings_->web_password.empty() || start_web_settings(*settings_, *this);
-          if (web_started && !settings_->web_password.empty())
+          web_started = start_web_settings(*settings_, *this);
+          if (web_started)
             web_status_.store(WebStatus::Ready, std::memory_order_release);
         }
       }

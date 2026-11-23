@@ -746,6 +746,15 @@ Settings::UsbSaveResult Settings::save_usb(const char *json, std::optional<uint3
   const auto epoch = configured ? saved.reset_epoch : 0;
   if (expected_epoch && *expected_epoch != epoch)
     return Result::Rejected;
+  const auto *web_password = cJSON_GetObjectItemCaseSensitive(document.get(), "web_password");
+  if (!request.any() && document->child == web_password && cJSON_IsString(web_password) && !web_password->next &&
+      !web_password->valuestring[0]) {
+    // A password-only USB request clears the credential while retaining the saved document.
+    if (!configured)
+      return Result::Rejected;
+    cJSON_DeleteItemFromObjectCaseSensitive(previous.get(), "web_password");
+    return write_document(previous.get()) ? Result::Saved : Result::Rejected;
+  }
   // A reset or unreadable native configuration blocks reimport. Existing
   // native connections and explicit pairing choices take precedence.
   const bool blocked = (!configured && !may_create) || epoch != 0;
@@ -1079,7 +1088,7 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   std::string replacement_token;
   const std::lock_guard lock(storage_mutex);
   Settings settings;
-  if (!cJSON_IsObject(update) || !load(settings) || settings.web_password.empty())
+  if (!cJSON_IsObject(update) || !load(settings))
     return UpdateResult::Failed;
   if (expected_epoch && *expected_epoch != settings.reset_epoch)
     return UpdateResult::Stale;
@@ -1193,7 +1202,7 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
 bool Settings::reset(ResetMode mode) {
   const std::lock_guard lock(storage_mutex);
   Settings saved;
-  if (!load(saved) || saved.web_password.empty())
+  if (!load(saved))
     return false;
   Settings reset;
   if (mode == ResetMode::Customization) {

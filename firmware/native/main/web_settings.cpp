@@ -111,6 +111,20 @@ bool same_origin(httpd_req_t *request) {
          header_is(request, "Origin", std::string("http://") + host);
 }
 
+bool matches_station_host(httpd_req_t *request, uint32_t station) {
+  char header[80]{};
+  if (httpd_req_get_hdr_value_str(request, "Host", header, sizeof(header)) != ESP_OK)
+    return false;
+  std::string_view host(header);
+  if (host.ends_with(":80"))
+    host.remove_suffix(3);
+  char ipv4[INET_ADDRSTRLEN]{};
+  const in_addr address{station};
+  const auto &hostname = network(request).running_identity().hostname;
+  return (inet_ntop(AF_INET, &address, ipv4, sizeof(ipv4)) && host == ipv4) ||
+         (!hostname.empty() && host == hostname + ".local");
+}
+
 bool from_hotspot_client(httpd_req_t *request) {
   sockaddr_storage peer{};
   socklen_t length = sizeof(peer);
@@ -134,8 +148,15 @@ bool from_hotspot_client(httpd_req_t *request) {
 bool authorize(httpd_req_t *request) {
   set_response_headers(request);
   const auto station = network(request).address().ipv4;
-  if (!station || local_address(request) != station || hotspot_socket(request) || authorization.empty()) {
+  if (!station || local_address(request) != station || hotspot_socket(request) ||
+      (authorization.empty() && !matches_station_host(request, station))) {
     httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "Settings are unavailable on this connection.");
+    return false;
+  }
+  if (authorization.empty()) {
+    if (request->method != HTTP_POST || same_origin(request))
+      return true;
+    httpd_resp_send_err(request, HTTPD_403_FORBIDDEN, "Open settings on the frame to make changes.");
     return false;
   }
   std::array<char, auth_capacity> header{};
@@ -657,8 +678,7 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
   }
 
   esp_netif_ip_info_t ip{};
-  if (!settings.web_password.empty() &&
-      esp_netif_get_ip_info(esp_netif_get_handle_from_ifkey("WIFI_STA_DEF"), &ip) == ESP_OK && ip.ip.addr)
+  if (esp_netif_get_ip_info(esp_netif_get_handle_from_ifkey("WIFI_STA_DEF"), &ip) == ESP_OK && ip.ip.addr)
     ESP_LOGI(tag, "Settings page listening at http://" IPSTR "/", IP2STR(&ip.ip));
   return true;
 }

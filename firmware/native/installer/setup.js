@@ -8,10 +8,12 @@ const revision = document.querySelector('#revision')
 const install = document.querySelector('esp-web-install-button')
 const installButton = install.querySelector('button')
 const form = document.querySelector('#settings')
-const submit = form.querySelector('button')
+const submit = form.querySelector('button[type="submit"]')
 const status = document.querySelector('#status')
 const find = document.querySelector('#find-frame')
 const networkStatus = document.querySelector('#network-status')
+const webAdminAccess = document.querySelector('#web-admin-access')
+const clearWebPassword = document.querySelector('#clear-web-password')
 const repairWifi = document.querySelector('#repair-wifi')
 const wifiRepairForm = document.querySelector('#wifi-repair')
 const connectWifi = wifiRepairForm.querySelector('button')
@@ -190,7 +192,7 @@ revision.addEventListener('change', () => {
   if (revision.value) install.manifest = manifestFor(revision.value)
 })
 
-function showFrameAddress(frame) {
+function showFrameAddress(frame, passwordSet = false) {
   if (!frame) {
     networkStatus.textContent = 'The frame is waiting for Wi-Fi. Use Change Wi-Fi over USB to update the connection details.'
     repairWifi.open = true
@@ -198,6 +200,7 @@ function showFrameAddress(frame) {
     const link = document.createElement('a')
     link.href = '#web-admin-password'
     link.textContent = 'Set a web admin password'
+    link.addEventListener('click', () => { webAdminAccess.open = true })
     networkStatus.replaceChildren(`Connected at ${frame.address}. `, link, ' and save settings to enable the admin.')
   } else if (frame.web === 'starting') {
     networkStatus.textContent = `Connected at ${frame.address}. The settings page is starting. Try again in a moment.`
@@ -205,7 +208,7 @@ function showFrameAddress(frame) {
     const link = document.createElement('a')
     link.href = `http://${frame.address}/`
     link.textContent = 'Open frame settings'
-    networkStatus.replaceChildren(`Connected at ${frame.address}. `, link, ' and sign in as espframe.')
+    networkStatus.replaceChildren(`Connected at ${frame.address}. `, link, passwordSet ? ' and sign in as espframe.' : '.')
   }
 }
 
@@ -247,10 +250,12 @@ if ('serial' in navigator) {
   find.disabled = false
   repairWifi.hidden = false
   connectWifi.disabled = false
+  clearWebPassword.disabled = false
   const setSerialBusy = busy => {
     submit.disabled = busy
     find.disabled = busy
     connectWifi.disabled = busy
+    clearWebPassword.disabled = busy
     backup.disabled = busy
     revision.disabled = busy
     installButton.disabled = busy
@@ -301,6 +306,22 @@ if ('serial' in navigator) {
     try {
       const port = await navigator.serial.requestPort()
       showFrameAddress(await findFrame(port))
+    } catch (error) {
+      networkStatus.textContent = error.name === 'NotFoundError' ? 'Choose the frame’s USB port to continue.' : error.message
+    } finally {
+      setSerialBusy(false)
+    }
+  })
+  clearWebPassword.addEventListener('click', async () => {
+    setSerialBusy(true)
+    networkStatus.textContent = 'Removing the web admin password…'
+    try {
+      const port = await navigator.serial.requestPort()
+      await configure(port, { web_password: '' })
+      form.elements.web_password.value = ''
+      const frame = await waitForFrame(port)
+      if (frame) showFrameAddress(frame)
+      else networkStatus.textContent = 'Password removed. Choose Find frame on Wi-Fi to check its address.'
     } catch (error) {
       networkStatus.textContent = error.name === 'NotFoundError' ? 'Choose the frame’s USB port to continue.' : error.message
     } finally {
@@ -381,7 +402,7 @@ if ('serial' in navigator) {
       status.textContent = keepPairing ? 'Settings saved. Home Assistant pairing kept.' : 'Settings saved.'
       networkStatus.textContent = 'Waiting for the frame to restart and reconnect to Wi-Fi…'
       const frame = await waitForFrame(port)
-      if (frame) showFrameAddress(frame)
+      if (frame) showFrameAddress(frame, Boolean(data.web_password))
       else showFrameAddress(null)
     } catch (error) {
       status.textContent = error.name === 'NotFoundError' ? 'Choose the frame’s USB port to continue.' : error.message

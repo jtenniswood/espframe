@@ -393,7 +393,8 @@ int main() {
   assert(!legacy.schedule.enabled && legacy.schedule.on_hour == 6 && legacy.schedule.off_hour == 23 &&
          legacy.schedule.wake_seconds == 60);
   assert(legacy.web_password.empty());
-  assert(!Settings::save_playback(R"({"immich_url":"http://new.local"})"));
+  assert(Settings::save_playback(R"({"immich_url":"http://new.local"})"));
+  assert(legacy.read() && legacy.immich_url == "http://new.local/api");
 
   assert(Settings::save(R"({"ssid":"Photo Lab","password":"wifi secret",
                            "immich_url":"https://photos.test/api/","immich_key":"first-key",
@@ -737,7 +738,6 @@ int main() {
   assert(current.screen_rotation == ScreenRotation::Normal && current.brightness_day == 64);
   assert(!Settings::save_playback(R"({"immich_url":"http://old.test","immich_key":"old-key"})"));
   assert(!Settings::save(R"({"immich_url":"http://photos.test","immich_key":"fresh-key"})"));
-  assert(reset_configuration(ResetMode::Factory).error);
   const auto after_factory_reset = stored;
   assert(!Settings::save_wifi(*new_wifi, 1));
   assert(!Settings::save(R"({"ssid":"Photo Lab","password":"old-password","immich_url":"http://old.test",
@@ -1314,6 +1314,15 @@ int main() {
   assert(current.read() && current.web_password == "test-admin-password" && current.slide_seconds == 30);
   assert(Settings::save(R"({"immich_url":"https://photos.test","immich_key":"test-immich-key","web_password":"replacement-admin"})"));
   assert(current.read() && current.web_password == "replacement-admin");
+  assert(update_configuration(R"({"values":{"photo_metadata_date_enabled":false}})").error == nullptr);
+  assert(!Settings::save(R"({"web_password":""})", current.reset_epoch + 1));
+  assert(Settings::save(R"({"web_password":""})", current.reset_epoch));
+  assert(current.read() && current.web_password.empty() && current.ssid == "Test Wi-Fi" &&
+         current.immich_key == "test-immich-key" && !current.metadata.show_date);
+  assert(update_configuration(R"({"values":{"photo_metadata_date_enabled":true}})").error == nullptr);
+  assert(current.read() && current.metadata.show_date);
+  assert(Settings::reset(ResetMode::Customization));
+  assert(current.read() && current.web_password.empty() && current.ssid == "Test Wi-Fi");
 
   verify_stock_pairing_migration();
   verify_stock_connection_migration();
