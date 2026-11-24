@@ -126,18 +126,24 @@ void scale_row(uint16_t *output, const uint16_t *source, int first, int end, uin
 
 }  // namespace
 
-PhotoControls::Frame PhotoControls::next_frame(int64_t now, int64_t refresh_us) const {
+PhotoControls::Frame PhotoControls::next_frame(int64_t now, int64_t refresh_us, bool clip_ready) const {
   if (!this->animating())
     return {this->target_, this->submitted_elapsed_us_};
   if (this->start_ == this->target_ || now <= this->started_us_)
     return {this->start_, 0};
-  // Use the next refresh deadline after a slow render so the resize can
-  // finish on time without replaying intermediate steps already missed.
+  const bool cacheable = std::abs(this->target_ - this->start_) == open && supports_cached_steps(refresh_us);
   const auto after_handoff = this->submitted_elapsed_us_ + refresh_us;
   const auto next_deadline = ((now - this->started_us_) / refresh_us + 1) * refresh_us;
-  const auto next = std::min(this->duration_us_, std::max(after_handoff, next_deadline));
+  // Cached sizes are ready ahead of scanout. A cold resize drops stale steps
+  // to keep the slower on-demand render on its animation timeline.
+  const auto planned = cacheable && clip_ready ? after_handoff : std::max(after_handoff, next_deadline);
+  const auto next = std::min(this->duration_us_, planned);
   if (next == this->duration_us_)
     return {this->target_, next};
+  if (cacheable) {
+    const int step = static_cast<int>((next + refresh_us - 1) / refresh_us);
+    return {cached_progress(this->target_open() ? step : cached_steps - step), next};
+  }
   const int elapsed = static_cast<int>(next * open / this->duration_us_);
   // Start and end at rest so the largest steps are in the middle of the move.
   const int eased = elapsed * elapsed * (3 * open - 2 * elapsed) / (open * open);
@@ -177,7 +183,6 @@ uint8_t PhotoControls::text_opacity(int64_t now) const {
 }
 
 void PhotoControls::animate(bool show, int64_t now, bool text_visible) {
-  constexpr int64_t full_duration_us = 200'000;
   constexpr int64_t minimum_duration_us = 87'500;
   const int target = show ? open : 0;
   if (target == this->target_)
@@ -188,7 +193,7 @@ void PhotoControls::animate(bool show, int64_t now, bool text_visible) {
   this->started_us_ = now;
   this->submitted_elapsed_us_ = 0;
   this->duration_us_ = minimum_duration_us +
-                       (full_duration_us - minimum_duration_us) * std::abs(target - this->start_) / open;
+                       (resize_duration_us - minimum_duration_us) * std::abs(target - this->start_) / open;
   // Fade on the full-size photo on either side of the resize.
   this->text_started_us_ = now;
   this->restore_text_ = !show && this->start_ != 0;

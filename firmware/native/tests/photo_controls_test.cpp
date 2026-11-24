@@ -1,4 +1,5 @@
 #include "photo_controls.h"
+#include "photo_zoom_packets.h"
 
 #include <cassert>
 #include <vector>
@@ -127,6 +128,41 @@ void catches_up_after_a_slow_render() {
   assert(closed.elapsed_us == 200'000 && closed.progress == 0);
 }
 
+void cached_steps_play_in_both_directions() {
+  constexpr int64_t refresh_us = 19'243;
+  static_assert(PhotoControls::supports_cached_steps(refresh_us));
+  PhotoControls controls;
+  constexpr int64_t start = 100'000;
+  for (const bool opening : {true, false}) {
+    const auto now = opening ? start : 2 * start + PhotoControls::resize_duration_us;
+    controls.animate(opening, now, false);
+    for (int step = 1; step <= PhotoControls::cached_steps; ++step) {
+      const auto frame = controls.next_frame(now + step * refresh_us, refresh_us, true);
+      const auto packet = opening ? step : PhotoControls::cached_steps - step;
+      assert(frame.progress == PhotoControls::cached_progress(packet));
+      assert(PhotoControls::cached_step(frame.progress) == packet);
+      controls.submitted(frame);
+    }
+    assert(!controls.animating());
+  }
+}
+
+void zoom_packets_are_aligned_and_only_exposed_when_complete() {
+  alignas(PhotoZoomPackets::alignment) std::array<uint8_t, PhotoZoomPackets::alignment * PhotoZoomPackets::frame_count> bytes{};
+  PhotoZoomPackets clip{bytes};
+  assert(!clip.ready() && !clip.finish_frame(4));
+  for (size_t step = 0; step < PhotoZoomPackets::frame_count; ++step) {
+    const auto output = clip.destination();
+    assert(output.data() == bytes.data() + step * PhotoZoomPackets::alignment);
+    const std::array<uint8_t, 5> packet{0xff, 0xd8, static_cast<uint8_t>(step), 0xff, 0xd9};
+    std::copy(packet.begin(), packet.end(), output.begin());
+    assert(clip.frame(0).empty() && clip.finish_frame(packet.size()));
+  }
+  assert(clip.ready() && clip.destination().empty());
+  for (size_t step = PhotoZoomPackets::frame_count; step > 0; --step)
+    assert(clip.frame(step - 1)[2] == step - 1);
+}
+
 void keeps_both_halves_and_the_toolbar_in_the_same_place_when_rotated() {
   PhotoControls controls;
   constexpr uint16_t left = 0xF800;
@@ -223,6 +259,8 @@ int main() {
   tapping_again_during_the_fade_restores_text_without_resizing();
   reverses_from_the_current_size_and_settles();
   catches_up_after_a_slow_render();
+  cached_steps_play_in_both_directions();
+  zoom_packets_are_aligned_and_only_exposed_when_complete();
   keeps_both_halves_and_the_toolbar_in_the_same_place_when_rotated();
   scales_portrait_photos_through_the_swipe_seam();
   matches_pixel_center_sampling_in_each_orientation();

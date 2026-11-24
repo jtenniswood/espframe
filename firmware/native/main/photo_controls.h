@@ -10,6 +10,25 @@ class PhotoControls {
  public:
   static constexpr int open = 1024;
   static constexpr int toolbar_bottom = 96;
+  static constexpr int cached_steps = 11;
+  static constexpr int64_t resize_duration_us = 200'000;
+
+  static constexpr bool supports_cached_steps(int64_t refresh_us) {
+    return refresh_us > 0 && (resize_duration_us + refresh_us - 1) / refresh_us == cached_steps;
+  }
+
+  static constexpr int cached_progress(int step) {
+    constexpr auto denominator = cached_steps * cached_steps * cached_steps;
+    return (open * step * step * (3 * cached_steps - 2 * step) + denominator / 2) / denominator;
+  }
+
+  static constexpr int cached_step(int progress) {
+    for (int step = 1; step <= cached_steps; ++step) {
+      if (cached_progress(step) == progress)
+        return step;
+    }
+    return 0;
+  }
   static constexpr uint8_t opaque = 255;
 
   struct Frame {
@@ -17,7 +36,7 @@ class PhotoControls {
     int64_t elapsed_us;
   };
 
-  Frame next_frame(int64_t now, int64_t refresh_us) const;
+  Frame next_frame(int64_t now, int64_t refresh_us, bool clip_ready = false) const;
   void submitted(Frame frame);
   void presented(int64_t now);
   uint8_t text_opacity(int64_t now) const;

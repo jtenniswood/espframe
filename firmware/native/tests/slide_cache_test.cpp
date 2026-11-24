@@ -159,4 +159,24 @@ int main() {
   assert(another && captions.complete(*another, true, false, true));
   captions.stop_caption_details(14);
   assert(captions.find(14) == another->pixels && !captions.needs_caption_details(14));
+
+  // A worker reading the previous pixels can finish after a new crop or
+  // feed replaces the photo. Its result then fails the current-source check.
+  const auto zoom = cache.pin_ready(4);
+  assert(zoom && cache.is_current(4, *zoom));
+  const auto updated = cache.reserve(4, 4, 5, true);
+  assert(updated && cache.complete(*updated, true));
+  assert(!cache.is_current(4, *zoom) && cache.find(4) != zoom->pixels);
+  cache.discard_other_ready_slides(4);
+  for (int slide = 5; slide < 9; ++slide) {
+    const auto work = cache.reserve(slide, 4, 9);
+    assert(work && work->pixels != zoom->pixels && cache.complete(*work, true));
+  }
+  assert(!cache.reserve(9, 4, 9));
+  assert(cache.release(*zoom));
+  const auto reclaimed = cache.reserve(9, 4, 9);
+  assert(reclaimed && reclaimed->pixels == zoom->pixels && cache.complete(*reclaimed, true));
+  const auto next_zoom = cache.pin_ready(9);
+  assert(next_zoom && !cache.release(*zoom) && cache.is_current(9, *next_zoom));
+  assert(cache.release(*next_zoom));
 }
