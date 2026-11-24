@@ -4,59 +4,63 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
+#include <memory>
 #include <span>
+#include "esp_heap_caps.h"
 
 namespace espframe::native {
 
-// A complete clip is published only after all frames were encoded. The
-// allocation and ownership are held by the worker for the whole build.
+// Retain only the aligned JPEG payloads. The worker reuses one encoder
+// buffer so preparation can begin before a full clip would fit.
+
 class PhotoZoomPackets {
  public:
   static constexpr size_t frame_count = 11;
-  static constexpr size_t byte_limit = 2 * 1024 * 1024;
   static constexpr size_t alignment = 128;
+  static constexpr size_t byte_limit = 2 * 1024 * 1024;
   static constexpr size_t packet_limit = 384 * 1024;
 
-  explicit PhotoZoomPackets(std::span<uint8_t> storage) {
-    if (reinterpret_cast<uintptr_t>(storage.data()) % alignment == 0)
-      storage_ = storage.first(std::min(storage.size(), byte_limit));
+  static constexpr size_t allocation_size(size_t bytes) {
+    return (bytes + alignment - 1) / alignment * alignment;
   }
 
-  std::span<uint8_t> destination() {
-    if (ready() || offset_ >= storage_.size())
-      return {};
-    const auto available = std::min(packet_limit, storage_.size() - offset_);
-    return storage_.subspan(offset_, available / alignment * alignment);
-  }
-
-  bool finish_frame(size_t size) {
-    const auto output = destination();
-    if (size < 4 || size > output.size() || output[0] != 0xff || output[1] != 0xd8 ||
-        output[size - 2] != 0xff || output[size - 1] != 0xd9)
+  bool append(std::span<const uint8_t> encoded, size_t remaining_budget) {
+    if (ready() || encoded.size() < 4 || encoded.size() > packet_limit ||
+        encoded[0] != 0xff || encoded[1] != 0xd8 || encoded[encoded.size() - 2] != 0xff || encoded.back() != 0xd9)
       return false;
-    packets_[count_++] = {offset_, size};
-    offset_ += ((size + alignment - 1) / alignment) * alignment;
+    const auto bytes = allocation_size(encoded.size());
+    if (bytes > std::min(remaining_budget, byte_limit - used_))
+      return false;
+    auto &packet = packets_[count_];
+    packet.data.reset(static_cast<uint8_t *>(heap_caps_aligned_alloc(alignment, bytes,
+                                                                    MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)));
+    if (!packet.data)
+      return false;
+    std::memcpy(packet.data.get(), encoded.data(), encoded.size());
+    packet.size = encoded.size();
+    used_ += bytes;
+    ++count_;
     return true;
   }
 
+  size_t prepared_frames() const { return count_; }
   bool ready() const { return count_ == frame_count; }
-
+  size_t used_bytes() const { return used_; }
   std::span<const uint8_t> frame(size_t index) const {
-    if (!ready() || index >= frame_count)
+    if (!ready() || index >= count_)
       return {};
     const auto &packet = packets_[index];
-    return storage_.subspan(packet.offset, packet.size);
+    return {packet.data.get(), packet.size};
   }
 
  private:
   struct Packet {
-    size_t offset;
-    size_t size;
+    std::unique_ptr<uint8_t, decltype(&heap_caps_free)> data{nullptr, heap_caps_free};
+    size_t size{};
   };
-
-  std::span<uint8_t> storage_;
   std::array<Packet, frame_count> packets_{};
-  size_t offset_{};
+  size_t used_{};
   size_t count_{};
 };
 

@@ -719,7 +719,7 @@ void run(void *) {
     controls_renderer.start();
     if (!esphome_trial && live && !trial_fixtures && display.can_pin_frame() &&
         PhotoControls::supports_cached_steps(refresh_period_us))
-      zoom_cache.start(loader_core);
+      zoom_cache.start(player_core, loader_core);
   }
   const auto submit_frame = [&](PixelPosition position, bool moving = true, bool resisted = false,
                                 const ScanoutFrame *frame = nullptr, std::optional<SlideRange> sources = {},
@@ -987,6 +987,7 @@ void run(void *) {
             if (!preparing_rotation || *preparing_rotation != wanted_rotation)
               loader.yield_to_swipe();
           } else if (const auto lease = cache.reserve(center, center, center, true)) {
+            zoom_cache.reclaim_for_photo_load(center);
             loader.submit(*lease, source_revision, false, Preparation::RotateCached, wanted_rotation,
                           {cache.find(center), rotation, paired_slots[*slot]});
             preparing = center;
@@ -1150,7 +1151,7 @@ void run(void *) {
     // A busy or interrupted zoom worker must return its spare framebuffer
     // even if the normal controls rendering branch is skipped by a fade.
     zoom_cache.service(display, cache, !input.awake() || input.engaged() || !swipe.idle() || fade.running() ||
-                       fade.held() || controls.animating() || awaiting_rotation_frame);
+                       fade.held() || controls.animating() || awaiting_rotation_frame || prefetch.requested().has_value());
     const bool cached_resize = swipe.idle() && zoom_cache.available_for(cache, swipe.settled(), rotation);
     const auto control_frame = controls.next_frame(now, refresh_period_us, cached_resize);
     const int control_progress = control_frame.progress;
@@ -1233,6 +1234,8 @@ void run(void *) {
           return false;
         if constexpr (trace_enabled)
           refill_started_us = esp_timer_get_time();
+        const auto zoom_landing = swipe.settling() ? swipe.settle_destination() : center;
+        zoom_cache.reclaim_for_photo_load(zoom_landing);
         loader.submit(*lease, source_revision, source_anchor >= 0, preparation, rotation, {});
         preparing = candidate;
         preparing_refresh = refresh;
@@ -1441,12 +1444,11 @@ void run(void *) {
     const auto notice_language = paints_notice ? active_device_language.load(std::memory_order_relaxed) : uint8_t{0};
     const bool sliding = swipe.dragging() || swipe.settling();
     const bool zoom_source_valid = !sliding && !use_edge && position == center * viewport.width && !fade.held();
-    // Keep the next swipe ready, then prepare the current zoom while more
-    // distant photos can continue filling the cache.
-    const bool zoom_can_prepare = zoom_source_valid && visible_and_idle && center > 0 &&
-                                  (preparing < 0 || ready_last > center) && !awaiting_rotation_frame &&
-                                  !paints_notice && !controls.animating();
-    zoom_cache.update(display, cache, center, rotation, zoom_can_prepare);
+    // This worker has lower priority than photo preparation. Start on the
+    // visible slide while downloads proceed, and yield to urgent edge refill.
+    const bool zoom_can_prepare = zoom_source_valid && visible_and_idle && center > 0 && !prefetch.requested() &&
+                                  !awaiting_rotation_frame && !paints_notice && !controls.animating();
+    zoom_cache.update(display, cache, center, rotation, zoom_can_prepare, preparing < 0 && ready_last > center);
     const auto *zoom_source = zoom_source_valid ? cache.find(center) : nullptr;
     const bool zoom_ready = zoom_source && zoom_cache.available_for(cache, center, rotation);
     if (!zoom_ready || prepared_zoom.source != zoom_source || prepared_zoom.progress != control_progress ||
@@ -1454,7 +1456,7 @@ void run(void *) {
       prepared_zoom = {};
     if (const int step = PhotoControls::cached_step(control_progress);
         step && control_progress != last_control_progress && zoom_ready && !prepared_zoom.pixels) {
-      if (auto *scratch = display.preparation_buffer(); scratch && zoom_cache.decode(step, scratch))
+      if (auto *scratch = display.preparation_buffer(); scratch && zoom_cache.decode_for(cache, center, rotation, step, scratch))
         prepared_zoom = {scratch, zoom_source, control_progress, rotation};
     }
     const bool clock_changed = show_clock && (clock_dirty || (clock.visible() && text_opacity != last_text_opacity));

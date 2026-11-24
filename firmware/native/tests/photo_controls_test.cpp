@@ -148,19 +148,23 @@ void cached_steps_play_in_both_directions() {
 }
 
 void zoom_packets_are_aligned_and_only_exposed_when_complete() {
-  alignas(PhotoZoomPackets::alignment) std::array<uint8_t, PhotoZoomPackets::alignment * PhotoZoomPackets::frame_count> bytes{};
-  PhotoZoomPackets clip{bytes};
-  assert(!clip.ready() && !clip.finish_frame(4));
+  PhotoZoomPackets clip;
+  assert(!clip.ready() && !clip.append({}, PhotoZoomPackets::byte_limit));
   for (size_t step = 0; step < PhotoZoomPackets::frame_count; ++step) {
-    const auto output = clip.destination();
-    assert(output.data() == bytes.data() + step * PhotoZoomPackets::alignment);
     const std::array<uint8_t, 5> packet{0xff, 0xd8, static_cast<uint8_t>(step), 0xff, 0xd9};
-    std::copy(packet.begin(), packet.end(), output.begin());
-    assert(clip.frame(0).empty() && clip.finish_frame(packet.size()));
+    assert(clip.frame(0).empty() && !clip.append(packet, PhotoZoomPackets::alignment - 1));
+    fail_heap_allocations = true;
+    assert(!clip.append(packet, PhotoZoomPackets::alignment));
+    fail_heap_allocations = false;
+    assert(clip.prepared_frames() == step);
+    assert(clip.append(packet, PhotoZoomPackets::alignment));
   }
-  assert(clip.ready() && clip.destination().empty());
-  for (size_t step = PhotoZoomPackets::frame_count; step > 0; --step)
-    assert(clip.frame(step - 1)[2] == step - 1);
+  assert(clip.ready() && clip.used_bytes() == PhotoZoomPackets::alignment * PhotoZoomPackets::frame_count);
+  for (size_t step = PhotoZoomPackets::frame_count; step > 0; --step) {
+    const auto packet = clip.frame(step - 1);
+    assert(reinterpret_cast<uintptr_t>(packet.data()) % PhotoZoomPackets::alignment == 0);
+    assert(packet[2] == step - 1);
+  }
 }
 
 void keeps_both_halves_and_the_toolbar_in_the_same_place_when_rotated() {
