@@ -94,7 +94,7 @@ class PhotoControlsRenderer {
     if (worker_) {
       // Each core writes whole rows. Join before painting the toolbar or submitting the frame.
       xTaskNotifyGive(worker_);
-      controls_.draw_rows(panel_height / 2, panel_height);
+      controls_.draw_rows(controls_.split_row(), panel_height);
       xSemaphoreTake(done_, portMAX_DELAY);
     } else {
       controls_.draw_rows(0, panel_height);
@@ -107,7 +107,7 @@ class PhotoControlsRenderer {
     const auto &renderer = *static_cast<PhotoControlsRenderer *>(context);
     while (true) {
       ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-      renderer.controls_.draw_rows(0, panel_height / 2);
+      renderer.controls_.draw_rows(0, renderer.controls_.split_row());
       xSemaphoreGive(renderer.done_);
     }
   }
@@ -801,6 +801,7 @@ void run(void *) {
       brightness = scheduled_brightness;
     }
     if (const auto scanout = display.poll_presented()) {
+      controls.presented(*scanout);
       awaiting_rotation_frame = false;
       if constexpr (trial_replay_touch) {
         const auto presented = display.presented_position();
@@ -1133,7 +1134,8 @@ void run(void *) {
     if ((controls.target_open() || last_control_progress != 0) &&
         (!input.awake() || network.recovery_status() != NativeNetwork::RecoveryStatus::Off))
       controls.reset();
-    const int control_progress = controls.progress(now);
+    const auto control_frame = controls.next_frame(now, refresh_period_us);
+    const int control_progress = control_frame.progress;
     const uint8_t text_opacity = controls.text_opacity(now);
 
     if (blend.poll_complete() && fade.running()) {
@@ -1181,7 +1183,7 @@ void run(void *) {
                                  ? prefetch.can_defer_drag(ready, origin, swipe.position(),
                                                            drag == Swipe::DragActivity::Starting, first_motion_pending)
                                  : !contact_engaged && prefetch.can_defer_settle(ready, swipe.settle_destination());
-      const bool scaling_at_rest = controls.animating(control_progress) && !swipe.dragging() && !swipe.settling();
+      const bool scaling_at_rest = controls.animating() && !swipe.dragging() && !swipe.settling();
       pixel_work_deferred = (user_motion && can_defer) || scaling_at_rest;
       protect_cached_copy = drag == Swipe::DragActivity::Starting && !first_motion_pending && !can_defer &&
                             !prefetch.requested() && ready.contains(origin) && ready.last == origin + 1 &&
@@ -1459,6 +1461,7 @@ void run(void *) {
           last_submitted = position;
           last_inside = inside;
           last_control_progress = control_progress;
+          controls.submitted(control_frame);
           last_text_opacity = text_opacity;
         };
         if (control_progress != 0) {
