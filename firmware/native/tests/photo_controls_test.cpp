@@ -105,16 +105,26 @@ void reverses_from_the_current_size_and_settles() {
   assert(controls.text_opacity(350'100) == PhotoControls::opaque);
 }
 
-void waits_for_handoffs_instead_of_skipping_zoom_steps() {
+void catches_up_after_a_slow_render() {
   PhotoControls controls;
   controls.animate(true, 100, false);
   const auto first = controls.next_frame(101, test_refresh_us);
   assert(first.elapsed_us == test_refresh_us);
-  const auto late = controls.next_frame(200'000, test_refresh_us);
-  assert(late.progress == first.progress && late.elapsed_us == test_refresh_us);
+  controls.submitted(first);
+  const auto late = controls.next_frame(125'101, test_refresh_us);
+  assert(late.elapsed_us == 6 * test_refresh_us);
+  assert(late.progress > first.progress && late.progress < PhotoControls::open);
   controls.submitted(late);
-  assert(controls.next_frame(400'000, test_refresh_us).elapsed_us == 2 * test_refresh_us);
-  assert(controls.next_frame(400'000, test_refresh_us).progress > late.progress);
+  const auto open = controls.next_frame(230'100, test_refresh_us);
+  assert(open.elapsed_us == 200'000 && open.progress == PhotoControls::open);
+  controls.submitted(open);
+
+  controls.animate(false, 250'100);
+  const auto closing = controls.next_frame(325'101, test_refresh_us);
+  assert(closing.elapsed_us == 4 * test_refresh_us && closing.progress == PhotoControls::open / 2);
+  controls.submitted(closing);
+  const auto closed = controls.next_frame(475'100, test_refresh_us);
+  assert(closed.elapsed_us == 200'000 && closed.progress == 0);
 }
 
 void keeps_both_halves_and_the_toolbar_in_the_same_place_when_rotated() {
@@ -212,7 +222,7 @@ int main() {
   text_only_fades_at_full_size();
   tapping_again_during_the_fade_restores_text_without_resizing();
   reverses_from_the_current_size_and_settles();
-  waits_for_handoffs_instead_of_skipping_zoom_steps();
+  catches_up_after_a_slow_render();
   keeps_both_halves_and_the_toolbar_in_the_same_place_when_rotated();
   scales_portrait_photos_through_the_swipe_seam();
   matches_pixel_center_sampling_in_each_orientation();

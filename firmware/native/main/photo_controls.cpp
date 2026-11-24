@@ -131,9 +131,11 @@ PhotoControls::Frame PhotoControls::next_frame(int64_t now, int64_t refresh_us) 
     return {this->target_, this->submitted_elapsed_us_};
   if (this->start_ == this->target_ || now <= this->started_us_)
     return {this->start_, 0};
-  // The caller can submit another frame only after the previous handoff.
-  // A missed refresh holds the current image instead of skipping zoom steps.
-  const auto next = std::min(this->duration_us_, this->submitted_elapsed_us_ + refresh_us);
+  // Use the next refresh deadline after a slow render so the resize can
+  // finish on time without replaying intermediate steps already missed.
+  const auto after_handoff = this->submitted_elapsed_us_ + refresh_us;
+  const auto next_deadline = ((now - this->started_us_) / refresh_us + 1) * refresh_us;
+  const auto next = std::min(this->duration_us_, std::max(after_handoff, next_deadline));
   if (next == this->duration_us_)
     return {this->target_, next};
   const int elapsed = static_cast<int>(next * open / this->duration_us_);
