@@ -1572,6 +1572,7 @@ void start_player() {
       return;
   } else {
     start_web_logs();
+    ESP_LOGI(tag, "Reset reason: %s", last_reset_reason().data());
     start_usb_setup(network);
   }
   // The standalone player also loads and normalizes its saved configuration at startup.
