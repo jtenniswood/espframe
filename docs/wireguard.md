@@ -19,8 +19,8 @@ WireGuard is off by default. Nothing changes for frames that do not use it.
 
 1. Generate a key pair for the frame with any WireGuard tool, such as `wg genkey | tee frame.key | wg pubkey`.
 2. On the server, add a peer using the frame's public key and allow only the frame's VPN address, for example `192.168.88.200/32`. Allow the VPN port through the server's firewall and let the VPN reach the Immich machine.
-3. Open the web UI at `http://<device-ip>/` and expand **WireGuard VPN** on the Immich tab.
-4. Fill in the fields, paste the frame's **private key**, and turn on **Connect through WireGuard**.
+3. Open the web UI at `http://<device-ip>/` and open **Immich → Connection** to configure WireGuard.
+4. Turn on **Connect through WireGuard**, open **Wireguard Vpn Settings**, and enter the connection details and the frame's **private key**.
 5. Press **Restart now**. WireGuard settings apply when the frame starts.
 
 | Field | What to enter |

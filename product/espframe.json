@@ -625,14 +625,9 @@
         ],
         "manual_entities": [
           "immich_url",
-          "api_key"
-        ]
-      },
-      {
-        "id": "wireguard",
-        "label": "WireGuard VPN",
-        "tab": "immich",
-        "function": "makeWireguardCard",
+          "api_key",
+          "wireguard_private_key"
+        ],
         "static_entities": [
           "wireguard_enabled",
           "wireguard_endpoint",
@@ -644,9 +639,6 @@
           "wireguard_connected",
           "wireguard_tunnel_enabled",
           "wireguard_handshake_age"
-        ],
-        "manual_entities": [
-          "wireguard_private_key"
         ]
       },
       {

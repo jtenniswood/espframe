@@ -33,7 +33,7 @@ let lastConfiguration
 let unchangedReads = 0
 let release = { current: 'v0.1.0-preview.9', versions: [], status: 'idle', available: true }
 let wifi = { current: '2.12.8', latest: '', status: 'idle' }
-let wireguard = { running: false, connected: false }
+let wireguard = { running: false, connected: false, restart_required: false }
 const snapshot = {
   api_version: 1, reset_epoch: 2, api_key_configured: true,
   secrets_configured: { wireguard_private_key: false },
@@ -139,14 +139,33 @@ const browserTest = String.raw`
     }
     await until(() => card('Frequency') && card('Photo Display') && card('Connection'), 'Immich cards')
     if (tab('Immich').getAttribute('aria-selected') !== 'true') throw new Error('Immich did not open first')
-    if (!tab('Logs') || !card('WireGuard VPN') || card('Screen Tone')) throw new Error('Incorrect controls appeared')
+    if (!tab('Logs') || card('WireGuard VPN') || card('Screen Tone')) throw new Error('Incorrect controls appeared')
     const rating = () => setting(card('Filters').closest('.card'), 'Filter by Rating')
     if (rating().tabIndex !== -1) throw new Error('Rating became available before discovery')
     await until(() => rating().tabIndex === 0, 'Immich to report support for structured filters')
-    const vpn = openCard('WireGuard VPN')
-    const vpnSwitch = setting(vpn, 'Connect through WireGuard')
-    if (vpnSwitch.getAttribute('aria-checked') !== 'false') throw new Error('WireGuard began enabled')
+    const vpnSwitch = setting(openCard('Connection'), 'Connect through WireGuard')
+    const vpn = vpnSwitch.closest('.wireguard')
+    if (getComputedStyle(vpn).borderTopWidth !== '1px') throw new Error('Missing WireGuard section divider')
+    const tunnel = vpnSwitch.parentElement.querySelector('#wireguard-status')
+    const notice = vpn.querySelector('.reset-backup-notice')
+    await until(() => tunnel.textContent.includes('Tunnel is off'), 'the offline WireGuard badge')
+    if (vpnSwitch.getAttribute('aria-checked') !== 'false' || getComputedStyle(notice).display !== 'none')
+      throw new Error('WireGuard began enabled or requested a restart before a change')
+    if (getComputedStyle(tunnel.querySelector('.dot')).backgroundColor !== getComputedStyle(tunnel).color)
+      throw new Error('The offline WireGuard badge is missing its grey indicator')
+    const panel = vpn.querySelector('.inline-disclosure')
+    const panelToggle = panel.querySelector('button')
+    if (panelToggle.textContent.trim() !== 'Wireguard Vpn Settings') throw new Error('Incorrect VPN panel title')
+    if (getComputedStyle(panel).display !== 'none') throw new Error('The VPN settings panel appeared while disabled')
     vpnSwitch.click()
+    await until(() => getComputedStyle(notice).display !== 'none', 'restart notice after saving WireGuard')
+    if (getComputedStyle(panel).display === 'none' || panelToggle.getAttribute('aria-expanded') !== 'false')
+      throw new Error('VPN settings did not start in a collapsed panel')
+    panelToggle.click()
+    if (getComputedStyle(panel.querySelector('.inline-disclosure-body')).display === 'none')
+      throw new Error('The VPN settings panel did not open')
+    const port = [...vpn.querySelectorAll('label')].find(label => label.textContent === 'Server Port').control
+    change(port, '51820')
     const serverAddress = [...vpn.querySelectorAll('label')].find(label => label.textContent === 'Server Address').control
     change(serverAddress, 'vpn.example.test')
     const privateKey = 'A'.repeat(43) + '='
@@ -156,7 +175,8 @@ const browserTest = String.raw`
     if (vpn.querySelector('input[type="password"]')) throw new Error('WireGuard key remained in the form')
     button(vpn, 'Restart now').click()
     await until(() => vpn.querySelector('#wireguard-status').textContent.includes('Connected'), 'WireGuard status after restart')
-    if (!vpn.querySelector('#wireguard-status').textContent.includes('handshake')) throw new Error('WireGuard handshake age was missing')
+    if (!tunnel.title.includes('handshake')) throw new Error('WireGuard handshake age was missing')
+    if (getComputedStyle(notice).display !== 'none') throw new Error('Restart notice remained after reboot')
     const select = openCard('Frequency').querySelector('select')
     if (select.value !== '15 seconds') throw new Error('Native configuration was not loaded')
     change(select, '30 seconds')
@@ -206,11 +226,12 @@ const browserTest = String.raw`
     change(url, 'new-photos.test')
     await until(() => connection.querySelector('#conn-status').textContent.trim() === 'URL saved', 'URL save and reconnect')
     if (url.value !== 'https://new-photos.test/api') throw new Error('Immich URL was not normalized')
-    button(connection, 'Change').click()
-    connection.querySelector('.input-group input').value = 'replacement-test-key'
-    button(connection, 'Save').click()
-    await until(() => connection.querySelector('.key-mask'), 'API key confirmation')
-    if (connection.querySelector('.input-group input')) throw new Error('Saved secret remained in the form')
+    const immichKey = [...connection.querySelectorAll('label')].find(label => label.textContent === 'API Key').closest('.field')
+    button(immichKey, 'Change').click()
+    immichKey.querySelector('.input-group input').value = 'replacement-test-key'
+    button(immichKey, 'Save').click()
+    await until(() => immichKey.querySelector('.key-mask'), 'API key confirmation')
+    if (immichKey.querySelector('.input-group input')) throw new Error('Saved secret remained in the form')
     tab('Device').click()
     if (tab('Device').getAttribute('aria-selected') !== 'true' ||
         !document.querySelector('#sp-settings.active') || !card('Rotation') || !card('Screen Brightness'))
@@ -310,7 +331,7 @@ const browserTest = String.raw`
     const albumPanel = [...openCard('Filters').querySelectorAll('details')].find(panel =>
       panel.querySelector('summary').textContent === 'Included Albums')
     albumPanel.open = true
-    const draft = [...openCard('WireGuard VPN').querySelectorAll('label')].find(label => label.textContent === 'Server Address').control
+    const draft = [...openCard('Connection').querySelectorAll('label')].find(label => label.textContent === 'Server Address').control
     draft.focus()
     draft.value = 'unsaved.example.test'
     await fetch('/test/remote-settings', { method: 'POST' })
@@ -406,6 +427,7 @@ const server = createServer(async (req, res) => {
         }
         if (api_key) snapshot.api_key_configured = true
         if (wireguard_private_key !== undefined) snapshot.secrets_configured.wireguard_private_key = !!wireguard_private_key
+        if (Object.keys(update.values).some(key => key.startsWith('wireguard_'))) wireguard.restart_required = true
         restartPending = !wasConfigured && !!(api_key || values.immich_url)
         return json({ api_version: 1, status: 'accepted', restart_required: restartPending })
       }
@@ -440,7 +462,7 @@ const server = createServer(async (req, res) => {
       assert.equal(req.headers.origin, 'http://' + req.headers.host)
       deviceActions.push('reboot')
       if (snapshot.values.wireguard_enabled && snapshot.secrets_configured.wireguard_private_key) {
-        wireguard = { running: true, connected: true, handshake_age: 5 }
+        wireguard = { running: true, connected: true, handshake_age: 5, restart_required: false }
       }
       return json({ status: 'accepted', restart_required: true })
     case '/espframe/api/v1/wireguard':

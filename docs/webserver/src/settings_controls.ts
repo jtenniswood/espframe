@@ -7,7 +7,6 @@
   function settingsCardRenderers() {
     return {
       makeConnectionCard: makeConnectionCard,
-      makeWireguardCard: makeWireguardCard,
       makeFrequencyCard: makeFrequencyCard,
       makeMemoriesCard: makeMemoriesCard,
       makeFiltersCard: makeFiltersCard,
@@ -80,7 +79,6 @@
     var settingsCardEntries = renderSettingsCardEntriesForTab("settings");
     if (!immichCards.length && !nativeAdmin) immichCards = [
       makeConnectionCard(),
-      makeWireguardCard(),
       makeFrequencyCard(),
       makePortraitPairingCard(),
       makeMemoriesCard(),
