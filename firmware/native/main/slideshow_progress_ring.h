@@ -41,7 +41,9 @@ inline void paint_slideshow_progress_ring(uint16_t *frame, const Viewport &viewp
       constexpr int edge_tenths = 40;
       const unsigned fill = progress_tenths == 0 ? 0 : progress_tenths == 3600 ? 255
           : std::clamp((progress_tenths - pixel.clockwise_tenths + edge_tenths / 2) * 255 / edge_tenths, 0, 255);
-      const unsigned white_coverage = (pixel.coverage * fill + 127) / 255;
+      constexpr unsigned indicator_opacity = 179;  // 70% opaque white.
+      const unsigned fill_coverage = (pixel.coverage * fill + 127) / 255;
+      const unsigned white_coverage = (fill_coverage * indicator_opacity + 127) / 255;
       constexpr unsigned track_opacity = 51;  // 20% opaque black.
       const unsigned black_coverage = ((pixel.coverage - white_coverage) * track_opacity + 127) / 255;
       const auto photo_coverage = 255 - white_coverage - black_coverage;
