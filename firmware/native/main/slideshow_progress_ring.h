@@ -7,13 +7,13 @@
 
 namespace espframe::native {
 
-inline void paint_slideshow_progress_ring(uint16_t *frame, const Viewport &viewport, int progress_degrees) {
+inline void paint_slideshow_progress_ring(uint16_t *frame, const Viewport &viewport, int progress_tenths) {
   constexpr int diameter = 32;
   constexpr int margin = 24;
   constexpr float outer_radius = 16;
   constexpr float inner_radius = 13;
   struct Pixel {
-    float clockwise_degrees{};
+    uint16_t clockwise_tenths{};
     uint8_t coverage{};
   };
   static const auto mask = [] {
@@ -24,8 +24,9 @@ inline void paint_slideshow_progress_ring(uint16_t *frame, const Viewport &viewp
         const float dy = y + 0.5f - outer_radius;
         const float radius = std::hypot(dx, dy);
         const float coverage = std::clamp(std::min(radius - inner_radius, outer_radius - radius) + 0.5f, 0.f, 1.f);
-        const float degrees = std::atan2(dx, -dy) * (180.f / 3.14159265359f);
-        pixels[y * diameter + x] = {degrees < 0 ? degrees + 360.f : degrees, static_cast<uint8_t>(coverage * 255)};
+        const float angle = std::atan2(dx, -dy) * (1800.f / 3.14159265359f);
+        pixels[y * diameter + x] = {static_cast<uint16_t>(angle < 0 ? angle + 3600.f : angle),
+                                    static_cast<uint8_t>(coverage * 255)};
       }
     }
     return pixels;
@@ -36,10 +37,17 @@ inline void paint_slideshow_progress_ring(uint16_t *frame, const Viewport &viewp
       const auto &pixel = mask[y * diameter + x];
       if (pixel.coverage == 0)
         continue;
-      const unsigned opacity = pixel.clockwise_degrees < progress_degrees ? pixel.coverage : (pixel.coverage + 1) / 2;
+      // Four degrees at the middle of the stroke is about one pixel.
+      constexpr int edge_tenths = 40;
+      const unsigned fill = progress_tenths == 0 ? 0 : progress_tenths == 3600 ? 255
+          : std::clamp((progress_tenths - pixel.clockwise_tenths + edge_tenths / 2) * 255 / edge_tenths, 0, 255);
+      const unsigned white_coverage = (pixel.coverage * fill + 127) / 255;
+      // 171/255 is 67% opaque. Leave 33% of the underlying photo visible.
+      const unsigned black_coverage = ((pixel.coverage - white_coverage) * 171 + 127) / 255;
+      const auto photo_coverage = 255 - white_coverage - black_coverage;
       auto &background = frame[viewport.offset(viewport.width - margin - diameter + x, margin + y)];
-      const auto blend = [opacity](unsigned channel, unsigned white) {
-        return channel + ((white - channel) * opacity + 127) / 255;
+      const auto blend = [white_coverage, photo_coverage](unsigned channel, unsigned white) {
+        return (channel * photo_coverage + white * white_coverage + 127) / 255;
       };
       background = static_cast<uint16_t>((blend(background >> 11, 31) << 11) |
                                         (blend((background >> 5) & 63, 63) << 5) |

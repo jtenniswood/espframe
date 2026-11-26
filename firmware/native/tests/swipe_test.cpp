@@ -399,12 +399,12 @@ int main() {
   const auto full_frame = start + 640'000;
   assert(!dwell.elapsed(full_frame, true, display_time));
   assert(!dwell.elapsed(full_frame + display_time - 1, true, display_time));
-  assert(dwell.progress_degrees(full_frame + display_time / 2, display_time) == 180);
+  assert(dwell.progress_tenths_of_a_degree(full_frame + display_time / 2, display_time) == 1800);
   assert(dwell.elapsed(full_frame + display_time, true, display_time));
-  assert(dwell.progress_degrees(full_frame + display_time * 2, display_time) == 360);
+  assert(dwell.progress_tenths_of_a_degree(full_frame + display_time * 2, display_time) == 3600);
   assert(dwell.elapsed(full_frame + display_time * 2, true, display_time));  // Waiting for a download.
   assert(!dwell.elapsed(full_frame + display_time * 2, false, display_time));  // A touch.
-  assert(dwell.progress_degrees(full_frame + display_time * 2, display_time) == 0);
+  assert(dwell.progress_tenths_of_a_degree(full_frame + display_time * 2, display_time) == 0);
   const auto new_frame = full_frame + display_time * 2 + 1;
   assert(!dwell.elapsed(new_frame, true, display_time));
   assert(!dwell.elapsed(new_frame + 11'000'000, true, 15'000'000));
@@ -418,12 +418,15 @@ int main() {
     const Viewport view(rotation);
     const int ring_left = view.width - 24 - 32;
     const auto ring_pixel = [&](int x, int y) { return frame[view.offset(ring_left + x, 24 + y)]; };
-    std::fill(frame.begin(), frame.end(), 0);
-    espframe::native::paint_slideshow_progress_ring(frame.data(), view, 90);
+    std::fill(frame.begin(), frame.end(), 0xffff);
+    espframe::native::paint_slideshow_progress_ring(frame.data(), view, 900);
     assert(ring_pixel(16, 1) == 0xffff);  // The arc starts clockwise from the top.
-    assert(ring_pixel(15, 1) == 0x8410);
-    assert(ring_pixel(16, 30) == 0x8410);  // White at 50% over black.
-    assert(ring_pixel(16, 16) == 0);  // The centre remains transparent.
+    assert(ring_pixel(15, 1) == 0x52aa);
+    assert(ring_pixel(16, 30) == 0x52aa);  // Black at 67% opacity over white.
+    assert(ring_pixel(16, 16) == 0xffff);  // The centre remains transparent.
+    std::fill(frame.begin(), frame.end(), 0xffff);
+    espframe::native::paint_slideshow_progress_ring(frame.data(), view, 20);
+    assert(ring_pixel(16, 1) > 0x52aa && ring_pixel(16, 1) < 0xffff);  // The advancing edge is blended.
   }
 
   const std::array<uint16_t, 6> left{0, 1, 2, 3, 4, 5};

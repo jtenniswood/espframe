@@ -314,8 +314,8 @@ lvgl:
             end_angle: 360
             rotation: 270
             arc_width: 3
-            arc_color: 0xFFFFFF
-            arc_opa: 50%
+            arc_color: 0x000000
+            arc_opa: 67%
             arc_rounded: false
             indicator:
               arc_width: 3
@@ -779,7 +779,7 @@ select:
 # =============================================================================
 
 interval:
-  - interval: 100ms
+  - interval: 40ms
     then:
       - lambda: |-
           const auto &state = id(espframe_core).slideshow().state();

@@ -1324,7 +1324,7 @@ void run(void *) {
       const bool advance_due = (!hold_photo || first_photo) && dwell.elapsed(now, dwelling, duration);
       if (dwelling && duration > 0 && !hold_photo &&
           active_slideshow_progress_ring.load(std::memory_order_relaxed))
-        ring_progress = dwell.progress_degrees(now, duration);
+        ring_progress = dwell.progress_tenths_of_a_degree(now, duration);
       if (advance_due && zoom_cache.release_before_transition()) {
         const auto anchor = swipe.settled();
         if (first_photo) {
