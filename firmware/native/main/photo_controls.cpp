@@ -30,7 +30,7 @@ void corner_insets(std::array<int, Size> &insets, int r) {
 }
 
 void paint_toolbar(uint16_t *output, ScreenRotation rotation, int progress) {
-  constexpr int reveal = 160;
+  constexpr int reveal = PhotoControls::open * 5 / 8;
   if (progress <= reveal)
     return;
   const int opacity = (progress - reveal) * PhotoControls::open / (PhotoControls::open - reveal);
@@ -106,17 +106,64 @@ int source_coordinate(int pixel, int size, int source_size, ScreenRotation rotat
   return oriented_axis((2 * logical + 1) * source_size / (2 * size), source_size, rotation);
 }
 
+constexpr int column_fraction_bits = 22;
+
+// A fixed-point scanline avoids a second memory load for each copied pixel.
+void scale_row(uint16_t *output, const uint16_t *source, int first, int end, uint32_t step, uint32_t origin) {
+  uint32_t phase = origin + first * step;
+  const auto twice = 2 * step;
+  const auto three = 3 * step;
+  const auto four = 4 * step;
+  for (; first + 4 <= end; first += 4, phase += four) {
+    output[first] = source[phase >> column_fraction_bits];
+    output[first + 1] = source[(phase + step) >> column_fraction_bits];
+    output[first + 2] = source[(phase + twice) >> column_fraction_bits];
+    output[first + 3] = source[(phase + three) >> column_fraction_bits];
+  }
+  for (; first < end; ++first, phase += step)
+    output[first] = source[phase >> column_fraction_bits];
+}
+
 }  // namespace
 
-int PhotoControls::progress(int64_t now) const {
-  if (this->start_ == this->target_ || now - this->started_us_ >= this->duration_us_)
-    return this->target_;
-  if (now <= this->started_us_)
-    return this->start_;
-  const int elapsed = static_cast<int>((now - this->started_us_) * open / this->duration_us_);
+PhotoControls::Frame PhotoControls::next_frame(int64_t now, int64_t refresh_us, bool clip_ready) const {
+  if (!this->animating())
+    return {this->target_, this->submitted_elapsed_us_};
+  if (this->start_ == this->target_ || now <= this->started_us_)
+    return {this->start_, 0};
+  const bool cacheable = std::abs(this->target_ - this->start_) == open && supports_cached_steps(refresh_us);
+  const auto after_handoff = this->submitted_elapsed_us_ + refresh_us;
+  const auto next_deadline = ((now - this->started_us_) / refresh_us + 1) * refresh_us;
+  // Cached sizes are ready ahead of scanout. A cold resize drops stale steps
+  // to keep the slower on-demand render on its animation timeline.
+  const auto planned = cacheable && clip_ready ? after_handoff : std::max(after_handoff, next_deadline);
+  const auto next = std::min(this->duration_us_, planned);
+  if (next == this->duration_us_)
+    return {this->target_, next};
+  if (cacheable) {
+    const int step = static_cast<int>((next + refresh_us - 1) / refresh_us);
+    return {cached_progress(this->target_open() ? step : cached_steps - step), next};
+  }
+  const int elapsed = static_cast<int>(next * open / this->duration_us_);
   // Start and end at rest so the largest steps are in the middle of the move.
   const int eased = elapsed * elapsed * (3 * open - 2 * elapsed) / (open * open);
-  return this->start_ + (this->target_ - this->start_) * eased / open;
+  const auto progress = this->start_ + (this->target_ - this->start_) * eased / open;
+  // A short interrupted move can round to the same value at two steps.
+  const auto visible = this->target_open() ? std::max(progress, this->submitted_progress_ + 1)
+                                           : std::min(progress, this->submitted_progress_ - 1);
+  return {visible, next};
+}
+
+void PhotoControls::submitted(Frame frame) {
+  this->submitted_progress_ = frame.progress;
+  this->submitted_elapsed_us_ = frame.elapsed_us;
+}
+
+void PhotoControls::presented(int64_t now) {
+  if (this->restore_text_ && this->submitted_progress_ == 0) {
+    this->text_started_us_ = now;
+    this->restore_text_ = false;
+  }
 }
 
 int64_t PhotoControls::text_duration() const {
@@ -125,6 +172,8 @@ int64_t PhotoControls::text_duration() const {
 }
 
 uint8_t PhotoControls::text_opacity(int64_t now) const {
+  if (this->restore_text_)
+    return 0;
   const int target = target_open() ? 0 : opaque;
   const auto duration = this->text_duration();
   if (duration == 0 || now - this->text_started_us_ >= duration)
@@ -134,23 +183,22 @@ uint8_t PhotoControls::text_opacity(int64_t now) const {
 }
 
 void PhotoControls::animate(bool show, int64_t now, bool text_visible) {
-  constexpr int64_t full_duration_us = 200'000;
   constexpr int64_t minimum_duration_us = 87'500;
   const int target = show ? open : 0;
   if (target == this->target_)
     return;
   this->text_from_ = show && !text_visible ? 0 : this->text_opacity(now);
-  this->start_ = this->progress(now);
+  this->start_ = this->submitted_progress_;
   this->target_ = target;
   this->started_us_ = now;
+  this->submitted_elapsed_us_ = 0;
   this->duration_us_ = minimum_duration_us +
-                       (full_duration_us - minimum_duration_us) * std::abs(target - this->start_) / open;
+                       (resize_duration_us - minimum_duration_us) * std::abs(target - this->start_) / open;
   // Fade on the full-size photo on either side of the resize.
   this->text_started_us_ = now;
+  this->restore_text_ = !show && this->start_ != 0;
   if (show)
     this->started_us_ += this->text_duration();
-  else if (this->start_ != 0)
-    this->text_started_us_ += this->duration_us_;
 }
 
 void PhotoControls::prepare(uint16_t *output, SlideSpan span, int pull, ScreenRotation rotation, int progress) {
@@ -173,11 +221,22 @@ void PhotoControls::prepare(uint16_t *output, SlideSpan span, int pull, ScreenRo
   this->columns_ = viewport.portrait ? width : height;
   this->rounding_ = lerp(0, radius, progress);
   corner_insets(this->corners_, this->rounding_);
+  if (!viewport.portrait || (span.offset == 0 && pull == 0)) {
+    constexpr auto range = static_cast<uint32_t>(panel_width) << column_fraction_bits;
+    const bool forward = axis_direction(rotation) > 0;
+    // With 22 fractional bits the accumulated error is below 1/(2*panel_width).
+    // Bias exact ties in opposite directions to preserve mirrored sampling.
+    const auto round = forward ? this->columns_ - 1 : 0;
+    this->column_step_ = (range + round) / this->columns_;
+    this->column_origin_ = (range / 2 + round) / this->columns_ - !forward;
+    return;
+  }
+  // A portrait swipe can cross two cached photos in a single physical row.
+  this->column_step_ = 0;
   this->source_split_ = this->columns_;
   for (int column = 0; column < this->columns_; ++column) {
     int source = source_coordinate(column, this->columns_, panel_width, rotation);
-    if (viewport.portrait)
-      source = std::clamp(source + span.offset + pull, 0, panel_width + span.offset - 1);
+    source = std::clamp(source + span.offset + pull, 0, panel_width + span.offset - 1);
     if (source >= panel_width) {
       this->source_split_ = std::min(this->source_split_, column);
       source -= panel_width;
@@ -204,8 +263,10 @@ void PhotoControls::draw_rows(int first, int end) const {
     std::fill_n(out, this->first_column_ + inset, background);
     auto *card = out + this->first_column_;
     const int last = this->columns_ - inset;
-    if (this->columns_ == panel_width && (!portrait || (this->span_.offset == 0 && this->pull_ == 0))) {
+    if (this->column_step_ && this->columns_ == panel_width) {
       copy_slide_rows(card, source, panel_width, 1);
+    } else if (this->column_step_) {
+      scale_row(card, source, inset, last, this->column_step_, this->column_origin_);
     } else {
       const auto sample = [&](const uint16_t *pixels, int column, int stop) {
         for (; column + 4 <= stop; column += 4) {

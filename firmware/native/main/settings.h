@@ -65,6 +65,7 @@ struct PhotoFeedSettings {
   uint8_t portrait_pairing_days{};
   DisplayMode display_mode{DisplayMode::Fit};
   PairFraming pair_framing{PairFraming::FollowPhotos};
+  PairDivider pair_divider{PairDivider::Black};
   PhotoOrientation photo_orientation{PhotoOrientation::Any};
   PhotoSource photo_source;
   PhotoFilters photo_filters;

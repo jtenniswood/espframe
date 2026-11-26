@@ -46,8 +46,6 @@ std::atomic<bool> guarded_restart{};
 std::optional<ResetMode> resetting;
 std::string authorization;
 
-extern const char page_start[] asm("_binary_settings_html_start");
-extern const char page_end[] asm("_binary_settings_html_end");
 extern const char admin_preview_start[] asm("_binary_admin_preview_html_start");
 extern const char admin_preview_end[] asm("_binary_admin_preview_html_end");
 extern const char admin_cards_start[] asm("_binary_admin_cards_js_start");
@@ -62,12 +60,6 @@ extern const char shared_style_start[] asm("_binary_style_css_start");
 extern const char shared_style_end[] asm("_binary_style_css_end");
 extern const char native_style_start[] asm("_binary_native_settings_css_start");
 extern const char native_style_end[] asm("_binary_native_settings_css_end");
-extern const char script_start[] asm("_binary_settings_js_start");
-extern const char script_end[] asm("_binary_settings_js_end");
-extern const char source_start[] asm("_binary_photo_source_mjs_start");
-extern const char source_end[] asm("_binary_photo_source_mjs_end");
-extern const char backup_start[] asm("_binary_backup_mjs_start");
-extern const char backup_end[] asm("_binary_backup_mjs_end");
 extern const char style_start[] asm("_binary_setup_css_start");
 extern const char style_end[] asm("_binary_setup_css_end");
 extern const char recovery_start[] asm("_binary_recovery_html_start");
@@ -232,15 +224,16 @@ esp_err_t admin_app(httpd_req_t *request) {
   return serve(request, "text/javascript", admin_app_start, admin_app_end);
 }
 
-esp_err_t device_tools(httpd_req_t *request) {
-  return serve(request, "text/html; charset=utf-8", page_start, page_end);
+esp_err_t redirect_to_admin(httpd_req_t *request) {
+  if (!authorize(request))
+    return ESP_OK;
+  httpd_resp_set_status(request, "302 Found");
+  httpd_resp_set_hdr(request, "Location", "/admin");
+  return httpd_resp_send(request, nullptr, 0);
 }
 esp_err_t shared_app(httpd_req_t *request) { return serve(request, "text/javascript", shared_app_start, shared_app_end); }
 esp_err_t shared_style(httpd_req_t *request) { return serve(request, "text/css", shared_style_start, shared_style_end); }
 esp_err_t native_style(httpd_req_t *request) { return serve(request, "text/css", native_style_start, native_style_end); }
-esp_err_t script(httpd_req_t *request) { return serve(request, "text/javascript", script_start, script_end); }
-esp_err_t source_script(httpd_req_t *request) { return serve(request, "text/javascript", source_start, source_end); }
-esp_err_t backup_script(httpd_req_t *request) { return serve(request, "text/javascript", backup_start, backup_end); }
 esp_err_t style(httpd_req_t *request) {
   if (hotspot_socket(request))
     return recovery_asset(request, "text/css", style_start, style_end);
@@ -722,6 +715,8 @@ esp_err_t firmware_status(httpd_req_t *request) {
   const auto status = firmware_boot_status();
   const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> document(cJSON_CreateObject(), cJSON_Delete);
   if (!document || !cJSON_AddBoolToObject(document.get(), "boot_verified", status.boot_verified) ||
+      !cJSON_AddStringToObject(document.get(), "reset_reason", last_reset_reason().data()) ||
+      !cJSON_AddNumberToObject(document.get(), "uptime_seconds", esp_timer_get_time() / 1'000'000) ||
       (is_firmware_test_build() && !cJSON_AddBoolToObject(document.get(), "ota_test_build", true)) ||
       (status.running && !add_firmware_image(document.get(), "running", *status.running)) ||
       (status.rejected && !add_firmware_image(document.get(), "rejected", *status.rejected)))
@@ -839,13 +834,10 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
       {.uri = "/native-settings", .method = HTTP_GET, .handler = native_settings, .user_ctx = &network},
       {.uri = "/espframe/admin.js", .method = HTTP_GET, .handler = admin_app, .user_ctx = &network},
       {.uri = "/espframe/admin-cards.js", .method = HTTP_GET, .handler = admin_cards, .user_ctx = &network},
-      {.uri = "/settings", .method = HTTP_GET, .handler = device_tools, .user_ctx = &network},
+      {.uri = "/settings", .method = HTTP_GET, .handler = redirect_to_admin, .user_ctx = &network},
       {.uri = "/espframe/app.js", .method = HTTP_GET, .handler = shared_app, .user_ctx = &network},
       {.uri = "/espframe/style.css", .method = HTTP_GET, .handler = shared_style, .user_ctx = &network},
       {.uri = "/espframe/native.css", .method = HTTP_GET, .handler = native_style, .user_ctx = &network},
-      {.uri = "/settings.js", .method = HTTP_GET, .handler = script, .user_ctx = &network},
-      {.uri = "/photo_source.mjs", .method = HTTP_GET, .handler = source_script, .user_ctx = &network},
-      {.uri = "/backup.mjs", .method = HTTP_GET, .handler = backup_script, .user_ctx = &network},
       {.uri = "/settings.css", .method = HTTP_GET, .handler = style, .user_ctx = &network},
       {.uri = "/api/playback", .method = HTTP_GET, .handler = current, .user_ctx = &network},
       {.uri = "/api/playback", .method = HTTP_POST, .handler = update, .user_ctx = &network},

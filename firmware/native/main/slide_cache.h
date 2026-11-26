@@ -27,6 +27,36 @@ class SlideCache {
 
   explicit SlideCache(const Buffers &buffers) : buffers_(buffers) {}
 
+  // The UI owns this lease until the zoom worker completes or acknowledges cancellation.
+  struct ReadLease {
+    const uint16_t *pixels;
+    size_t slot;
+    uint32_t revision;
+    uint32_t ticket;
+  };
+
+  std::optional<ReadLease> pin_ready(SlideIndex slide) {
+    if (read_)
+      return std::nullopt;
+    const auto slot = ready_slot(slide);
+    if (!slot)
+      return std::nullopt;
+    read_ = ReadLease{buffers_[*slot], *slot, entries_[*slot].ticket, ++ticket_};
+    return read_;
+  }
+
+  bool release(const ReadLease &lease) {
+    if (!read_ || read_->ticket != lease.ticket)
+      return false;
+    read_.reset();
+    return true;
+  }
+
+  bool is_current(SlideIndex slide, const ReadLease &lease) const {
+    const auto slot = ready_slot(slide);
+    return slot == lease.slot && entries_[*slot].ticket == lease.revision;
+  }
+
   size_t size() const {
     size_t allocated = 0;
     for (const auto *buffer : buffers_)
@@ -124,6 +154,8 @@ class SlideCache {
       const bool replaces_ready = replacement && entry.state == State::Ready && entry.slide == slide;
       if (entry.state != State::Empty && entry.slide == slide && !replaces_ready)
         return std::nullopt;
+      if (read_ && read_->slot == index)
+        continue;
       if (entry.state == State::Empty) {
         empty = index;
       } else if (entry.state == State::Ready && !replaces_ready &&
@@ -191,6 +223,7 @@ class SlideCache {
   Buffers buffers_;
   std::array<Entry, capacity> entries_{};
   uint32_t ticket_{};
+  std::optional<ReadLease> read_;
 };
 
 }  // namespace espframe::native

@@ -149,11 +149,13 @@ export function bindPhotoSource(form) {
 }
 
 export function bindPortraitPairing(form) {
-  const { portrait_pairing, portrait_pairs_only, portrait_pairing_range, portrait_pair_framing } = form.elements
+  const { portrait_pairing, portrait_pairs_only, portrait_pairing_range, portrait_pair_framing,
+    portrait_pair_divider } = form.elements
   const refresh = () => {
     portrait_pairs_only.disabled = !portrait_pairing.checked
     portrait_pairing_range.disabled = !portrait_pairing.checked
     if (portrait_pair_framing) portrait_pair_framing.disabled = !portrait_pairing.checked
+    if (portrait_pair_divider) portrait_pair_divider.disabled = !portrait_pairing.checked
   }
   portrait_pairing.addEventListener('change', refresh)
   refresh()

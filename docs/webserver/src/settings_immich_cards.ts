@@ -1307,10 +1307,7 @@
     if (portraitRotationActive) pairingRangeSelect.title = pairingOptionsDisabledTitle;
     fPairingRange.appendChild(pairingRangeSelect);
     pairingOptionsBody.appendChild(fPairingRange);
-    if (nativeSettings.has("portrait_pair_framing")) {
-      pairingOptionsBody.appendChild(window["espframePairFraming"](field, selectFromOptions, S.portrait_pair_framing,
-        function (value) { saveSetting("portrait_pair_framing", value); }));
-    }
+    window["espframeNativePortraitPairing"]?.(pairingOptionsBody, field, selectFromOptions, nativeSettings, S, saveSetting);
 
     pairingBody.appendChild(pairingToggle.field);
     pairingOptionsBody.style.display = pairingEnabled ? "" : "none";

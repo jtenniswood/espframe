@@ -137,7 +137,9 @@ void Display::init_backlight(uint8_t brightness) {
 }
 
 void Display::set_backlight(uint8_t brightness) const {
-  ESP_ERROR_CHECK(ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, backlight_duty(brightness), 0));
+  // The player task owns this channel. The combined API requires the LEDC fade service.
+  ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, backlight_duty(brightness)));
+  ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0));
 }
 
 unsigned Display::nominal_frame_period_us() {
@@ -196,6 +198,25 @@ uint16_t *Display::writable_buffer() {
   return index == FrameSlots::none ? nullptr : this->buffers_[index];
 }
 
+uint16_t *Display::preparation_buffer() {
+  const auto index = this->slots_.preparation_slot();
+  return index == FrameSlots::none ? nullptr : this->buffers_[index];
+}
+
+uint16_t *Display::reserve_preparation_buffer() {
+  const auto index = this->slots_.reserve_preparation();
+  return index == FrameSlots::none ? nullptr : this->buffers_[index];
+}
+
+void Display::release_preparation_buffer(const uint16_t *buffer) {
+  for (unsigned index = 0; index < FrameSlots::none; ++index) {
+    if (this->buffers_[index] == buffer) {
+      this->slots_.release_preparation(index);
+      return;
+    }
+  }
+}
+
 const uint16_t *Display::pin_handoff() {
   if (this->borrowing())
     return nullptr;
@@ -204,9 +225,19 @@ const uint16_t *Display::pin_handoff() {
 }
 
 bool Display::submit(PixelPosition position, [[maybe_unused]] const ScanoutFrame *frame,
-                     [[maybe_unused]] std::optional<SlideRange> sources) {
-  const auto index = this->slots_.writable();
-  ESP_ERROR_CHECK(index == FrameSlots::none ? ESP_ERR_INVALID_STATE : ESP_OK);
+                     [[maybe_unused]] std::optional<SlideRange> sources, const uint16_t *prepared) {
+  auto index = this->slots_.writable();
+  if (prepared) {
+    for (unsigned candidate = 0; candidate < FrameSlots::none; ++candidate) {
+      if (this->buffers_[candidate] == prepared && this->slots_.can_submit(candidate)) {
+        index = candidate;
+        break;
+      }
+    }
+    if (index == FrameSlots::none || this->buffers_[index] != prepared)
+      return false;
+  }
+  ESP_ERROR_CHECK(this->slots_.can_submit(index) ? ESP_OK : ESP_ERR_INVALID_STATE);
 #if SWIPE_LINKED_SCANOUT
   static_assert(ScanoutFrame::segment_count == ESPFRAME_DPI_SEGMENTS);
   const auto error = espframe_dpi_submit_frame(this->panel_, index, this->buffers_[index],

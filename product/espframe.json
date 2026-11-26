@@ -1390,7 +1390,6 @@
     "web_local_state_keys": [
       "api_key_configured",
       "immich_filter_support",
-      "portrait_pair_framing",
       "photo_source_mode",
       "album_id",
       "wireguard_available",
@@ -2000,7 +1999,7 @@
     "esphome_docker_image": "ghcr.io/esphome/esphome",
     "esphome_config_mount": "/config",
     "esphome_docker_remove_container": true,
-    "esphome_version": "2026.11.0"
+    "esphome_version": "2026.11.1"
   },
   "devices": [
     {

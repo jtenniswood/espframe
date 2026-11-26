@@ -516,15 +516,19 @@ bool read_capture_dates(const cJSON *root, CaptureDateSettings &dates) {
 bool read_pairing(const cJSON *root, Settings &settings) {
   std::string range{portrait_pairing_ranges[settings.portrait_pairing_days]};
   std::string framing{pair_framing_name(settings.pair_framing)};
+  std::string divider{pair_divider_name(settings.pair_divider)};
   if (!read_flag(root, "portrait_pairing", settings.portrait_pairing) ||
       !read_flag(root, "portrait_pairs_only", settings.portrait_pairs_only) ||
       !read_field(root, "portrait_pairing_range", range, true) ||
-      !read_field(root, "portrait_pair_framing", framing, true))
+      !read_field(root, "portrait_pair_framing", framing, true) ||
+      !read_field(root, "portrait_pair_divider", divider, true) ||
+      (divider != "Black" && divider != "White"))
     return false;
   const auto match = std::find(portrait_pairing_ranges.begin(), portrait_pairing_ranges.end(), range);
   if (match == portrait_pairing_ranges.end())
     return false;
   settings.portrait_pairing_days = std::distance(portrait_pairing_ranges.begin(), match);
+  settings.pair_divider = divider == "White" ? PairDivider::White : PairDivider::Black;
   for (auto choice : {PairFraming::FollowPhotos, PairFraming::Fill, PairFraming::Fit}) {
     if (framing == pair_framing_name(choice)) {
       settings.pair_framing = choice;
@@ -784,7 +788,8 @@ bool changes_photo_selection(std::string_view key) {
 
 bool changes_photo_presentation(std::string_view key) {
   constexpr std::string_view options[]{
-      "display_mode", "portrait_pair_framing", "photo_metadata_date_enabled", "photo_metadata_location_enabled",
+      "display_mode", "portrait_pair_framing", "portrait_pair_divider", "photo_metadata_date_enabled",
+      "photo_metadata_location_enabled",
       "photo_metadata_date_format", "photo_metadata_date_taken_format", "device_language", "base_tone_enabled", "base_tone",
       "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override", "show_clock", "timezone"};
   return std::ranges::find(options, key) != std::end(options);
@@ -947,6 +952,9 @@ Settings::UsbSaveResult Settings::save_usb(const char *json, std::optional<uint3
   }
   if (!provided("portrait_pair_framing") && saved.pair_framing != PairFraming::FollowPhotos &&
       !cJSON_AddStringToObject(document.get(), "portrait_pair_framing", pair_framing_name(saved.pair_framing)))
+    return Result::Rejected;
+  if (!provided("portrait_pair_divider") && saved.pair_divider != PairDivider::Black &&
+      !cJSON_AddStringToObject(document.get(), "portrait_pair_divider", pair_divider_name(saved.pair_divider)))
     return Result::Rejected;
   if (configured && !provided("conn_timeout") && saved.connection_timeout_seconds != default_connection_timeout &&
       !cJSON_AddStringToObject(document.get(), "conn_timeout", interval_label(saved.connection_timeout_seconds).c_str()))
@@ -1130,6 +1138,7 @@ bool Settings::add_playback_fields(cJSON *object, PhotoFilterUpdate filter_updat
          cJSON_AddBoolToObject(object, "portrait_pairs_only", portrait_pairs_only) &&
          cJSON_AddStringToObject(object, "portrait_pairing_range", portrait_pairing_ranges[portrait_pairing_days].data()) &&
          cJSON_AddStringToObject(object, "portrait_pair_framing", pair_framing_name(pair_framing)) &&
+         cJSON_AddStringToObject(object, "portrait_pair_divider", pair_divider_name(pair_divider)) &&
          cJSON_AddStringToObject(object, "display_mode", display_mode_name(display_mode)) &&
          cJSON_AddStringToObject(object, "photo_orientation", photo_orientation_name(photo_orientation)) &&
          cJSON_AddStringToObject(object, "screen_rotation", screen_rotation_name(screen_rotation)) &&
@@ -1274,7 +1283,7 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   if (!settings.add_playback_fields(next.get()))
     return UpdateResult::Failed;
   const bool fixed_night_brightness = previous_night_brightness != settings.brightness_night;
-  // The device-tools form sends a full snapshot. Classify the actual changes
+  // Playback clients can send a full snapshot. Classify the actual changes
   // after validation, including an explicitly pinned night brightness.
   bool restart = !was_configured || !settings.has_immich();
   bool changed = connection_changed || fixed_night_brightness ||

@@ -214,7 +214,7 @@ whether applying the save requires a restart.
 The API key is write-only. Under **Device → Factory Reset**, use
 **Partial reset** to clear both photo connections and restore playback
 and display defaults. The frame retains Wi-Fi and the web settings password,
-so you can reconnect Immich from the same page after it restarts. The shared
+so you can reconnect Immich from the main admin after it restarts. The shared
 configuration API reports the new reset epoch and rejects stale writes that
 carry an earlier epoch. A complete reset also clears Wi-Fi and returns the
 frame to first-time setup.
@@ -279,6 +279,9 @@ flash erase.
 
 ### Update the native firmware from the web settings
 
+Open **Device → Firmware** to check for and install published Native Preview
+releases or configure automatic updates.
+
 Download the installer artifact for the build you want to use. Open
 **Device → Firmware → Upload firmware file**, select `v1-ota.bin`, `v2-ota.bin` or
 `v3-ota.bin` for the revision shown, then select **Install update and restart**. Use
@@ -286,16 +289,24 @@ images from builds you trust. The package includes SHA-256 checksums for those
 files. The prototype checks image integrity and board identity and accepts
 unsigned firmware.
 
-The installer preserves ESPHome's update preferences in native settings
-exports for a future restore to ESPHome. Manual upload also works with local
-builds and when the release feed is unavailable.
+To install a local build over Wi-Fi, use the native OTA API. Verify the
+SHA-256 checksum of the accompanying `v1-ota.bin`, `v2-ota.bin`, or
+`v3-ota.bin` for your board and use an image from a build you trust. Set
+`FRAME_URL` to the frame’s HTTP address and use the matching file.
 
-The frame writes to an inactive slot and restarts after validating the image.
-The first boot must initialize the display, submit a frame and read the touch
-controller. Keep the update page open to see whether startup passed or whether
-the frame returned to the previous firmware. If the upload is interrupted,
-the page lets you retry. Wi-Fi and Immich settings are stored in the dedicated
-settings partition.
+```sh
+curl --fail-with-body -H "Origin: $FRAME_URL" \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @v1-ota.bin "$FRAME_URL/api/firmware"
+```
+
+Add `--user espframe` if the frame has a web settings password. The frame
+validates the image and board identity, writes to the inactive slot, and
+restarts. After it reconnects, read `GET /api/firmware` and check that
+`running` matches the upload response’s `target` and `boot_verified` is
+true. Wi-Fi and Immich settings stay in the dedicated settings partition.
+The installer keeps ESPHome’s update preferences in native backups for a
+future restore to ESPHome.
 
 #### Test an interrupted upload and failed startup
 
@@ -316,13 +327,14 @@ the recovery images are kept outside regular installer packages and updates.
 
    The tool lets a partial transfer time out and verifies that the original
    image is still serving settings.
-3. Upload `native-ota-test-v1-baseline.bin` in the frame's web settings.
-   Keep the page open and verify that it reports successful startup. This
+3. Upload `native-ota-test-v1-baseline.bin` with the OTA API command above.
+   Verify that `GET /api/firmware` reports the new image as verified. This
    places a verified image in the first OTA slot.
-4. Upload `native-ota-test-v1-fail.bin`. This image leaves its startup
-   check pending, then the normal timeout requests rollback. Verify that
-   the page reports return to the previous firmware, the slideshow and
-   touch work, and the exported settings match the earlier backup values.
+4. Upload `native-ota-test-v1-fail.bin` through the same API. This image
+   leaves its startup check pending, then the normal timeout requests
+   rollback. Verify that `GET /api/firmware` reports the baseline image
+   running, the slideshow and touch work, and the exported settings match
+   the earlier backup values.
 5. Restore the test frame with its regular native or ESPHome installer over USB.
 
 To build the pair locally, configure the native firmware with
@@ -378,7 +390,7 @@ c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Ifirmware/native/te
 /tmp/espframe-recent-previews-test
 python3 firmware/native/tests/test_preview_decoder.py
 node firmware/native/tests/serial_setup_test.mjs
-node firmware/native/tests/photo_source_browser_test.mjs
+node firmware/native/tests/shared_admin_browser_test.mjs
 ```
 
 ## Connect to Immich with the ESP-IDF USB tools

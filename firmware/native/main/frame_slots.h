@@ -12,14 +12,33 @@ class FrameSlots {
   bool can_pin() const { return count_ == 3; }
   bool queued() const { return pending_ != none; }
 
-  unsigned writable() const {
-    if (!queued()) {
-      for (unsigned index = 0; index < count_; ++index) {
-        if (index != front_ && index != pinned_)
-          return index;
-      }
-    }
+  unsigned preparation_slot() const {
+    for (unsigned index = 0; index < count_; ++index)
+      if (index != front_ && index != pinned_ && index != pending_ && index != reserved_)
+        return index;
     return none;
+  }
+
+  bool can_submit(unsigned index) const {
+    return !queued() && index < count_ && index != front_ && index != pinned_ && index != reserved_;
+  }
+
+  unsigned writable() const { return queued() ? none : preparation_slot(); }
+
+  // Idle zoom preparation borrows only an extra framebuffer. The usual
+  // double buffering remains available for a swipe while work cancels.
+  unsigned reserve_preparation() {
+    if (!can_pin() || queued() || reserved_ != none || pinned_ != none)
+      return none;
+    reserved_ = preparation_slot();
+    return reserved_;
+  }
+
+  bool release_preparation(unsigned index) {
+    if (index == none || index != reserved_)
+      return false;
+    reserved_ = none;
+    return true;
   }
 
   void submit(unsigned index) { pending_ = index; }
@@ -43,6 +62,7 @@ class FrameSlots {
   unsigned front_{};
   unsigned pending_{none};
   unsigned pinned_{none};
+  unsigned reserved_{none};
 };
 
 }  // namespace espframe::native

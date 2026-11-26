@@ -107,6 +107,12 @@ for (const framing of ['Follow photo framing', 'Fit', 'Fill']) {
   const result = readBackup({ ...stock, photos: { ...legacyPhotos, portrait_pair_framing: framing } })
   assert.equal(result.settings.portrait_pair_framing, framing)
 }
+for (const colour of ['Black', 'White']) {
+  const restored = readBackup({ version: 3, photos: { portrait_pair_divider: colour } })
+  assert.equal(restored.settings.portrait_pair_divider, colour)
+}
+assert.equal(readBackup({ version: 3, photos: { portrait_pair_divider: 'Grey' } }).settings.portrait_pair_divider, undefined)
+
 const invalidPairFraming = readBackup({ ...stock, photos: { ...legacyPhotos, portrait_pair_framing: 'Stretch' } })
 assert.equal(invalidPairFraming.settings.portrait_pair_framing, undefined)
 const invalidUpdates = readBackup({

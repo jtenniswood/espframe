@@ -184,6 +184,19 @@ void verify_pair(const char *primary_path, const char *companion_path) {
   std::vector<uint16_t> rotated(pixel_count);
   assert(left.render(rotated.data(), &right, DisplayMode::Fill, ScreenRotation::UpsideDown));
   assert(replay_pair_fills_panes(rotated.data(), ScreenRotation::UpsideDown));
+  for (const auto rotation : {ScreenRotation::Normal, ScreenRotation::UpsideDown}) {
+    assert(left.render(rotated.data(), &right, DisplayMode::Fill, rotation));
+    const auto undivided = rotated;
+    const Viewport viewport{rotation};
+    for (const auto divider : {PairDivider::Black, PairDivider::White}) {
+      paint_portrait_pair_divider(rotated.data(), rotation, divider);
+      auto expected = undivided;
+      for (int y = 0; y < viewport.height; ++y)
+        expected[viewport.offset(portrait_pair_width, y)] = divider == PairDivider::White ? 0xffff : 0;
+      assert(rotated == expected);
+    }
+  }
+  assert(left.render(rotated.data(), &right, DisplayMode::Fill, ScreenRotation::UpsideDown));
   const auto seam = panel_offset(portrait_pair_width, panel_width - 1, ScreenRotation::UpsideDown);
   const auto seam_pixel = rotated[seam];
   rotated[seam] = 0x1082;

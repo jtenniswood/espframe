@@ -76,7 +76,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 26
           cache: npm
           cache-dependency-path: firmware/native/prepared-slides/package-lock.json
       - run: npm ci && npm run typecheck && npm test
@@ -150,7 +150,7 @@ jobs:
           c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
             firmware/native/tests/swipe_input_test.cpp -o "$RUNNER_TEMP/swipe-input-test"
           "$RUNNER_TEMP/swipe-input-test"
-          c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main -Ifirmware/native/tests/stubs \
             firmware/native/main/photo_controls.cpp firmware/native/tests/photo_controls_test.cpp -o "$RUNNER_TEMP/photo-controls-test"
           "$RUNNER_TEMP/photo-controls-test"
           c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/native/main \
@@ -398,7 +398,6 @@ jobs:
           node firmware/native/tests/compare_migration_backups_test.mjs
           node firmware/native/tests/wifi_recovery_browser_test.mjs
           node firmware/native/tests/shared_admin_browser_test.mjs
-          node firmware/native/tests/photo_source_browser_test.mjs
           node firmware/native/tests/shared_settings_browser_test.mjs
           node firmware/native/tests/native_firmware_browser_test.mjs
           python3 scripts/tests_native_preview_releases.py

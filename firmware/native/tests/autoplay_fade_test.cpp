@@ -72,4 +72,21 @@ int main() {
   assert(triple_buffer.writable() == 2);
   triple_buffer.unpin();
   assert(triple_buffer.writable() == 0);
+
+  FrameSlots zoom_buffers{3};
+  const auto scratch = zoom_buffers.reserve_preparation();
+  assert(scratch == 1 && !zoom_buffers.can_submit(scratch));
+  assert(zoom_buffers.reserve_preparation() == FrameSlots::none);
+  const auto swipe_frame = zoom_buffers.writable();
+  assert(swipe_frame == 2);
+  zoom_buffers.submit(swipe_frame);
+  assert(zoom_buffers.preparation_slot() == FrameSlots::none);
+  zoom_buffers.latch();
+  assert(zoom_buffers.writable() == 0);
+  assert(zoom_buffers.release_preparation(scratch));
+  assert(!zoom_buffers.release_preparation(scratch));
+  zoom_buffers.submit(0);
+  assert(zoom_buffers.preparation_slot() == scratch);
+  zoom_buffers.latch();
+  assert(zoom_buffers.can_submit(scratch));
 }

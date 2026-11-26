@@ -170,6 +170,7 @@ cJSON *configuration_snapshot(const Settings &settings, std::optional<SolarTimes
       !cJSON_AddStringToObject(values, "immich_filter_support", search_api == ImmichSearchApi::Structured ? "structured" :
                                                              search_api == ImmichSearchApi::Legacy ? "legacy" : "unknown") ||
       !cJSON_AddStringToObject(values, "portrait_pair_framing", pair_framing_name(settings.pair_framing)) ||
+      !cJSON_AddStringToObject(values, "portrait_pair_divider", pair_divider_name(settings.pair_divider)) ||
       !cJSON_AddStringToObject(values, "photo_source_mode", photo_source_name(settings.photo_source.mode)) ||
       !cJSON_AddStringToObject(values, "album_id", settings.photo_source.album_id.c_str()) ||
       !cJSON_AddStringToObject(values, "prepared_slide_url", settings.prepared_slide_url.c_str()) ||
@@ -333,7 +334,7 @@ ConfigurationUpdate update_configuration(const char *json) {
       continue;
     }
     if (requested_key == "prepared_slide_url" || requested_key == "prepared_slide_token" ||
-        requested_key == "portrait_pair_framing") {
+        requested_key == "portrait_pair_framing" || requested_key == "portrait_pair_divider") {
       if (!cJSON_IsString(value) || cJSON_HasObjectItem(update.get(), value->string))
         return {"422 Unprocessable Entity", "invalid_value", value->string};
       if (!add_copy(update.get(), value->string, value))
