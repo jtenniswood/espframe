@@ -143,10 +143,22 @@ const browserTest = String.raw`
     const rating = () => setting(card('Filters').closest('.card'), 'Filter by Rating')
     if (rating().tabIndex !== -1) throw new Error('Rating became available before discovery')
     await until(() => rating().tabIndex === 0, 'Immich to report support for structured filters')
-    const vpn = openCard('WireGuard VPN')
+    const vpnToggle = card('WireGuard VPN')
+    const vpn = vpnToggle.closest('.card')
+    const vpnBadge = vpn.querySelector('.on-badge')
+    const badgeVisible = () => getComputedStyle(vpnBadge).display !== 'none'
+    if (vpnToggle.getAttribute('aria-expanded') !== 'false' || badgeVisible())
+      throw new Error('The collapsed VPN card showed an On badge while disabled')
+    openCard('WireGuard VPN')
     const vpnSwitch = setting(vpn, 'Connect through WireGuard')
     if (vpnSwitch.getAttribute('aria-checked') !== 'false') throw new Error('WireGuard began enabled')
     vpnSwitch.click()
+    await until(() => savedValue('wireguard_enabled', true), 'WireGuard to be enabled')
+    vpnToggle.click()
+    if (vpnBadge.textContent !== 'On' || !badgeVisible())
+      throw new Error('The collapsed VPN card is missing the On badge before restart')
+    openCard('WireGuard VPN')
+    if (badgeVisible()) throw new Error('The expanded VPN card showed the On badge')
     const serverAddress = [...vpn.querySelectorAll('label')].find(label => label.textContent === 'Server Address').control
     change(serverAddress, 'vpn.example.test')
     const privateKey = 'A'.repeat(43) + '='

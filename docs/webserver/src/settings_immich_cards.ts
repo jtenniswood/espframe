@@ -230,11 +230,10 @@
     return value === true || value === "true" || value === "ON";
   }
 
-  function updateWireguardStatus(statusEl, badgeEl) {
+  function updateWireguardStatus(statusEl) {
     if (!statusEl) return;
     if (S.wireguard_connected === undefined || S.wireguard_connected === "") {
       statusEl.style.display = "none";
-      setBadgeActive(badgeEl, false);
       return;
     }
     statusEl.style.display = "";
@@ -245,11 +244,10 @@
     if (age) message += " \u00b7 last handshake " + age;
     if (!!S.wireguard_enabled !== running) message += " \u00b7 restart to apply the saved setting";
     setStatus(statusEl, message, connected ? "green" : (running ? "red" : "orange"));
-    setBadgeActive(badgeEl, connected);
   }
 
   function updateWireguardStatusFromPage() {
-    updateWireguardStatus(document.getElementById("wireguard-status"), document.getElementById("wireguard-badge"));
+    updateWireguardStatus(document.getElementById("wireguard-status"));
   }
 
   function makeWireguardCard() {
@@ -258,9 +256,8 @@
     var body = el("div");
     var tunnelStatus = el("div", "status mb-12");
     tunnelStatus.id = "wireguard-status";
-    var tunnelBadge = makeBadge(false, "Connected");
-    tunnelBadge.id = "wireguard-badge";
-    updateWireguardStatus(tunnelStatus, tunnelBadge);
+    var enabledBadge = makeBadge(!!S.wireguard_enabled);
+    updateWireguardStatus(tunnelStatus);
     body.appendChild(tunnelStatus);
     var status = el("div", "status mb-12");
     var restartNotice = el("div", "reset-backup-notice mb-12");
@@ -299,6 +296,7 @@
       getValue: function () { return !!S.wireguard_enabled; },
       setValue: function (value) { S.wireguard_enabled = value; },
       details: detailsBody,
+      badge: enabledBadge,
       onChange: function () {
         saveSetting("wireguard_enabled", !!S.wireguard_enabled).then(function () {
           saved("Saved");
@@ -449,13 +447,13 @@
     body.appendChild(detailsBody);
     body.appendChild(status);
     body.appendChild(restartNotice);
-    var card = makeCollapsibleCard("WireGuard VPN", body, true, tunnelBadge);
+    var card = makeCollapsibleCard("WireGuard VPN", body, true, enabledBadge);
     if (nativeAdmin) {
       window["espframeWatchWireguard"](card, function (state) {
         S.wireguard_connected = state.connected;
         S.wireguard_tunnel_enabled = state.running;
         S.wireguard_handshake_age = state.handshake_age;
-        updateWireguardStatus(tunnelStatus, tunnelBadge);
+        updateWireguardStatus(tunnelStatus);
       });
     }
     return card;
