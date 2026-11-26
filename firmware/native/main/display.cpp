@@ -137,7 +137,9 @@ void Display::init_backlight(uint8_t brightness) {
 }
 
 void Display::set_backlight(uint8_t brightness) const {
-  ESP_ERROR_CHECK(ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, backlight_duty(brightness), 0));
+  // The player task owns this channel. The combined API requires the LEDC fade service.
+  ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, backlight_duty(brightness)));
+  ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0));
 }
 
 unsigned Display::nominal_frame_period_us() {
