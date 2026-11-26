@@ -274,7 +274,7 @@
     }
 
     var detailsBody = el("div");
-    var panel = makeInlineDisclosure("VPN settings", detailsBody, false);
+    var panel = makeInlineDisclosure("Wireguard Vpn Settings", detailsBody, false);
     var enabled = toggleSettingRow({
       label: "Connect through WireGuard",
       value: !!S.wireguard_enabled,

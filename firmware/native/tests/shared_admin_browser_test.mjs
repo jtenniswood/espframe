@@ -154,6 +154,7 @@ const browserTest = String.raw`
       throw new Error('The offline WireGuard badge is missing its grey indicator')
     const panel = vpn.querySelector('.inline-disclosure')
     const panelToggle = panel.querySelector('button')
+    if (panelToggle.textContent.trim() !== 'Wireguard Vpn Settings') throw new Error('Incorrect VPN panel title')
     if (getComputedStyle(panel).display !== 'none') throw new Error('The VPN settings panel appeared while disabled')
     vpnSwitch.click()
     await until(() => getComputedStyle(notice).display !== 'none', 'restart notice after saving WireGuard')
