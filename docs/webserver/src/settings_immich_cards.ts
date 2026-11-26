@@ -267,7 +267,7 @@
     restartNotice.style.display = "none";
     var restartText = el("span");
     restartText.textContent = "WireGuard changes apply after the frame restarts.";
-    var restartButton = button("Restart now", "btn btn-secondary btn-sm", function () {
+    var restartButton = button("Restart now", "btn btn-primary btn-sm", function () {
       restartButton.disabled = true;
       restartButton.textContent = "Restarting...";
       rebootFrame()
