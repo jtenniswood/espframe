@@ -1062,6 +1062,22 @@ to {
   white-space:nowrap
 }
 
+.wireguard {
+  border-top:1px solid var(--border);
+  padding-top:16px
+}
+
+#wireguard-status {
+  background:var(--surface2);
+  color:var(--text2);
+  white-space:normal;
+  line-height:1.25
+}
+
+#wireguard-status .dot.orange {
+  background:var(--text2)
+}
+
 .disclosure-badge-dot {
   width:7px;
   height:7px;

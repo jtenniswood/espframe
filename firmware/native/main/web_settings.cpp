@@ -381,10 +381,21 @@ esp_err_t capabilities(httpd_req_t *request) {
 esp_err_t wireguard_state(httpd_req_t *request) {
   if (!authorize(request))
     return ESP_OK;
+  static std::optional<uint32_t> wireguard_revision;
+  static bool restart_required{};
+  const auto revision = Settings::storage_revision();
+  if (wireguard_revision != revision) {
+    Settings saved;
+    if (saved.read()) {
+      restart_required = network(request).wireguard_restart_required(saved);
+      wireguard_revision = revision;
+    }
+  }
   const auto state = wireguard_status();
   const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> body(cJSON_CreateObject(), cJSON_Delete);
   if (!body || !cJSON_AddBoolToObject(body.get(), "running", state.running) ||
       !cJSON_AddBoolToObject(body.get(), "connected", state.connected) ||
+      (wireguard_revision == revision && !cJSON_AddBoolToObject(body.get(), "restart_required", restart_required)) ||
       (state.handshake_age && !cJSON_AddNumberToObject(body.get(), "handshake_age", *state.handshake_age)))
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Unable to read WireGuard status.");
   return send_configuration(request, body.get());

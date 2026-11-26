@@ -492,7 +492,7 @@
   var FIRMWARE_MANIFEST_URLS = { "stable": "https://jtenniswood.github.io/espframe/firmware/manifest.json", "devices": { "immich-frame": { "stable": "https://jtenniswood.github.io/espframe/firmware/manifest.json", "beta": "https://jtenniswood.github.io/espframe/firmware/beta/manifest.json" }, "immich-frame-v2": { "stable": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v2/manifest.json", "beta": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v2/beta/manifest.json" }, "immich-frame-v3": { "stable": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v3/manifest.json", "beta": "https://jtenniswood.github.io/espframe/firmware/jc8012p4a1-v3/beta/manifest.json" } } };
   var DOCS_BASE_URL = "https://jtenniswood.github.io/espframe";
   var WEB_UI_TABS = [{ "id": "immich", "label": "Immich" }, { "id": "settings", "label": "Device" }, { "id": "logs", "label": "Logs" }];
-  var WEB_UI_CARDS = [{ "id": "connection", "label": "Connection", "tab": "immich", "section": "", "function": "makeConnectionCard", "settings": ["conn_timeout"], "staticEntities": [], "manualEntities": ["immich_url", "api_key"] }, { "id": "wireguard", "label": "WireGuard VPN", "tab": "immich", "section": "", "function": "makeWireguardCard", "settings": [], "staticEntities": ["wireguard_enabled", "wireguard_endpoint", "wireguard_port", "wireguard_address", "wireguard_netmask", "wireguard_allowed_ips", "wireguard_peer_public_key", "wireguard_connected", "wireguard_tunnel_enabled", "wireguard_handshake_age"], "manualEntities": ["wireguard_private_key"] }, { "id": "frequency", "label": "Frequency", "tab": "immich", "section": "", "function": "makeFrequencyCard", "settings": ["interval"], "staticEntities": [], "manualEntities": [] }, { "id": "portrait_pairing", "label": "Portrait Pairing", "tab": "immich", "section": "", "function": "makePortraitPairingCard", "settings": ["portrait_pairing", "portrait_pairs_only", "portrait_pairing_range"], "staticEntities": [], "manualEntities": [] }, { "id": "memories", "label": "Memories", "tab": "immich", "section": "", "function": "makeMemoriesCard", "settings": ["memories_window", "memories_fallback"], "staticEntities": ["memories_migration_notice"], "manualEntities": [] }, { "id": "photo_source", "label": "Filters", "tab": "immich", "section": "", "function": "makeFiltersCard", "settings": ["photo_source", "albums_enabled", "people_enabled", "tags_enabled", "date_filter_enabled", "date_filter_mode", "date_from", "date_to", "relative_amount", "relative_unit", "favorites_enabled", "rating_enabled", "location_enabled", "inclusion_matching", "album_matching", "person_matching", "tag_matching", "favorite_mode", "minimum_rating", "filter_country", "filter_state", "filter_city", "album_order"], "staticEntities": ["album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels", "excluded_album_ids", "excluded_album_labels", "excluded_person_ids", "excluded_person_labels", "excluded_tag_ids", "excluded_tag_labels", "immich_server_version", "immich_capability_status"], "manualEntities": ["apply_photo_source"] }, { "id": "layout", "label": "Photo Display", "tab": "immich", "section": "", "function": "makeLayoutCard", "settings": ["photo_orientation", "display_mode", "transition", "transition_speed"], "staticEntities": [], "manualEntities": [] }, { "id": "metadata", "label": "Metadata", "tab": "immich", "section": "", "function": "makeMetadataCard", "settings": ["photo_metadata_date_enabled", "photo_metadata_location_enabled", "photo_metadata_date_format", "photo_metadata_date_taken_format"], "staticEntities": [], "manualEntities": [] }, { "id": "screen_brightness", "label": "Screen Brightness", "tab": "settings", "section": "Display", "function": "makeScreenBrightnessCard", "settings": ["brightness_day", "brightness_night"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "screen_tone", "label": "Screen Tone", "tab": "settings", "section": "Display", "function": "makeScreenToneCard", "settings": ["base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"], "staticEntities": [], "manualEntities": [] }, { "id": "rotation", "label": "Rotation", "tab": "settings", "section": "Display", "function": "makeRotationCard", "settings": ["screen_rotation"], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }, { "id": "clock", "label": "Clock", "tab": "settings", "section": "Display", "function": "makeClockCard", "settings": ["clock_format"], "staticEntities": ["show_clock", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3"], "manualEntities": [] }, { "id": "night_schedule", "label": "Night Schedule", "tab": "settings", "section": "Sleep & Schedule", "function": "makeNightScheduleCard", "settings": ["schedule_enabled", "schedule_on_hour", "schedule_off_hour", "schedule_wake_timeout"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "device_language", "label": "Language", "tab": "settings", "section": "Preferences", "function": "makeLanguageCard", "settings": ["device_language"], "staticEntities": [], "manualEntities": [] }, { "id": "frame_name", "label": "Frame Name", "tab": "settings", "section": "Preferences", "function": "makeFrameNameCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "backup", "label": "Backup", "tab": "settings", "section": "System", "function": "makeBackupCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "firmware", "label": "Firmware", "tab": "settings", "section": "System", "function": "makeFirmwareCard", "settings": ["update_frequency", "auto_update", "c6_auto_update"], "staticEntities": ["firmware_device", "firmware", "c6_current_firmware", "c6_available_firmware", "c6_update_status"], "manualEntities": ["update", "firmware_prepare_upload", "firmware_cancel_upload", "firmware_check", "c6_firmware_check", "c6_firmware_install"] }, { "id": "device_reboot", "label": "Device Reboot", "tab": "settings", "section": "System", "function": "makeDeviceRebootCard", "settings": [], "staticEntities": [], "manualEntities": ["reboot_screen"] }, { "id": "factory_reset", "label": "Reset", "tab": "settings", "section": "System", "function": "makeResetCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "developer", "label": "Developer", "tab": "settings", "section": "System", "function": "makeDeveloperCard", "settings": [], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }];
+  var WEB_UI_CARDS = [{ "id": "connection", "label": "Connection", "tab": "immich", "section": "", "function": "makeConnectionCard", "settings": ["conn_timeout"], "staticEntities": ["wireguard_enabled", "wireguard_endpoint", "wireguard_port", "wireguard_address", "wireguard_netmask", "wireguard_allowed_ips", "wireguard_peer_public_key", "wireguard_connected", "wireguard_tunnel_enabled", "wireguard_handshake_age"], "manualEntities": ["immich_url", "api_key", "wireguard_private_key"] }, { "id": "frequency", "label": "Frequency", "tab": "immich", "section": "", "function": "makeFrequencyCard", "settings": ["interval"], "staticEntities": [], "manualEntities": [] }, { "id": "portrait_pairing", "label": "Portrait Pairing", "tab": "immich", "section": "", "function": "makePortraitPairingCard", "settings": ["portrait_pairing", "portrait_pairs_only", "portrait_pairing_range"], "staticEntities": [], "manualEntities": [] }, { "id": "memories", "label": "Memories", "tab": "immich", "section": "", "function": "makeMemoriesCard", "settings": ["memories_window", "memories_fallback"], "staticEntities": ["memories_migration_notice"], "manualEntities": [] }, { "id": "photo_source", "label": "Filters", "tab": "immich", "section": "", "function": "makeFiltersCard", "settings": ["photo_source", "albums_enabled", "people_enabled", "tags_enabled", "date_filter_enabled", "date_filter_mode", "date_from", "date_to", "relative_amount", "relative_unit", "favorites_enabled", "rating_enabled", "location_enabled", "inclusion_matching", "album_matching", "person_matching", "tag_matching", "favorite_mode", "minimum_rating", "filter_country", "filter_state", "filter_city", "album_order"], "staticEntities": ["album_ids", "album_labels", "person_ids", "person_labels", "tag_ids", "tag_labels", "excluded_album_ids", "excluded_album_labels", "excluded_person_ids", "excluded_person_labels", "excluded_tag_ids", "excluded_tag_labels", "immich_server_version", "immich_capability_status"], "manualEntities": ["apply_photo_source"] }, { "id": "layout", "label": "Photo Display", "tab": "immich", "section": "", "function": "makeLayoutCard", "settings": ["photo_orientation", "display_mode", "transition", "transition_speed"], "staticEntities": [], "manualEntities": [] }, { "id": "metadata", "label": "Metadata", "tab": "immich", "section": "", "function": "makeMetadataCard", "settings": ["photo_metadata_date_enabled", "photo_metadata_location_enabled", "photo_metadata_date_format", "photo_metadata_date_taken_format"], "staticEntities": [], "manualEntities": [] }, { "id": "screen_brightness", "label": "Screen Brightness", "tab": "settings", "section": "Display", "function": "makeScreenBrightnessCard", "settings": ["brightness_day", "brightness_night"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "screen_tone", "label": "Screen Tone", "tab": "settings", "section": "Display", "function": "makeScreenToneCard", "settings": ["base_tone_enabled", "base_tone", "warm_tones_enabled", "warm_tone_intensity", "warm_tone_override"], "staticEntities": [], "manualEntities": [] }, { "id": "rotation", "label": "Rotation", "tab": "settings", "section": "Display", "function": "makeRotationCard", "settings": ["screen_rotation"], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }, { "id": "clock", "label": "Clock", "tab": "settings", "section": "Display", "function": "makeClockCard", "settings": ["clock_format"], "staticEntities": ["show_clock", "timezone", "ntp_server_1", "ntp_server_2", "ntp_server_3"], "manualEntities": [] }, { "id": "night_schedule", "label": "Night Schedule", "tab": "settings", "section": "Sleep & Schedule", "function": "makeNightScheduleCard", "settings": ["schedule_enabled", "schedule_on_hour", "schedule_off_hour", "schedule_wake_timeout"], "staticEntities": ["sunrise", "sunset"], "manualEntities": [] }, { "id": "device_language", "label": "Language", "tab": "settings", "section": "Preferences", "function": "makeLanguageCard", "settings": ["device_language"], "staticEntities": [], "manualEntities": [] }, { "id": "frame_name", "label": "Frame Name", "tab": "settings", "section": "Preferences", "function": "makeFrameNameCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "backup", "label": "Backup", "tab": "settings", "section": "System", "function": "makeBackupCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "firmware", "label": "Firmware", "tab": "settings", "section": "System", "function": "makeFirmwareCard", "settings": ["update_frequency", "auto_update", "c6_auto_update"], "staticEntities": ["firmware_device", "firmware", "c6_current_firmware", "c6_available_firmware", "c6_update_status"], "manualEntities": ["update", "firmware_prepare_upload", "firmware_cancel_upload", "firmware_check", "c6_firmware_check", "c6_firmware_install"] }, { "id": "device_reboot", "label": "Device Reboot", "tab": "settings", "section": "System", "function": "makeDeviceRebootCard", "settings": [], "staticEntities": [], "manualEntities": ["reboot_screen"] }, { "id": "factory_reset", "label": "Reset", "tab": "settings", "section": "System", "function": "makeResetCard", "settings": [], "staticEntities": [], "manualEntities": [] }, { "id": "developer", "label": "Developer", "tab": "settings", "section": "System", "function": "makeDeveloperCard", "settings": [], "staticEntities": ["developer_features_enabled"], "manualEntities": [] }];
   var WEB_UI_LOGS_RETAINED_LINES = 1e3;
   var SUPPORT_URL = "https://www.buymeacoffee.com/jtenniswood";
   var SUPPORT_BUTTON_IMAGE_DATA_URI = "data:image/webp;base64,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";
@@ -1792,12 +1792,13 @@
     connBody.appendChild(f22);
     connBody.appendChild(productSelectSettingField("Connection Timeout", "conn_timeout"));
     connBody.appendChild(connStatus);
+    if (S2.wireguard_available) connBody.appendChild(makeWireguardSettings());
     return makeCollapsibleCard("Connection", connBody, true);
   }
   function saveAndVerifyWireguardPrivateKey(value) {
     var privateKey = String(value || "").trim();
-    if (!A(privateKey)) return Promise.reject(Error("invalid_wireguard_key"));
-    return settingSaves.save({ wireguard_private_key_configured: true }, function() {
+    var configured = !!privateKey;
+    return settingSaves.save({ wireguard_private_key_configured: configured }, function() {
       return apiClient.updateSettings(
         { wireguard_private_key: privateKey },
         [legacySettingWrite("wireguard_private_key", privateKey)]
@@ -1806,23 +1807,7 @@
       }).then(function() {
         return getConfigurationSnapshot();
       }).then(function(snapshot) {
-        if (!snapshot.secrets_configured || !snapshot.secrets_configured.wireguard_private_key) {
-          throw Error("verify_failed");
-        }
-      });
-    });
-  }
-  function removeWireguardPrivateKey() {
-    return settingSaves.save({ wireguard_private_key_configured: false }, function() {
-      return apiClient.updateSettings(
-        { wireguard_private_key: "" },
-        [legacySettingWrite("wireguard_private_key", "")]
-      ).then(function() {
-        return delayMs(150);
-      }).then(function() {
-        return getConfigurationSnapshot();
-      }).then(function(snapshot) {
-        if (!snapshot.secrets_configured || snapshot.secrets_configured.wireguard_private_key) {
+        if (!snapshot.secrets_configured || !!snapshot.secrets_configured.wireguard_private_key !== configured) {
           throw Error("verify_failed");
         }
       });
@@ -1831,11 +1816,10 @@
   function wireguardSensorOn(value) {
     return value === true || value === "true" || value === "ON";
   }
-  function updateWireguardStatus(statusEl, badgeEl) {
+  function updateWireguardStatus(statusEl) {
     if (!statusEl) return;
     if (S2.wireguard_connected === void 0 || S2.wireguard_connected === "") {
       statusEl.style.display = "none";
-      setBadgeActive(badgeEl, false);
       return;
     }
     statusEl.style.display = "";
@@ -1843,32 +1827,27 @@
     var connected = running && wireguardSensorOn(S2.wireguard_connected);
     var age = running ? I(S2.wireguard_handshake_age) : "";
     var message = !running ? "Tunnel is off" : connected ? "Connected" : "Not connected";
-    if (age) message += " \xB7 last handshake " + age;
-    if (!!S2.wireguard_enabled !== running) message += " \xB7 restart to apply the saved setting";
+    statusEl.title = age ? "Last handshake " + age : "";
     setStatus(statusEl, message, connected ? "green" : running ? "red" : "orange");
-    setBadgeActive(badgeEl, connected);
   }
   function updateWireguardStatusFromPage() {
-    updateWireguardStatus(document.getElementById("wireguard-status"), document.getElementById("wireguard-badge"));
+    updateWireguardStatus(document.getElementById("wireguard-status"));
   }
-  function makeWireguardCard() {
-    if (!S2.wireguard_available) return null;
-    var body = el("div");
-    var tunnelStatus = el("div", "status mb-12");
+  function makeWireguardSettings() {
+    var body = el("div", "wireguard");
+    var tunnelStatus = el("div", "disclosure-badge");
     tunnelStatus.id = "wireguard-status";
-    var tunnelBadge = makeBadge(false, "Connected");
-    tunnelBadge.id = "wireguard-badge";
-    updateWireguardStatus(tunnelStatus, tunnelBadge);
-    body.appendChild(tunnelStatus);
+    updateWireguardStatus(tunnelStatus);
     var status = el("div", "status mb-12");
     var restartNotice = el("div", "reset-backup-notice mb-12");
-    restartNotice.style.display = "none";
+    showRestart(false);
+    var restartRequired;
     var restartText = el("span");
     restartText.textContent = "WireGuard changes apply after the frame restarts.";
-    var restartButton = button("Restart now", "btn btn-secondary btn-sm", function() {
+    var restartButton = button("Restart now", "btn btn-primary btn-sm", function() {
       restartButton.disabled = true;
       restartButton.textContent = "Restarting...";
-      rebootFrame().catch(function() {
+      rebootFrame().then(() => showRestart(false), () => {
       }).finally(function() {
         setTimeout(function() {
           restartButton.disabled = false;
@@ -1878,14 +1857,24 @@
     });
     restartNotice.appendChild(restartText);
     restartNotice.appendChild(restartButton);
-    function saved(message) {
+    function showRestart(pending) {
+      restartNotice.style.display = pending ? "" : "none";
+    }
+    function saved(message = "Saved") {
       setStatus(status, message, "green", 3e3);
-      restartNotice.style.display = "";
+      if (restartRequired === void 0) showRestart(true);
+    }
+    function saveWireguardSetting(key, value) {
+      var _a;
+      if (String(value) === String((_a = S2[key]) != null ? _a : "")) return;
+      saveSetting(key, value).then(() => saved(), () => {
+      });
     }
     function failed(message) {
       setStatus(status, message, "red");
     }
     var detailsBody = el("div");
+    var panel = makeInlineDisclosure("Wireguard Vpn Settings", detailsBody, false);
     var enabled = toggleSettingRow({
       label: "Connect through WireGuard",
       value: !!S2.wireguard_enabled,
@@ -1895,25 +1884,23 @@
       setValue: function(value) {
         S2.wireguard_enabled = value;
       },
-      details: detailsBody,
+      details: panel,
       onChange: function() {
-        saveSetting("wireguard_enabled", !!S2.wireguard_enabled).then(function() {
-          saved("Saved");
-        }, function() {
+        saveSetting("wireguard_enabled", !!S2.wireguard_enabled).then(() => saved(), () => {
         });
       }
     });
-    detailsBody.style.display = S2.wireguard_enabled ? "" : "none";
+    panel.style.display = S2.wireguard_enabled ? "" : "none";
+    var controls = el("div", "inline-disclosure-right");
+    enabled.toggle.replaceWith(controls);
+    controls.append(tunnelStatus, enabled.toggle);
     body.appendChild(enabled.field);
-    function trimmed(value) {
-      return String(value == null ? "" : value).trim();
-    }
     function textField(label, key, placeholder, hint, maxLength, isValid, invalidMessage, canonical) {
       var f3 = field(label);
       var inputEl = input("text", S2[key], placeholder, maxLength);
       var error = makeFieldError();
       inputEl.onchange = function() {
-        var raw = trimmed(inputEl.value);
+        var raw = inputEl.value.trim();
         if (raw && !isValid(raw)) {
           error.textContent = invalidMessage;
           return;
@@ -1921,10 +1908,7 @@
         var value = raw && canonical ? canonical(raw) : raw;
         error.textContent = "";
         inputEl.value = value;
-        saveSetting(key, value).then(function() {
-          saved("Saved");
-        }, function() {
-        });
+        saveWireguardSetting(key, value);
       };
       f3.appendChild(inputEl);
       f3.appendChild(error);
@@ -1949,16 +1933,13 @@
     portInput.inputMode = "numeric";
     var portError = makeFieldError();
     portInput.onchange = function() {
-      var value = trimmed(portInput.value);
+      var value = portInput.value.trim();
       if (!y(value)) {
         portError.textContent = "Enter a port from 1 to 65535.";
         return;
       }
       portError.textContent = "";
-      saveSetting("wireguard_port", Number(value)).then(function() {
-        saved("Saved");
-      }, function() {
-      });
+      saveWireguardSetting("wireguard_port", Number(value));
     };
     portField.appendChild(portInput);
     portField.appendChild(portError);
@@ -2013,7 +1994,7 @@
         connectFieldLabels(keyField);
       });
       row.appendChild(button("Remove", "btn btn-secondary", function() {
-        removeWireguardPrivateKey().then(function() {
+        saveAndVerifyWireguardPrivateKey("").then(function() {
           saved("Private key removed");
           showKeyInput();
         }, function() {
@@ -2035,7 +2016,7 @@
         buttonText: "Save",
         buttonClass: "btn btn-primary",
         onButtonClick: function(keyInput, saveBtn) {
-          var value = trimmed(keyInput.value);
+          var value = keyInput.value.trim();
           if (!A(value)) {
             keyError.textContent = "Enter a 44-character WireGuard key.";
             return;
@@ -2062,19 +2043,18 @@
     keyHint.textContent = "Stored on the frame and never shown again. It is not included in settings backups.";
     keyField.appendChild(keyHint);
     detailsBody.appendChild(keyField);
-    body.appendChild(detailsBody);
-    body.appendChild(status);
-    body.appendChild(restartNotice);
-    var card = makeCollapsibleCard("WireGuard VPN", body, true, tunnelBadge);
+    body.append(panel, status, restartNotice);
     if (nativeAdmin) {
-      window["espframeWatchWireguard"](card, function(state) {
+      window["espframeWatchWireguard"](body, function(state) {
+        restartRequired = state.restart_required;
+        if (restartRequired !== void 0) showRestart(restartRequired);
         S2.wireguard_connected = state.connected;
         S2.wireguard_tunnel_enabled = state.running;
         S2.wireguard_handshake_age = state.handshake_age;
-        updateWireguardStatus(tunnelStatus, tunnelBadge);
+        updateWireguardStatus(tunnelStatus);
       });
     }
-    return card;
+    return body;
   }
   function makeFrequencyCard() {
     var dispBody = el("div");
@@ -3825,7 +3805,6 @@
   function settingsCardRenderers() {
     return {
       makeConnectionCard,
-      makeWireguardCard,
       makeFrequencyCard,
       makeMemoriesCard,
       makeFiltersCard,
@@ -3899,7 +3878,6 @@
     var settingsCardEntries = renderSettingsCardEntriesForTab("settings");
     if (!immichCards.length && !nativeAdmin) immichCards = [
       makeConnectionCard(),
-      makeWireguardCard(),
       makeFrequencyCard(),
       makePortraitPairingCard(),
       makeMemoriesCard(),

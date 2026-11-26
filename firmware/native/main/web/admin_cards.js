@@ -1,6 +1,5 @@
 window.espframeNativeCards = {
   makeConnectionCard: ["immich_url", "conn_timeout"],
-  makeWireguardCard: ["wireguard_enabled"],
   makeFrequencyCard: ["interval"],
   makeMemoriesCard: ["photo_source", "memories_window", "memories_fallback"],
   makeFiltersCard: ["photo_source", "immich_filter_support", "album_labels", "excluded_tag_labels"],

@@ -66,6 +66,10 @@ NativeNetwork::Address NativeNetwork::address() const {
   return {ipv4_.load(std::memory_order_acquire), web_status_.load(std::memory_order_acquire)};
 }
 
+bool NativeNetwork::wireguard_restart_required(const Settings &saved) const {
+  return settings_->wireguard != saved.wireguard;
+}
+
 FrameIdentity NativeNetwork::identity_for(const std::string &name) const {
   const bool stock_name = trial_immich || (settings_ && !settings_->home_assistant_key.empty());
   return make_frame_identity(name, frame_mac_, NATIVE_HOSTNAME, NATIVE_FRIENDLY_NAME, stock_name);

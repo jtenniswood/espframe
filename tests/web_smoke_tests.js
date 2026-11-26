@@ -1261,7 +1261,8 @@ function smokeAssertionsForScenario(scenario) {
       }
       async function requireWireguardCard() {
         clickTab("Immich");
-        const card = expandCard("WireGuard VPN");
+        const toggle = expandCard("Connection").querySelector('[aria-label="Connect through WireGuard"]');
+        const card = toggle.closest(".field").parentElement;
         const privateKey = "YBk6X3pP8KjUnS4VvXG0Zk1d3b0Qn0q9yYQe2jqk0Gs=";
         const peerKey = "n6XQ3yS2m0b5y4Vf8qkq1Qn0q9yYQe2jqk0GsYBk6X0=";
         function setField(label, value) {
@@ -1277,7 +1278,7 @@ function smokeAssertionsForScenario(scenario) {
         emitState("binary_sensor/WireGuard: Connected", true);
         emitState("sensor/WireGuard: Handshake Age", 12);
         await waitFor(() => tunnelStatus.style.display !== "none" && tunnelStatus.textContent.includes("Connected") &&
-          tunnelStatus.textContent.includes("last handshake 12s ago"), 3000, "tunnel connected status");
+          tunnelStatus.title.includes("12s ago"), 3000, "tunnel connected status");
         emitState("binary_sensor/WireGuard: Connected", false);
         await waitFor(() => tunnelStatus.textContent.includes("Not connected"), 3000, "tunnel disconnected status");
         function cardButton(text) {
@@ -1286,6 +1287,7 @@ function smokeAssertionsForScenario(scenario) {
           return button;
         }
 
+        cardButton("Wireguard Vpn Settings").click();
         // Invalid values are explained and never sent to the device.
         const rejected = [
           ["Server Address", "https://vpn.example.com", "WireGuard: Endpoint"],
@@ -1318,7 +1320,7 @@ function smokeAssertionsForScenario(scenario) {
         const notice = card.querySelector(".reset-backup-notice");
         if (!notice || notice.style.display === "none") throw new Error("Restart notice should appear after saving");
 
-        card.querySelector('[role="switch"]').click();
+        toggle.click();
         await waitFor(() => latestConfigurationValue("WireGuard: Enabled").value === true, 4000, "enable save");
 
         // The private key is write-only: only whether it is set reaches the page.
@@ -2042,7 +2044,7 @@ function smokeAssertionsForScenario(scenario) {
 
           if (${JSON.stringify(scenario.name)} === "daily-settings-controls") {
             await requireDailySettingsControls();
-            if (Array.from(document.querySelectorAll(".card h3")).some((heading) => heading.textContent.trim() === "WireGuard VPN")) {
+            if (document.querySelector('[aria-label="Connect through WireGuard"]')) {
               throw new Error("WireGuard card must stay hidden on firmware without WireGuard support");
             }
           }
