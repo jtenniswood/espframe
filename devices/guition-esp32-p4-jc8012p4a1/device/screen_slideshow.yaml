@@ -320,7 +320,7 @@ lvgl:
             indicator:
               arc_width: 3
               arc_color: 0xFFFFFF
-              arc_opa: 70%
+              arc_opa: 100%
               arc_rounded: false
         - obj:
             id: connection_failed_overlay
