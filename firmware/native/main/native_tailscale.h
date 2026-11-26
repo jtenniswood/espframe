@@ -22,7 +22,8 @@ struct TailscaleRoute {
 };
 
 bool request_tailscale(TailscaleAction action);
-void start_tailscale(std::string_view hostname, bool wireguard_active, uint32_t settings_reset_epoch);
+void start_tailscale(std::string_view hostname, std::string_view immich_url, bool wireguard_active,
+                     uint32_t settings_reset_epoch);
 void update_tailscale_network(uint32_t station_lease);
 uint32_t tailscale_generation();
 bool use_tailscale_for(std::string_view url);

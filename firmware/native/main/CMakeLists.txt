@@ -23,7 +23,7 @@ if(SWIPE_TRIAL_IMMICH)
 endif()
 
 if(NATIVE_TAILSCALE)
-    list(APPEND platform_source native_tailscale.cpp)
+    list(APPEND platform_source native_tailscale.cpp native_tailscale_peer.c)
 endif()
 
 idf_component_register(

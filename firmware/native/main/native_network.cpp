@@ -396,7 +396,7 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
   const bool https = settings_->immich_url.starts_with("https://");
   const bool wireguard_enabled = !SWIPE_ESPHOME_TRIAL && configure_wireguard(settings_->wireguard, settings_->immich_url);
 #if NATIVE_TAILSCALE
-  start_tailscale(identity_.hostname, wireguard_enabled, settings_->reset_epoch);
+  start_tailscale(identity_.hostname, settings_->immich_url, wireguard_enabled, settings_->reset_epoch);
   photo_uses_tailnet_.store(use_tailscale_for(settings_->immich_url), std::memory_order_release);
 #endif
   const bool need_time_at_boot = https || wireguard_enabled || NATIVE_TAILSCALE ||

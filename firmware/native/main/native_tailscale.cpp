@@ -15,6 +15,8 @@
 #include <mutex>
 #include <utility>
 
+extern "C" bool espframe_tailscale_prepare_peer(microlink_t *client, uint32_t peer);
+
 namespace espframe::native {
 namespace {
 
@@ -26,6 +28,7 @@ std::atomic<uint32_t> generation{};
 std::atomic<bool> wireguard{};
 std::atomic<TaskHandle_t> worker{};
 std::string device_name;
+uint32_t priority_peer{};
 uint32_t reset_epoch{};
 std::mutex client_mutex;
 uint32_t next_generation{};
@@ -139,6 +142,7 @@ void service_tailscale(uint32_t station_lease) {
     trace_memory("tailscale-before-start");
     microlink_config_t config{};
     config.device_name = device_name.empty() ? nullptr : device_name.c_str();
+    config.priority_peer_ip = priority_peer;
     client = microlink_init(&config);
     if (!client || microlink_start(client) != ESP_OK) {
       stop_client();
@@ -183,11 +187,13 @@ void service(void *) {
 
 }  // namespace
 
-void start_tailscale(std::string_view hostname, bool wireguard_active, uint32_t settings_reset_epoch) {
+void start_tailscale(std::string_view hostname, std::string_view immich_url, bool wireguard_active,
+                     uint32_t settings_reset_epoch) {
   wireguard.store(wireguard_active, std::memory_order_release);
   if (wireguard_active)
     return;
   device_name = hostname;
+  priority_peer = tailnet_host(immich_url).ipv4;
   reset_epoch = settings_reset_epoch;
   TaskHandle_t task{};
   if (xTaskCreate(service, "tailscale", 4096, nullptr, 2, &task) == pdPASS)
@@ -237,6 +243,10 @@ TailscaleRoute tailscale_route_for(std::string_view url) {
   const auto peer = host.ipv4 != 0 ? host.ipv4 : microlink_resolve(client, hostname.c_str());
   if ((peer & 0xffc00000U) != 0x64400000U)
     return route;
+  if (!espframe_tailscale_prepare_peer(client, peer)) {
+    trace_memory("tailscale-peer-wait");
+    return route;
+  }
   std::array<char, 16> address{};
   microlink_ip_to_str(peer, address.data());
   route.address = address.data();
