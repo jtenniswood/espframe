@@ -30,7 +30,11 @@ class Display {
   // from that frame so taking over doesn't visibly undo the pending swap.
   PixelPosition handoff_position() const { return slots_.queued() ? pending_position_ : position_; }
   uint16_t *writable_buffer();
-  bool submit(PixelPosition position, const ScanoutFrame *frame = nullptr, std::optional<SlideRange> sources = {});
+  uint16_t *preparation_buffer();
+  uint16_t *reserve_preparation_buffer();
+  void release_preparation_buffer(const uint16_t *buffer);
+  bool submit(PixelPosition position, const ScanoutFrame *frame = nullptr, std::optional<SlideRange> sources = {},
+              const uint16_t *prepared = nullptr);
   bool borrowing() const {
 #if SWIPE_LINKED_SCANOUT
     return sources_.active();
