@@ -256,7 +256,7 @@
     // Firmware without the WireGuard entities does not list the secret.
     if (!S.wireguard_available) return null;
     var body = el("div");
-    var tunnelStatus = el("div", "status mb-12");
+    var tunnelStatus = el("div", "setting-info-banner mb-12");
     tunnelStatus.id = "wireguard-status";
     var tunnelBadge = makeBadge(false, "Connected");
     tunnelBadge.id = "wireguard-badge";

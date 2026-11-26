@@ -707,6 +707,12 @@ select option {
   line-height:1.35
 }
 
+#wireguard-status {
+  align-items:center;
+  background:var(--surface2);
+  border-color:var(--border)
+}
+
 .setting-info-banner-icon {
   display:inline-flex;
   align-items:center;
@@ -838,6 +844,10 @@ select option {
 
 .dot.red {
   background:var(--danger)
+}
+
+#wireguard-status .dot.orange {
+  background:var(--text2)
 }
 
 .dot.orange {

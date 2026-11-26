@@ -149,6 +149,12 @@ const browserTest = String.raw`
     vpnSwitch.click()
     const serverAddress = [...vpn.querySelectorAll('label')].find(label => label.textContent === 'Server Address').control
     change(serverAddress, 'vpn.example.test')
+    const tunnelStatus = vpn.querySelector('#wireguard-status')
+    await until(() => tunnelStatus.textContent.includes('Tunnel is off'), 'the offline WireGuard status')
+    const offlineDot = tunnelStatus.querySelector('.dot')
+    if (!tunnelStatus.classList.contains('setting-info-banner') ||
+        getComputedStyle(offlineDot).backgroundColor !== getComputedStyle(tunnelStatus).color)
+      throw new Error('The offline WireGuard status is missing its grey banner')
     const privateKey = 'A'.repeat(43) + '='
     vpn.querySelector('input[type="password"]').value = privateKey
     button(vpn, 'Save').click()
@@ -156,7 +162,8 @@ const browserTest = String.raw`
     if (vpn.querySelector('input[type="password"]')) throw new Error('WireGuard key remained in the form')
     button(vpn, 'Restart now').click()
     await until(() => vpn.querySelector('#wireguard-status').textContent.includes('Connected'), 'WireGuard status after restart')
-    if (!vpn.querySelector('#wireguard-status').textContent.includes('handshake')) throw new Error('WireGuard handshake age was missing')
+    if (!tunnelStatus.textContent.includes('handshake')) throw new Error('WireGuard handshake age was missing')
+    if (!tunnelStatus.querySelector('.dot.green')) throw new Error('The connected banner is missing its green indicator')
     const select = openCard('Frequency').querySelector('select')
     if (select.value !== '15 seconds') throw new Error('Native configuration was not loaded')
     change(select, '30 seconds')
