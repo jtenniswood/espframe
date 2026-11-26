@@ -111,6 +111,65 @@ node firmware/native/tools/package_installer.mjs firmware/native/build firmware/
 The package also includes `index.html` and its assets for serving the same
 installer over HTTPS or localhost.
 
+### Test Tailscale and compare memory
+
+The experimental Tailscale build lets the frame reach an Immich server or
+reverse proxy with its own Tailscale IPv4 address or full `.ts.net` name.
+It uses the hosted Tailscale sign-in flow and joins as an individual device.
+
+Download the `native-memory-comparison-v1`, `-v2` or `-v3` artifact for your
+panel from the **Native Tailscale test builds** workflow. Each artifact
+contains a baseline and a Tailscale build, with app and merged binaries and
+their linked size reports. You can also build both images with ESP-IDF 6.1.1.
+Set `board` to the panel revision (V1, V2 or V3). The Tailscale build downloads Espframe’s pinned MicroLink source.
+
+```bash
+board=v3
+idf.py -C firmware/native -B "firmware/native/build/memory-baseline-$board" \
+  -D "SWIPE_BOARD=$board" -D NATIVE_MEMORY_TRACE=ON build size merge-bin
+idf.py -C firmware/native -B "firmware/native/build/memory-tailscale-$board" \
+  -D "SWIPE_BOARD=$board" -D NATIVE_MEMORY_TRACE=ON -D NATIVE_TAILSCALE=ON build size merge-bin
+```
+
+Keep both `idf.py size` reports. Compare DIRAM and its `.data` and `.bss`
+sections to measure the linked internal RAM change. Compare app binary
+sizes against the 4 MiB partition. The size report covers static allocations
+and code. The USB serial capture measures runtime heap separately.
+
+1. Back up the panel and run the baseline image. Use the Immich server’s LAN
+   address. Capture the USB serial log at 115200 baud from boot, wait for photos
+   to load, and swipe through several new photos. Keep capturing for at least
+   a minute so the log includes periodic and transfer samples.
+2. Run the Tailscale image on the same panel, starting a new serial capture.
+   Leave the slideshow and server settings identical for the first minute.
+   Open **Immich → Tailscale → Connect to Tailscale** in the frame’s local web
+   settings. Open **Sign in with Tailscale** and authorize the frame in the
+   new browser tab. If the tailnet requires administrative device approval,
+   complete it from Tailscale’s Machines page.
+3. After the frame shows **Connected to Tailscale**, change the Immich URL to
+   the server’s tailnet address. Use the same photo source and the same HTTP
+   or HTTPS scheme for both runs. Verify that the card shows **Immich is
+   reachable** and that fresh photos display. Repeat the swipe sequence.
+4. Repeat the Tailscale run from a network that requires a relay, and verify
+   the path from the Immich-side Tailscale peer while photos load. Briefly
+   interrupt the frame’s Wi-Fi during prefetch and check that it resumes.
+   Keep a separate log for the relayed run or label the transition in your
+   notes. Reboot once to check that enrollment persists.
+
+```bash
+python3 firmware/native/tools/report_native_memory.py baseline.log tailscale.log
+```
+
+The report shows allocated bytes, free bytes, the boot-wide low-water mark
+and the largest free block for internal RAM and PSRAM. It requires at least
+one completed HTTP exchange in each log. Compare both the periodic samples
+and the HTTP rows. The `tailscale-before-start` and `tailscale-connected`
+rows bracket the cost of starting the tunnel within the same image.
+
+Turn off WireGuard before starting Tailscale. **Disconnect** clears the
+frame’s local enrollment. Remove its old entry on Tailscale’s Machines page
+if you want to retire the node there.
+
 ### Prepare a versioned Native Preview
 
 Run the **Native Swipe Prototype** workflow on the intended source commit

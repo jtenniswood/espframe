@@ -2,6 +2,8 @@
 
 #include "live_trial.h"
 #include "native_wireguard.h"
+#include "memory_trace.h"
+#include "native_tailscale.h"
 #include "ntp_server_names.h"
 #include "settings.h"
 #include "station_retry.h"
@@ -79,12 +81,22 @@ uint32_t NativeNetwork::station_lease() const {
 uint32_t NativeNetwork::photo_connection() const {
   const bool ready = !photo_needs_time_.load(std::memory_order_relaxed) ||
                      photo_time_ready_.load(std::memory_order_acquire);
-  return ready ? station_lease() : 0;
+  const auto lease = station_lease();
+  if (!ready || !lease)
+    return 0;
+#if NATIVE_TAILSCALE
+  if (photo_uses_tailnet_.load(std::memory_order_acquire))
+    return tailscale_generation();
+#endif
+  return lease;
 }
 
 void NativeNetwork::use_photo_connection(const PhotoConnectionSettings &connection) {
   const bool https = connection.immich_url.starts_with("https://");
   photo_needs_time_.store(https, std::memory_order_relaxed);
+#if NATIVE_TAILSCALE
+  photo_uses_tailnet_.store(use_tailscale_for(connection.immich_url), std::memory_order_release);
+#endif
   set_wireguard_photo_url(connection.immich_url);
   if (https || connection.prepared_slides_need_time())
     request_time_sync();
@@ -383,7 +395,12 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
   uint32_t ntp_revision = 0;
   const bool https = settings_->immich_url.starts_with("https://");
   const bool wireguard_enabled = !SWIPE_ESPHOME_TRIAL && configure_wireguard(settings_->wireguard, settings_->immich_url);
-  const bool need_time_at_boot = https || wireguard_enabled || settings_->prepared_slides_need_time() || settings_->clock.show ||
+#if NATIVE_TAILSCALE
+  start_tailscale(identity_.hostname, wireguard_enabled, settings_->reset_epoch);
+  photo_uses_tailnet_.store(use_tailscale_for(settings_->immich_url), std::memory_order_release);
+#endif
+  const bool need_time_at_boot = https || wireguard_enabled || NATIVE_TAILSCALE ||
+                                 settings_->prepared_slides_need_time() || settings_->clock.show ||
                                  settings_->schedule.enabled || settings_->brightness_day != settings_->night_brightness() ||
                                  settings_->tone.needs_time() || settings_->needs_local_date();
   bool sntp_started = false;
@@ -393,6 +410,9 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
 #endif
   uint32_t events = 0;
   uint32_t last_lease = 0;
+#if NATIVE_MEMORY_TRACE
+  int64_t next_memory_sample = 0;
+#endif
   StationRetry retry;
   RecoveryWindow recovery;
   int64_t next_hotspot_attempt = 0;
@@ -554,6 +574,24 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
       poll_wireguard(ready ? station_lease() : 0);
       wait = std::min(wait, pdMS_TO_TICKS(2000));
     }
+#if NATIVE_TAILSCALE
+    if (!wireguard_enabled) {
+      const bool ready = connected && !hotspot && clock_time_is_valid(std::time(nullptr));
+      update_tailscale_network(ready ? station_lease() : 0);
+      if (connected && !ready)
+        wait = std::min(wait, pdMS_TO_TICKS(500));
+    }
+#endif
+#if NATIVE_MEMORY_TRACE
+    constexpr int64_t memory_interval_us = 10'000'000;
+    if (now >= next_memory_sample) {
+      trace_memory("running");
+      next_memory_sample = now + memory_interval_us;
+    }
+    wait = std::min(wait, pdMS_TO_TICKS(std::max<int64_t>(1, (next_memory_sample - now + 999) / 1000)));
+#endif
+    if (lease != last_lease)
+      trace_memory(connected ? "wifi-connected" : "wifi-disconnected");
     last_lease = lease;
     events = 0;
     xTaskNotifyWait(0, UINT32_MAX, &events, wait);

@@ -28,7 +28,10 @@ window.espframeNativeUrl = function (url) {
   return hasPath && url.endsWith("/api") ? url : url + "/api";
 };
 
-window.espframeWatchWireguard = function (card, receive) {
+window.espframeWatchWireguard = function (card, receive, makeCard) {
+  setTimeout(() => {
+    if (card.isConnected && makeCard) card.before(makeTailscaleCard(makeCard));
+  }, 0);
   async function read() {
     if (!card.isConnected) return;
     try {
@@ -419,3 +422,156 @@ window.espframeNativeFirmware = function (card, state, refreshUi, compareVersion
   setTimeout(read, 0);
   return { request, isAvailable: () => supported };
 };
+
+
+function makeTailscaleCard(makeCard) {
+  const path = "/espframe/api/v1/tailscale";
+  const sessionKey = "espframe-tailscale-enrollment";
+  const session = sessionStorage.getItem(sessionKey) ||
+    Array.from(crypto.getRandomValues(new Uint8Array(16)), value => value.toString(16).padStart(2, "0")).join("");
+  sessionStorage.setItem(sessionKey, session);
+  const headers = { "X-Espframe-Enrollment": session };
+  const body = document.createElement("div");
+  const status = document.createElement("p");
+  status.setAttribute("role", "status");
+  const immich = document.createElement("p");
+  immich.hidden = true;
+  const login = document.createElement("a");
+  const loginControl = document.createElement("span");
+  loginControl.append(login);
+  login.className = "btn btn-primary";
+  login.textContent = "Sign in with Tailscale";
+  login.target = "_blank";
+  login.rel = "noopener noreferrer";
+  loginControl.hidden = true;
+  const machines = document.createElement("a");
+  const machinesControl = document.createElement("span");
+  machinesControl.append(machines);
+  machines.className = "btn btn-secondary";
+  machines.textContent = "Open Tailscale Machines";
+  machines.href = "https://login.tailscale.com/admin/machines";
+  machines.target = "_blank";
+  machines.rel = "noopener noreferrer";
+  machinesControl.hidden = true;
+  const connect = document.createElement("button");
+  const connectControl = document.createElement("span");
+  connectControl.append(connect);
+  connect.type = "button";
+  connect.className = "btn btn-primary";
+  const disconnect = document.createElement("button");
+  const disconnectControl = document.createElement("span");
+  disconnectControl.append(disconnect);
+  disconnect.type = "button";
+  disconnect.className = "btn btn-secondary";
+  disconnect.textContent = "Disconnect";
+  disconnectControl.hidden = true;
+  const actions = document.createElement("div");
+  actions.className = "backup-row";
+  actions.append(loginControl, machinesControl, connectControl, disconnectControl);
+  body.append(status, immich, actions);
+  const card = makeCard("Tailscale", body, true);
+  card.hidden = true;
+  let timer;
+  let revision = 0;
+  let posting = false;
+  let lastState;
+  const labels = {
+    off: "Connect this frame to your tailnet to reach a private Immich server.",
+    waiting_wifi: "Waiting for Wi-Fi and the clock.",
+    connecting: "Connecting to Tailscale…",
+    needs_login: "Sign in on Tailscale’s website, then return here.",
+    auth_failed: "Tailscale hasn’t authorized this frame. If your tailnet requires device approval, approve the frame in Machines.",
+    error: "Could not connect to Tailscale.",
+    wireguard: "Turn off WireGuard to use Tailscale.",
+  };
+
+  const immichLabels = {
+    needs_url: "Set the Immich URL above to the server’s tailnet address.",
+    checking: "Checking Immich…",
+    reachable: "Immich is reachable.",
+    rejected: "Immich rejected the connection. Check the API key.",
+    unreachable: "Could not reach Immich. Check its URL and your tailnet access rules.",
+  };
+
+  function render(state) {
+    if (state.state !== "connected" && !Object.hasOwn(labels, state.state)) return;
+    card.hidden = false;
+    lastState = state.state;
+    const detail = state.state === "connected" ? "Connected to Tailscale · " + state.address : labels[state.state];
+    if (status.textContent !== detail) status.textContent = detail;
+    const photoStatus = Object.hasOwn(immichLabels, state.immich) ? immichLabels[state.immich] : "";
+    if (immich.textContent !== photoStatus) immich.textContent = photoStatus;
+    immich.hidden = state.state !== "connected" || !photoStatus;
+    let approvedLink;
+    try {
+      const url = new URL(state.login_url);
+      if (state.state === "needs_login" && url.origin === "https://login.tailscale.com" && !url.username && !url.password)
+        approvedLink = url.href;
+    } catch (_) {
+      // The frame only provides the link while enrollment needs the browser.
+    }
+    if (approvedLink) login.href = approvedLink;
+    else login.removeAttribute("href");
+    loginControl.hidden = !approvedLink;
+    machinesControl.hidden = state.state !== "auth_failed";
+    connect.textContent = state.state === "off" ? "Connect to Tailscale" :
+      state.state === "needs_login" && !approvedLink ? "Get sign-in link" : "Try again";
+    connectControl.hidden = !["off", "needs_login", "auth_failed", "error"].includes(state.state);
+    disconnectControl.hidden = ["off", "wireguard"].includes(state.state);
+  }
+
+  function schedule(delay) {
+    clearTimeout(timer);
+    if (card.isConnected) timer = setTimeout(read, delay);
+  }
+
+  async function read() {
+    if (!card.isConnected || posting) return;
+    const start = revision;
+    try {
+      if (document.hidden) {
+        schedule(2000);
+        return;
+      }
+      const response = await fetch(path, { headers, cache: "no-store", signal: AbortSignal.timeout(2500) });
+      if (response.status === 404 && card.hidden) return;
+      if (!response.ok) throw Error("tailscale status");
+      const values = await response.json();
+      if (card.isConnected && start === revision) render(values);
+    } catch (_) {
+      if (!card.hidden && start === revision) status.textContent = "Waiting for the frame…";
+    } finally {
+      if (start === revision && !card.hidden) schedule(2000);
+    }
+  }
+
+  async function send(action) {
+    if (posting) return;
+    if (action === "disconnect" && lastState === "connected" &&
+        !window.confirm("Disconnect this frame from Tailscale? It will need to sign in again.")) return;
+    posting = true;
+    ++revision;
+    connect.disabled = disconnect.disabled = true;
+    loginControl.hidden = true;
+    login.removeAttribute("href");
+    try {
+      const response = await fetch(path, {
+        method: "POST", headers: { ...headers, "Content-Type": "text/plain" },
+        body: action, signal: AbortSignal.timeout(3000),
+      });
+      if (!response.ok) throw Error("tailscale request");
+      status.textContent = action === "connect" ? "Requesting a sign-in link…" : "Disconnecting…";
+    } catch (_) {
+      status.textContent = "Could not change the Tailscale connection.";
+    } finally {
+      posting = false;
+      connect.disabled = disconnect.disabled = false;
+      schedule(800);
+    }
+  }
+
+  connect.addEventListener("click", () => void send("connect"));
+  disconnect.addEventListener("click", () => void send("disconnect"));
+  setTimeout(read, 0);
+  return card;
+}

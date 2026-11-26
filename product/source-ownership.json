@@ -196,6 +196,13 @@
       "license": "BSD-3-Clause"
     },
     {
+      "usage": "Experimental native Tailscale client for Guition panels",
+      "declarations": ["firmware/native/CMakeLists.txt", "firmware/native/tools/namespace_wireguard.cmake", "firmware/native/tools/microlink_port.cmake"],
+      "upstream": "https://github.com/CamM2325/microlink",
+      "revision": "1cb8d1c8a8408ad1b9a339b18bed3e970b71dafe",
+      "license": "MIT (MicroLink), BSD-3-Clause (bundled WireGuard)"
+    },
+    {
       "usage": "Native ESPHome API Noise transport and Home Assistant interoperability test",
       "declarations": ["firmware/native/home_assistant/idf_component.yml", "firmware/native/dependencies.lock", "firmware/native/tests/home_assistant/dependencies.lock", ".github/workflows/native-swipe.yml"],
       "upstream": "https://github.com/esphome-libs/noise-c",

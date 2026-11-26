@@ -43,6 +43,9 @@ class NativeNetwork {
   Address address() const;
   uint32_t station_lease() const;
   uint32_t photo_connection() const;
+#if NATIVE_TAILSCALE
+  bool photo_uses_tailscale() const { return photo_uses_tailnet_.load(std::memory_order_acquire); }
+#endif
   void use_photo_connection(const PhotoConnectionSettings &connection);
   void request_time_sync();
 #if SWIPE_TRIAL_WIFI_OUTAGE
@@ -94,6 +97,9 @@ class NativeNetwork {
   std::atomic<WebStatus> web_status_{WebStatus::Disabled};
   std::atomic<bool> photo_time_ready_{};
   std::atomic<bool> photo_needs_time_{};
+#if NATIVE_TAILSCALE
+  std::atomic<bool> photo_uses_tailnet_{};
+#endif
   std::atomic<bool> time_sync_requested_{};
   std::atomic<bool> available_{};
   std::atomic<bool> busy_{};

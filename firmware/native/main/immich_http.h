@@ -41,6 +41,11 @@ class ImmichHttp {
   const char *auth_header_;
   esp_http_client_handle_t client_{};
   bool reusable_{};
+#if NATIVE_TAILSCALE
+  uint32_t tailnet_generation_{};
+  std::string tailnet_hostname_;
+  std::string tailnet_address_;
+#endif
 };
 
 }  // namespace espframe::native

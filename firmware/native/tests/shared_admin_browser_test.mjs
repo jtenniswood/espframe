@@ -34,6 +34,9 @@ let unchangedReads = 0
 let release = { current: 'v0.1.0-preview.9', versions: [], status: 'idle', available: true }
 let wifi = { current: '2.12.8', latest: '', status: 'idle' }
 let wireguard = { running: false, connected: false }
+let tailscale = { state: 'off', immich: 'needs_url' }
+let tailscaleSession
+const tailscaleActions = []
 const snapshot = {
   api_version: 1, reset_epoch: 2, api_key_configured: true,
   secrets_configured: { wireguard_private_key: false },
@@ -143,6 +146,27 @@ const browserTest = String.raw`
     const rating = () => setting(card('Filters').closest('.card'), 'Filter by Rating')
     if (rating().tabIndex !== -1) throw new Error('Rating became available before discovery')
     await until(() => rating().tabIndex === 0, 'Immich to report support for structured filters')
+    await until(() => card('Tailscale') && !card('Tailscale').closest('.card').hidden, 'the native Tailscale card')
+    const tailscaleCard = () => openCard('Tailscale')
+    const approval = () => [...tailscaleCard().querySelectorAll('a')].find(link => link.textContent === 'Sign in with Tailscale')
+    if (approval().getClientRects().length || approval().hasAttribute('href'))
+      throw new Error('The approval link was visible before enrollment')
+    button(tailscaleCard(), 'Connect to Tailscale').click()
+    await until(() => approval().href === 'https://login.tailscale.com/a/test-frame' && approval().getClientRects().length,
+      'the Tailscale browser approval link')
+    if (approval().target !== '_blank' || !approval().rel.includes('noreferrer'))
+      throw new Error('Tailscale must open in a separate tab without a referrer')
+    const otherBrowser = await fetch('/espframe/api/v1/tailscale')
+    if ((await otherBrowser.json()).login_url) throw new Error('Approval link leaked outside the enrollment tab')
+    await fetch('/test/approve-tailscale', { method: 'POST' })
+    await until(() => tailscaleCard().textContent.includes('Connected to Tailscale'), 'Tailscale approval')
+    if (!tailscaleCard().textContent.includes('Immich is reachable.') || approval().hasAttribute('href'))
+      throw new Error('The card did not retire the sign-in link and show Immich reachability')
+    const confirm = window.confirm
+    window.confirm = () => true
+    button(tailscaleCard(), 'Disconnect').click()
+    await until(() => tailscaleCard().textContent.includes('Connect to Tailscale'), 'Tailscale disconnect')
+    window.confirm = confirm
     const vpn = openCard('WireGuard VPN')
     const vpnSwitch = setting(vpn, 'Connect through WireGuard')
     if (vpnSwitch.getAttribute('aria-checked') !== 'false') throw new Error('WireGuard began enabled')
@@ -445,6 +469,24 @@ const server = createServer(async (req, res) => {
       return json({ status: 'accepted', restart_required: true })
     case '/espframe/api/v1/wireguard':
       return json(wireguard)
+    case '/espframe/api/v1/tailscale':
+      if (req.method === 'POST') {
+        const chunks = []
+        for await (const chunk of req) chunks.push(chunk)
+        const action = Buffer.concat(chunks).toString()
+        const session = req.headers['x-espframe-enrollment']
+        if (!/^[0-9a-f]{32}$/.test(session)) return res.writeHead(400).end()
+        tailscaleActions.push(action)
+        tailscaleSession = action === 'connect' ? session : undefined
+        tailscale = action === 'connect' ?
+          { state: 'needs_login', immich: 'needs_url' } : { state: 'off', immich: 'needs_url' }
+        return res.writeHead(202).end()
+      }
+      return json(tailscale.state === 'needs_login' && req.headers['x-espframe-enrollment'] === tailscaleSession ?
+        { ...tailscale, login_url: 'https://login.tailscale.com/a/test-frame' } : tailscale)
+    case '/test/approve-tailscale':
+      tailscale = { state: 'connected', immich: 'reachable', address: '100.64.0.5' }
+      return res.writeHead(204).end()
     case '/espframe/api/v1/logs': {
       const after = Number(route.searchParams.get('after'))
       logPositions.push(after)
@@ -556,6 +598,7 @@ try {
   assert.ok(unchangedReads > 0, 'idle polling should receive empty 304 replies')
   assert.ok(bootChecks > 2)
   assert.deepEqual(unexpected, [])
+  assert.deepEqual(tailscaleActions, ['connect', 'disconnect'])
   console.log('Shared admin verified live logs, settings, release requests, backup, reboot and first-time setup')
 } finally {
   server.close()
