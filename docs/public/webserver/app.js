@@ -1851,6 +1851,7 @@
       setStatus(status, message, "red");
     }
     var detailsBody = el("div");
+    var panel = makeInlineDisclosure("VPN settings", detailsBody, false);
     var enabled = toggleSettingRow({
       label: "Connect through WireGuard",
       value: !!S2.wireguard_enabled,
@@ -1860,26 +1861,23 @@
       setValue: function(value) {
         S2.wireguard_enabled = value;
       },
-      details: detailsBody,
+      details: panel,
       onChange: function() {
         saveSetting("wireguard_enabled", !!S2.wireguard_enabled).then(() => saved(), () => {
         });
       }
     });
-    detailsBody.style.display = S2.wireguard_enabled ? "" : "none";
+    panel.style.display = S2.wireguard_enabled ? "" : "none";
     var controls = el("div", "inline-disclosure-right");
     enabled.toggle.replaceWith(controls);
     controls.append(tunnelStatus, enabled.toggle);
     body.appendChild(enabled.field);
-    function trimmed(value) {
-      return String(value == null ? "" : value).trim();
-    }
     function textField(label, key, placeholder, hint, maxLength, isValid, invalidMessage, canonical) {
       var f2 = field(label);
       var inputEl = input("text", S2[key], placeholder, maxLength);
       var error = makeFieldError();
       inputEl.onchange = function() {
-        var raw = trimmed(inputEl.value);
+        var raw = inputEl.value.trim();
         if (raw && !isValid(raw)) {
           error.textContent = invalidMessage;
           return;
@@ -1912,7 +1910,7 @@
     portInput.inputMode = "numeric";
     var portError = makeFieldError();
     portInput.onchange = function() {
-      var value = trimmed(portInput.value);
+      var value = portInput.value.trim();
       if (!S(value)) {
         portError.textContent = "Enter a port from 1 to 65535.";
         return;
@@ -1995,7 +1993,7 @@
         buttonText: "Save",
         buttonClass: "btn btn-primary",
         onButtonClick: function(keyInput, saveBtn) {
-          var value = trimmed(keyInput.value);
+          var value = keyInput.value.trim();
           if (!A(value)) {
             keyError.textContent = "Enter a 44-character WireGuard key.";
             return;
@@ -2022,7 +2020,7 @@
     keyHint.textContent = "Stored on the frame and never shown again. It is not included in settings backups.";
     keyField.appendChild(keyHint);
     detailsBody.appendChild(keyField);
-    body.appendChild(detailsBody);
+    body.appendChild(panel);
     body.appendChild(status);
     body.appendChild(restartNotice);
     if (nativeAdmin) {

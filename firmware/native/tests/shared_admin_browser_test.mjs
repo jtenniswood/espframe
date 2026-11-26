@@ -152,8 +152,16 @@ const browserTest = String.raw`
       throw new Error('WireGuard began enabled or requested a restart before a change')
     if (getComputedStyle(tunnel.querySelector('.dot')).backgroundColor !== getComputedStyle(tunnel).color)
       throw new Error('The offline WireGuard badge is missing its grey indicator')
+    const panel = vpn.querySelector('.inline-disclosure')
+    const panelToggle = panel.querySelector('button')
+    if (getComputedStyle(panel).display !== 'none') throw new Error('The VPN settings panel appeared while disabled')
     vpnSwitch.click()
     await until(() => getComputedStyle(notice).display !== 'none', 'restart notice after saving WireGuard')
+    if (getComputedStyle(panel).display === 'none' || panelToggle.getAttribute('aria-expanded') !== 'false')
+      throw new Error('VPN settings did not start in a collapsed panel')
+    panelToggle.click()
+    if (getComputedStyle(panel.querySelector('.inline-disclosure-body')).display === 'none')
+      throw new Error('The VPN settings panel did not open')
     const port = [...vpn.querySelectorAll('label')].find(label => label.textContent === 'Server Port').control
     change(port, '51820')
     const serverAddress = [...vpn.querySelectorAll('label')].find(label => label.textContent === 'Server Address').control

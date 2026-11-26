@@ -1287,6 +1287,7 @@ function smokeAssertionsForScenario(scenario) {
           return button;
         }
 
+        cardButton("VPN settings").click();
         // Invalid values are explained and never sent to the device.
         const rejected = [
           ["Server Address", "https://vpn.example.com", "WireGuard: Endpoint"],
