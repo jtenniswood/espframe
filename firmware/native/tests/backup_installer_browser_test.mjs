@@ -100,6 +100,18 @@ const verify = `
     const form = document.querySelector('#settings')
     if (form.elements.display_mode.value !== '' || form.elements.portrait_pair_framing.value !== '')
       throw new Error('Opening the installer selected a replacement for saved framing')
+    if (!form.elements.portrait_pairing.checked || !form.elements.portrait_pairs_only.checked
+      || form.elements.portrait_pairing_range.value !== 'Within 2 Days'
+      || form.elements.brightness_day.value !== '100' || form.elements.brightness_night.value !== '70')
+      throw new Error('Fresh setup did not show the requested photo and brightness defaults')
+    if (form.elements.show_clock.checked || form.elements.photo_metadata_date_enabled.checked
+      || form.elements.photo_metadata_location_enabled.checked || form.elements.clock_format.value !== '24 Hour'
+      || form.elements.timezone.value !== 'Europe/London (GMT+0)')
+      throw new Error('Fresh setup did not show the requested clock and metadata defaults')
+    if (!form.elements.base_tone_enabled.checked || !form.elements.warm_tones_enabled.checked
+      || form.elements.base_tone.value !== '23' || form.elements.warm_tone_intensity.value !== '64'
+      || form.elements.warm_tone_override.value !== 'true')
+      throw new Error('Fresh setup did not show the requested tone defaults')
     const file = document.querySelector('#backup')
     const status = document.querySelector('#backup-status')
     function loadBackup(json, message) {
@@ -242,7 +254,8 @@ const verify = `
       || Object.hasOwn(received, 'ssid') || Object.hasOwn(received, 'password') || Object.hasOwn(received, 'frame_name')
       || Object.hasOwn(received, 'home_assistant_key') || Object.hasOwn(received, 'display_mode')
       || Object.hasOwn(received, 'web_password')
-      || Object.hasOwn(received, 'portrait_pair_framing')
+      || Object.hasOwn(received, 'portrait_pair_framing') || Object.hasOwn(received, 'portrait_pairs_only')
+      || Object.hasOwn(received, 'brightness_day') || Object.hasOwn(received, 'warm_tone_override')
       || Object.hasOwn(received, 'prepared_slide_url')
       || Object.hasOwn(received, 'prepared_slide_token'))
       throw new Error('Immich setup sent settings that were left blank')
