@@ -191,6 +191,7 @@ try {
           password.value = "typed-password";
           check(getComputedStyle(document.body).backgroundColor === "rgb(27, 27, 31)", "Legacy background missing");
           check(getComputedStyle(document.querySelector("#setup")).borderRadius === "12px", "Legacy card styling missing");
+          check(getComputedStyle(ssid).backgroundColor === "rgb(46, 46, 50)", "Legacy SSID styling missing");
           check(getComputedStyle(form.querySelector("button")).backgroundColor === "rgb(92, 115, 231)", "Legacy button styling missing");
           check(document.querySelector(".sp-brand-label").textContent === "EspFrame", "Legacy branding missing");
           check(document.documentElement.scrollWidth <= window.innerWidth, "Native portal overflows narrow viewport");
