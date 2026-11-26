@@ -146,7 +146,14 @@ assert.equal(inactivePairing.settings.portrait_pairs_only, true)
 const invalidPairsOnly = readBackup({ version: 3, photos: { source: 'All Photos', portrait_pairs_only: 'true' } })
 assert.deepEqual(invalidPairsOnly.settings, { photo_source: 'all' })
 assert.match(invalidPairsOnly.notices[0], /paired portraits/)
-const invalidPairingRange = readBackup({ version: 3, photos: { portrait_pairing_range: 'Within 3 Days' } })
+for (const range of ['Within 3 Days', 'Within 5 Days', 'Within 7 Days', 'Within 14 Days', 'Within 30 Days', 'Any Time']) {
+  const backup = createBackup({ immich_url: 'https://photos.test', slide_seconds: 60, portrait_pairing_range: range })
+  assert.equal(backup.photos.portrait_pairing_range, range)
+  const restored = readBackup(backup)
+  assert.equal(restored.settings.portrait_pairing_range, range)
+  assert.deepEqual(restored.notices, [])
+}
+const invalidPairingRange = readBackup({ version: 3, photos: { portrait_pairing_range: 'Within 4 Days' } })
 assert.deepEqual(invalidPairingRange.settings, {})
 assert.match(invalidPairingRange.notices[0], /pairing range/)
 const invalidDates = readBackup({ version: 3, photos: { source: 'Favorites', date_filter_enabled: true,

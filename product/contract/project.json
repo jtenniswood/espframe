@@ -1418,7 +1418,7 @@
   ],
   "date_filter_relative_anchor": "ending today",
   "date_filter_time_source": "frame's configured time",
-  "portrait_pairing_behavior": "pair portrait photos from a configurable nearby-day range side-by-side",
+  "portrait_pairing_behavior": "pair portrait photos from a configurable date range side-by-side",
   "portrait_pairing_rotation_behavior": "disabled while the screen is in portrait rotation",
   "metadata_overlay_fields": [
     "Date",

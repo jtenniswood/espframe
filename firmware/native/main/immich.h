@@ -77,7 +77,7 @@ class ImmichSource {
   int fetch_(std::string_view path, std::string_view body, size_t limit, size_t &received, int64_t deadline_us = 0,
              bool report_response = true);
   std::vector<ImmichPhoto> search_(const PhotoSource &source, std::optional<std::chrono::sys_days> local_day = {},
-                                  int64_t deadline_us = 0);
+                                  std::optional<int64_t> pairing_deadline_us = {});
   bool update_capture_dates_();
   bool update_memory_day_();
   std::vector<ImmichPhoto> memories_();

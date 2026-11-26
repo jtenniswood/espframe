@@ -55,7 +55,7 @@ std::atomic<uint32_t> http_header_timeouts{};
 std::atomic<uint32_t> http_body_timeouts{};
 std::atomic<uint32_t> photo_candidates{};
 std::atomic<uint32_t> pair_candidates{};
-std::atomic<unsigned> pairing_range_days{};
+std::atomic<int> pairing_range_days{};
 std::atomic<uint32_t> preview_requests{};
 std::atomic<int> search_http{};
 std::atomic<int> pairing_http{};
@@ -302,7 +302,7 @@ bool read_trial_scope(nvs_handle_t storage, Settings &settings) {
   }
   if (!scope.apply(settings))
     return false;
-  pairing_range_days.store(settings.portrait_pairing_days, std::memory_order_relaxed);
+  pairing_range_days.store(settings.portrait_pairing_days(), std::memory_order_relaxed);
   return true;
 }
 
@@ -401,7 +401,7 @@ esp_err_t status(httpd_req_t *request) {
                 ",\"http_open_errors\":%" PRIu32 ",\"http_last_open_error\":%d"
                 ",\"http_header_timeouts\":%" PRIu32 ",\"http_body_timeouts\":%" PRIu32
                 ",\"search_http\":%d,\"photo_candidates\":%" PRIu32 ",\"pairing_http\":%d,\"pair_candidates\":%" PRIu32
-                ",\"pairing_range_days\":%u"
+                ",\"pairing_range_days\":%d"
                 ",\"preview_http\":%d,\"preview_requests\":%" PRIu32 "%s}",
                 static_cast<uint32_t>(esp_timer_get_time() / 1000), prepared,
                 cache_slots.load(std::memory_order_relaxed), ready_ahead.load(std::memory_order_relaxed),

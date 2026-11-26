@@ -178,8 +178,9 @@ bool ImmichSource::select_search_api_(PhotoSourceMode mode) {
 }
 
 std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
-                                              std::optional<std::chrono::sys_days> local_day, int64_t deadline_us) {
-  const bool pairing = local_day.has_value();
+                                              std::optional<std::chrono::sys_days> local_day,
+                                              std::optional<int64_t> pairing_deadline_us) {
+  const bool pairing = pairing_deadline_us.has_value();
   const bool custom = source.mode == PhotoSourceMode::Custom;
   const auto &filters = this->feed_().photo_filters;
   if (!pairing)
@@ -214,11 +215,11 @@ std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
   size_t count = pairing ? photo_search_batch : this->random_search_count_;
   if (album_page)
     count = album_page->count;
-  const bool with_exif = wants_search_exif(this->feed_());
+  const bool with_exif = pairing || wants_search_exif(this->feed_());
   const auto dates = this->feed_().photo_source.mode == PhotoSourceMode::Memories
                          ? CaptureDateRange{} : this->capture_date_range_;
   const auto make_request = [&](bool exif) {
-    const auto pairing_days = this->feed_().portrait_pairing_days;
+    const auto pairing_days = this->feed_().portrait_pairing_days();
     return custom ? make_filtered_photo_search(count, filters, this->filter_branch_, this->search_api_, local_day,
                                                page, exif, dates, pairing_days)
                   : make_photo_search(count, source, this->search_api_, local_day, page, exif, dates, pairing_days);
@@ -227,7 +228,7 @@ std::vector<ImmichPhoto> ImmichSource::search_(const PhotoSource &source,
   if (request.path.empty())
     return {};
   size_t length;
-  int status = this->fetch_(request.path, request.body, search_capacity, length, deadline_us,
+  int status = this->fetch_(request.path, request.body, search_capacity, length, pairing_deadline_us.value_or(0),
                             !pairing || this->feed_().requires_portrait_pair());
   if (!pairing && status == 413 && count > 4) {
     count = 4;
@@ -385,7 +386,8 @@ bool ImmichSource::next_asset_(ImmichPhoto &asset) {
     this->pending_ = memory_mode ? this->memories_() : this->search_(source);
     if (this->feed_().requires_portrait_pair()) {
       const auto removed = std::erase_if(this->pending_, [&](const ImmichPhoto &photo) {
-        return !can_play_with_required_pairs(photo, this->feed_().photo_orientation);
+        return !can_play_with_required_pairs(photo, this->feed_().photo_orientation,
+                                             this->feed_().portrait_pairing_days());
       });
       if (removed != 0 && this->pending_.empty() && !this->pending_has_next_page_)
         this->source_status_ = PhotoSourceStatus::WaitingForPair;
@@ -424,7 +426,7 @@ bool ImmichSource::take_pending_(ImmichPhoto &asset) {
 
 std::optional<size_t> ImmichSource::pending_index_(const AssetId &exclude) const {
   if (this->feed_().requires_portrait_pair() && !this->pending_is_paged_) {
-    if (const auto match = find_pair_or_landscape_seed(this->pending_, this->feed_().portrait_pairing_days, exclude,
+    if (const auto match = find_pair_or_landscape_seed(this->pending_, this->feed_().portrait_pairing_days(), exclude,
                                                        this->feed_().photo_orientation))
       return match;
   }
@@ -464,7 +466,8 @@ bool ImmichSource::select_pair_or_landscape_(ImmichPhoto &seed, AssetId &compani
 
 AssetId ImmichSource::companion_for_(const ImmichPhoto &primary, std::optional<int64_t> search_deadline,
                                     const PhotoSlide *exclude) {
-  if (!primary.metadata.capture_day)
+  const auto pairing_days = this->feed_().portrait_pairing_days();
+  if (!primary.metadata.capture_day && pairing_days != portrait_pairing_any_time)
     return {};
   auto choose = [&](const std::vector<ImmichPhoto> &photos) {
     AssetId best{};
@@ -474,13 +477,15 @@ AssetId ImmichSource::companion_for_(const ImmichPhoto &primary, std::optional<i
     for (const auto &candidate : photos) {
       if (exclude && (candidate.id == exclude->primary || candidate.id == exclude->companion))
         continue;
-      if (!is_portrait_companion(primary, candidate, this->feed_().portrait_pairing_days))
+      if (!is_portrait_companion(primary, candidate, pairing_days))
         continue;
       if (!this->uses_prepared_slides_() && this->unavailable_.contains(candidate.id, now))
         continue;
       const bool seen = this->history_.recently_seen(candidate.id, photo_search_batch);
-      const auto distance = std::chrono::abs(*candidate.metadata.capture_day - *primary.metadata.capture_day);
-      if ((!seen && best_seen) || (seen == best_seen && distance < closest)) {
+      const auto distance = candidate.metadata.capture_day && primary.metadata.capture_day
+                                ? std::chrono::abs(*candidate.metadata.capture_day - *primary.metadata.capture_day)
+                                : std::chrono::days::max();
+      if (best[0] == '\0' || (!seen && best_seen) || (seen == best_seen && distance < closest)) {
         best = candidate.id;
         best_seen = seen;
         closest = distance;

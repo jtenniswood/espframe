@@ -123,6 +123,7 @@ struct SlideshowRuntimeState {
   bool portrait_preload_right_ready = false;
   bool portrait_search_expanded = false;
   bool portrait_search_exhaustive = false;
+  uint8_t portrait_search_metadata_pages = 0;
   uint32_t portrait_search_page = 1;
   std::string portrait_search_cursor;
   uint32_t portrait_search_generation = 0;
@@ -133,6 +134,10 @@ struct SlideshowRuntimeState {
   bool advance_portrait_search(uint32_t next_page, const std::string &next_cursor,
                                bool structured, int range_days) {
     if (portrait_search_exhaustive) {
+      // Any Time can span the entire library, so limit metadata requests per portrait.
+      constexpr uint8_t any_time_page_limit = 3;
+      if (range_days == IMMICH_PORTRAIT_PAIR_ANY_TIME && ++portrait_search_metadata_pages >= any_time_page_limit)
+        return false;
       if (structured && !next_cursor.empty() && next_cursor != portrait_search_cursor) {
         portrait_search_cursor = next_cursor;
         return true;
@@ -143,6 +148,7 @@ struct SlideshowRuntimeState {
       }
     } else {
       portrait_search_exhaustive = true;
+      portrait_search_metadata_pages = 0;
       portrait_search_page = 1;
       portrait_search_cursor.clear();
       return true;

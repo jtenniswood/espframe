@@ -334,7 +334,7 @@ class SlideLoader {
         this->settings_.photo_orientation = PhotoOrientation::Any;
         this->settings_.capture_dates = {};
         this->settings_.portrait_pairing = this->settings_.portrait_pairs_only = true;
-        this->settings_.portrait_pairing_days = 2;
+        this->settings_.portrait_pairing_range_index = 2;
         this->settings_.display_mode = DisplayMode::Fit;
         if constexpr (trial_replay_pair_fill)
           this->settings_.pair_framing = PairFraming::Fill;

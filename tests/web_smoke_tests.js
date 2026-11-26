@@ -1446,7 +1446,7 @@ function smokeAssertionsForScenario(scenario) {
         if (progressRingToggle.getAttribute("aria-checked") !== "true") {
           throw new Error("The slideshow progress ring toggle should turn on");
         }
-        setSelect("Pairing Range", "Within 2 Days");
+        setSelect("Pairing Range", "Any Time");
         toggleByText("Show Paired Portraits Only").click();
         cardByTitle("Portrait Pairing").querySelector(".card-body .toggle").click();
         setSelect("Display Photos", "Landscape Only");
@@ -1607,7 +1607,7 @@ function smokeAssertionsForScenario(scenario) {
             requireLatestPostParam("Connection timeout", "Screen: Connection Timeout", "option", "5 minutes");
             requireLatestPostParam("Slideshow interval", "Photos: Slideshow Interval", "option", "24 hours");
             requirePostContains("Slideshow progress ring", "Photos: Slideshow Progress Ring", "turn_on");
-            requireLatestPostParam("Portrait pairing range", "Photos: Portrait Pairing Range", "option", "Within 2 Days");
+            requireLatestPostParam("Portrait pairing range", "Photos: Portrait Pairing Range", "option", "Any Time");
             requirePostContains("Paired portraits only", "Photos: Paired Portraits Only", "turn_on");
             requirePostContains("Portrait pairing", "Photos: Portrait Pairing", "turn_off");
             requireLatestPostParam("Photo orientation", "Photos: Orientation", "option", "Landscape Only");

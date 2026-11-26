@@ -160,12 +160,12 @@ Use **Portrait Pairing** to display compatible portrait photos side-by-side on l
 |---------|---------|-------------|
 | **Portrait Pairing** | On | Pairs compatible portrait photos side-by-side on landscape screens. |
 | **Show Paired Portraits Only** | Off | Skip portrait photos unless both images in a compatible pair are ready; landscape photos are unaffected. |
-| **Pairing Range** | Same Day | Choose whether portrait companions can be taken on the same day or up to one or two calendar days either side. |
+| **Pairing Range** | Same Day | Allow companions from the same day, within 1, 2, 3, 5, 7, 14, or 30 calendar days either side, or from any time. |
 <!-- ESPFRAME:SETTINGS_TABLE portrait_pairing END -->
 
 Portrait pairing is disabled while the screen is in portrait rotation.
 
-**Pairing Range** always checks the same calendar day first. EspFrame first samples up to 20 assets and chooses the compatible portrait closest to the primary photo's capture time. With **±1 Day** or **±2 Days**, it broadens the search only when it cannot find a same-day companion. If those fast samples miss, EspFrame paginates through every eligible asset until it finds a compatible portrait, so large or shared albums do not produce false "no companion" results. The range is kept inside any date filter you have configured, and the companion uses the exact album, person, or tag chosen for the primary photo.
+**Pairing Range** measures the gap between the two photos in calendar days. On ESPHome, fixed ranges search the same day first and widen the search if needed. **Any Time** searches across all eligible dates and limits the number of pages it checks for each portrait. Your photo source and any configured date filter still apply.
 
 Turn on **Show Paired Portraits Only** to skip a portrait when a complete pair cannot be loaded. Landscape photos continue to display normally. While EspFrame searches for another eligible photo, the last successfully displayed photo stays on screen.
 

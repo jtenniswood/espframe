@@ -22,7 +22,8 @@ export const connectionTimeouts = [
   '30 seconds', '45 seconds', '1 minute', '2 minutes', '3 minutes', '5 minutes',
   '10 minutes', '15 minutes', '20 minutes', '30 minutes',
 ]
-const pairingRanges = ['Same Day', 'Within 1 Day', 'Within 2 Days']
+const pairingRanges = ['Same Day', 'Within 1 Day', 'Within 2 Days', 'Within 3 Days',
+  'Within 5 Days', 'Within 7 Days', 'Within 14 Days', 'Within 30 Days', 'Any Time']
 const memoriesWindows = ['Same Day', 'Within 1 Day', 'Within 2 Days', 'Within 3 Days', 'Within 7 Days']
 const groups = ['connection', 'photos', 'frequency', 'screen', 'clock', 'metadata', 'firmware_updates', 'identity']
 export const ntpServerFields = ['ntp_server_1', 'ntp_server_2', 'ntp_server_3']

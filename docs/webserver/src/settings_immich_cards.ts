@@ -1285,11 +1285,7 @@
       productSettingOptions("portrait_pairing_range"),
       S.portrait_pairing_range,
       function (v) { saveSetting("portrait_pairing_range", v); },
-      function (v) {
-        if (v === "Within 1 Day") return "±1 Day";
-        if (v === "Within 2 Days") return "±2 Days";
-        return v;
-      }
+      function (v) { return v.replace(/^Within /, "±"); }
     );
     pairingRangeSelect.disabled = portraitRotationActive;
     if (portraitRotationActive) pairingRangeSelect.title = pairingOptionsDisabledTitle;

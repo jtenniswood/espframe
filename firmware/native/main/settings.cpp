@@ -514,7 +514,7 @@ bool read_capture_dates(const cJSON *root, CaptureDateSettings &dates) {
 }
 
 bool read_pairing(const cJSON *root, Settings &settings) {
-  std::string range{portrait_pairing_ranges[settings.portrait_pairing_days]};
+  std::string range{portrait_pairing_ranges[settings.portrait_pairing_range_index]};
   std::string framing{pair_framing_name(settings.pair_framing)};
   std::string divider{pair_divider_name(settings.pair_divider)};
   if (!read_flag(root, "portrait_pairing", settings.portrait_pairing) ||
@@ -527,7 +527,7 @@ bool read_pairing(const cJSON *root, Settings &settings) {
   const auto match = std::find(portrait_pairing_ranges.begin(), portrait_pairing_ranges.end(), range);
   if (match == portrait_pairing_ranges.end())
     return false;
-  settings.portrait_pairing_days = std::distance(portrait_pairing_ranges.begin(), match);
+  settings.portrait_pairing_range_index = std::distance(portrait_pairing_ranges.begin(), match);
   settings.pair_divider = divider == "White" ? PairDivider::White : PairDivider::Black;
   for (auto choice : {PairFraming::FollowPhotos, PairFraming::Fill, PairFraming::Fit}) {
     if (framing == pair_framing_name(choice)) {
@@ -1139,7 +1139,7 @@ bool Settings::add_playback_fields(cJSON *object, PhotoFilterUpdate filter_updat
          cJSON_AddBoolToObject(object, "warm_tone_override", tone.night_override) &&
          cJSON_AddBoolToObject(object, "portrait_pairing", portrait_pairing) &&
          cJSON_AddBoolToObject(object, "portrait_pairs_only", portrait_pairs_only) &&
-         cJSON_AddStringToObject(object, "portrait_pairing_range", portrait_pairing_ranges[portrait_pairing_days].data()) &&
+         cJSON_AddStringToObject(object, "portrait_pairing_range", portrait_pairing_ranges[portrait_pairing_range_index].data()) &&
          cJSON_AddStringToObject(object, "portrait_pair_framing", pair_framing_name(pair_framing)) &&
          cJSON_AddStringToObject(object, "portrait_pair_divider", pair_divider_name(pair_divider)) &&
          cJSON_AddStringToObject(object, "display_mode", display_mode_name(display_mode)) &&

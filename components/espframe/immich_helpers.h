@@ -842,9 +842,17 @@ inline std::string immich_format_iso_date_offset(int year, int month, int day, i
   return immich_format_iso_date(shifted_year, shifted_month, shifted_day);
 }
 
+inline constexpr int IMMICH_PORTRAIT_PAIR_ANY_TIME = -1;
+
 inline int portrait_pairing_range_days(const std::string &option) {
-  if (option.find('2') != std::string::npos) return 2;
-  if (option.find('1') != std::string::npos) return 1;
+  if (option == "Within 1 Day") return 1;
+  if (option == "Within 2 Days") return 2;
+  if (option == "Within 3 Days") return 3;
+  if (option == "Within 5 Days") return 5;
+  if (option == "Within 7 Days") return 7;
+  if (option == "Within 14 Days") return 14;
+  if (option == "Within 30 Days") return 30;
+  if (option == "Any Time") return IMMICH_PORTRAIT_PAIR_ANY_TIME;
   return 0;
 }
 
@@ -929,7 +937,7 @@ inline std::string build_immich_date_filter_extra(const ImmichDateRange &range) 
 inline std::string build_immich_companion_date_filter_extra(const std::string &day,
                                                            const ImmichDateRange &range,
                                                            int range_days = 0) {
-  if (range_days < 0) range_days = 0;
+  if (range_days == IMMICH_PORTRAIT_PAIR_ANY_TIME) return build_immich_date_filter_extra(range);
   int year = day.size() >= 10 ? atoi(day.substr(0, 4).c_str()) : 0;
   int month = day.size() >= 10 ? atoi(day.substr(5, 2).c_str()) : 0;
   int day_of_month = day.size() >= 10 ? atoi(day.substr(8, 2).c_str()) : 0;

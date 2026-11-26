@@ -32,7 +32,7 @@ struct TrialScope {
     settings.photo_orientation = stock_orientations[orientation];
     settings.portrait_pairing = pairing_enabled != 0;
     settings.portrait_pairs_only = pairs_only != 0;
-    settings.portrait_pairing_days = pairing_range;
+    settings.portrait_pairing_range_index = pairing_range;
     settings.capture_dates = {.enabled = date_enabled != 0, .relative = date_mode == 1,
                               .from = std::string(date_from), .through = std::string(date_to),
                               .amount = static_cast<uint8_t>(date_amount), .years = date_unit == 1};
