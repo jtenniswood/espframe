@@ -30,6 +30,14 @@ int main(int argc, char **argv) {
   dns[12] = 64;
   assert(setup_dns_reply(dns, query.size(), setup_ip) == 0);
 
+  constexpr uint32_t home_ip = 0xc0a8012a;
+  static_assert(setup_page(true, false, 0) == SetupPage::Wifi);
+  static_assert(setup_page(true, false, home_ip) == SetupPage::Immich);
+  static_assert(setup_page(false, false, home_ip) == SetupPage::Immich);
+  static_assert(setup_page(false, false, 0) == SetupPage::None);
+  static_assert(setup_page(false, true, home_ip) == SetupPage::None);
+  static_assert(setup_page(true, true, home_ip) == SetupPage::None);
+
   RecoveryWindow recovery;
   assert(!recovery.change_at(true, false));
   recovery.update(0, false);
@@ -110,14 +118,20 @@ int main(int argc, char **argv) {
     });
     assert((normal == english_warning) == (language == 0));
 
-    for (const auto address : {std::string_view{}, std::string_view{"http://192.168.1.42"}}) {
+    for (const bool immich_setup : {false, true}) {
+      const auto draw = [&](uint16_t *frame, ScreenRotation rotation) {
+        if (immich_setup)
+          draw_immich_setup(frame, localized, "http://192.168.1.42", rotation);
+        else
+          draw_wifi_setup(frame, localized, access_point, rotation);
+      };
       std::fill(normal.begin(), normal.end(), photo);
-      draw_wifi_setup(normal.data(), atlas.data(), localized, access_point, address, ScreenRotation::Normal);
-      draw_wifi_setup(inverted.data(), atlas.data(), localized, access_point, address, ScreenRotation::UpsideDown);
+      draw(normal.data(), ScreenRotation::Normal);
+      draw(inverted.data(), ScreenRotation::UpsideDown);
       assert(std::equal(normal.begin(), normal.end(), inverted.rbegin()));
       assert(std::count(normal.begin(), normal.end(), uint16_t{0}) > 0.9 * pixel_count);
       assert(std::count(normal.begin(), normal.end(), uint16_t{0xffff}) > 100);
-      if (address.empty()) {
+      if (!immich_setup) {
         const Viewport viewport{ScreenRotation::Normal};
         const int x = viewport.width / 2;
         const int y = viewport.height / 2;
@@ -148,8 +162,21 @@ int main(int argc, char **argv) {
           assert(instruction_pixels > 100);
         }
       }
+      if (immich_setup) {
+        const Viewport viewport{ScreenRotation::Normal};
+        // The browser directions, IP address, and footer must all draw.
+        for (const int top : {viewport.height / 2 - 55, viewport.height / 2 + 5, viewport.height / 2 + 110}) {
+          int pixels = 0;
+          for (int row = top; row < top + 60; ++row)
+            for (int col = 0; col < viewport.width; ++col)
+              pixels += normal[viewport.offset(col, row)] != 0;
+          assert(pixels > 400);
+        }
+        draw_immich_setup(inverted.data(), localized, "http://192.168.1.43", ScreenRotation::Normal);
+        assert(normal != inverted);
+      }
       for (const auto rotation : {ScreenRotation::Clockwise, ScreenRotation::Counterclockwise}) {
-        draw_wifi_setup(normal.data(), atlas.data(), localized, access_point, address, rotation);
+        draw(normal.data(), rotation);
         assert(std::count(normal.begin(), normal.end(), uint16_t{0xffff}) > 100);
       }
     }

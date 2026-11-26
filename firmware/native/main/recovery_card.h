@@ -15,8 +15,8 @@ struct StatusText {
   uint8_t language{};
 };
 
-void draw_wifi_setup(uint16_t *frame, const uint8_t *atlas, StatusText text, const RecoveryNetwork &network,
-                     std::string_view connected_address, ScreenRotation rotation);
+void draw_wifi_setup(uint16_t *frame, StatusText text, const RecoveryNetwork &network, ScreenRotation rotation);
+void draw_immich_setup(uint16_t *frame, StatusText text, std::string_view address, ScreenRotation rotation);
 void draw_recovery_card(uint16_t *frame, const uint8_t *atlas, StatusText text, const RecoveryNetwork &network,
                         ScreenRotation rotation);
 void draw_source_status(uint16_t *frame, StatusText text, PhotoSourceStatus status, ScreenRotation rotation);

@@ -350,7 +350,9 @@ setup page opens automatically on supported devices. You can also visit
 `http://192.168.4.1` directly. Choose a nearby Wi-Fi network or enter its
 name manually, then enter its password. The frame tests the connection
 before saving the credentials. Rejoin your usual Wi-Fi and open the address
-shown on the frame and in the setup page to continue.
+shown on the frame and in the setup page to continue. The frame keeps its
+Immich Setup screen and browser directions visible until you save an Immich
+server URL and API key.
 
 A configured frame opens a password-protected recovery hotspot after 90
 seconds without a home-network address. The frame shows its network name and

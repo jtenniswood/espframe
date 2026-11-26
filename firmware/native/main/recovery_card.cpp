@@ -40,7 +40,10 @@ bool rtl(StatusText text) {
 
 constexpr size_t label_count = static_cast<size_t>(StatusLabel::Count);
 constexpr size_t icon_index = label_count * espframe_i18n_catalogue::LANGUAGE_COUNT;
-constexpr size_t setup_glyph_start = icon_index + 1;
+constexpr size_t cog_icon_index = icon_index + 1;
+constexpr size_t address_glyph_start = cog_icon_index + 1;
+constexpr std::string_view address_characters = setup_address_characters;
+constexpr size_t setup_glyph_start = address_glyph_start + address_characters.size();
 constexpr std::string_view ssid_characters = recovery_ssid_characters;
 constexpr int setup_glyph_bearing = 4;
 
@@ -94,8 +97,7 @@ int ascii_width(const uint8_t *atlas, std::string_view value) {
   return width;
 }
 
-void ascii_text(uint16_t *frame, const uint8_t *atlas, ScreenRotation rotation, int x, int y, std::string_view value,
-                uint16_t color = white, uint16_t backdrop = background) {
+void ascii_text(uint16_t *frame, const uint8_t *atlas, ScreenRotation rotation, int x, int y, std::string_view value) {
   const Viewport viewport{rotation};
   for (const unsigned char character : value) {
     const auto *glyph = ascii_glyph(atlas, character);
@@ -106,7 +108,7 @@ void ascii_text(uint16_t *frame, const uint8_t *atlas, ScreenRotation rotation, 
         const auto mask = glyph[row * (glyph_width / 2) + column / 2];
         const unsigned opacity = column % 2 ? mask & 15 : mask >> 4;
         if (opacity)
-          pixels[row * viewport.y_stride] = masked(color, opacity, backdrop);
+          pixels[row * viewport.y_stride] = masked(white, opacity, background);
       }
     }
     x += advance;
@@ -139,28 +141,37 @@ void localized_text(uint16_t *frame, Line line, ScreenRotation rotation, int x, 
 int setup_advance(Line mask) { return std::max(0, mask.width - 2 * setup_glyph_bearing); }
 
 void draw_setup_glyphs(uint16_t *frame, StatusText text, ScreenRotation rotation, int x, int y, uint16_t color,
-                       std::span<const uint8_t> indices) {
+                       std::span<const uint8_t> indices, size_t glyph_start) {
   for (const auto index : indices) {
-    const auto glyph = line_at(text, setup_glyph_start + index);
+    const auto glyph = line_at(text, glyph_start + index);
     localized_text(frame, glyph, rotation, x - setup_glyph_bearing, y, color, setup_background);
     x += setup_advance(glyph);
   }
 }
 
-void centered_setup_ssid(uint16_t *frame, StatusText text, ScreenRotation rotation,
-                         std::string_view ssid, int y) {
-  std::array<uint8_t, std::tuple_size_v<decltype(RecoveryNetwork::ssid)>> indices;
+void centered_setup_value(uint16_t *frame, StatusText text, ScreenRotation rotation, std::string_view value,
+                          int y, uint16_t color, std::string_view characters, size_t glyph_start) {
+  std::array<uint8_t, sizeof("http://255.255.255.255")> indices;
   size_t count = 0;
   int width = 0;
-  for (const char character : ssid) {
-    const auto index = ssid_characters.find(character);
+  for (const char character : value) {
+    const auto index = characters.find(character);
     if (index != std::string_view::npos && count < indices.size()) {
       indices[count++] = static_cast<uint8_t>(index);
-      width += setup_advance(line_at(text, setup_glyph_start + index));
+      width += setup_advance(line_at(text, glyph_start + index));
     }
   }
-  draw_setup_glyphs(frame, text, rotation, (Viewport{rotation}.width - width) / 2, y, setup_muted,
-                    {indices.data(), count});
+  draw_setup_glyphs(frame, text, rotation, (Viewport{rotation}.width - width) / 2, y, color,
+                    {indices.data(), count}, glyph_start);
+}
+
+void centered_setup_line(uint16_t *frame, StatusText text, ScreenRotation rotation, Line message, int y,
+                         uint16_t color) {
+  const int x = (Viewport{rotation}.width - message.width) / 2;
+  if (message.glyphs)
+    draw_setup_glyphs(frame, text, rotation, x, y, color, message.runs, setup_glyph_start);
+  else
+    localized_text(frame, message, rotation, x, y, color, setup_background);
 }
 
 void card(uint16_t *frame, ScreenRotation rotation, int left, int top, int width, int height) {
@@ -193,27 +204,10 @@ void source_notice(uint16_t *frame, StatusText text, StatusLabel key, ScreenRota
 
 }  // namespace
 
-void draw_wifi_setup(uint16_t *frame, const uint8_t *atlas, StatusText text, const RecoveryNetwork &network,
-                     std::string_view connected_address, ScreenRotation rotation) {
-  const Viewport viewport{rotation};
-  const int center = viewport.height / 2;
+void draw_wifi_setup(uint16_t *frame, StatusText text, const RecoveryNetwork &network, ScreenRotation rotation) {
+  const int center = Viewport{rotation}.height / 2;
   std::fill_n(frame, pixel_count, setup_background);
-  const auto centered = [&](Line message, int y, uint16_t color) {
-    const int x = (viewport.width - message.width) / 2;
-    if (message.glyphs)
-      draw_setup_glyphs(frame, text, rotation, x, y, color, message.runs);
-    else
-      localized_text(frame, message, rotation, x, y, color, setup_background);
-  };
-  const auto value = [&](std::string_view content, int y, uint16_t color) {
-    ascii_text(frame, atlas, rotation, (viewport.width - ascii_width(atlas, content)) / 2, y, content, color,
-               setup_background);
-  };
-  if (!connected_address.empty()) {
-    centered(line(text, StatusLabel::connected), center - 58, white);
-    value(connected_address, center + 18, white);
-    return;
-  }
+
   // Match the original LVGL stack: 64px Wi-Fi icon, 46px title, 30px body,
   // with a 20px gap between each of the three widgets.
   const auto icon = line_at(text, icon_index);
@@ -224,15 +218,41 @@ void draw_wifi_setup(uint16_t *frame, const uint8_t *atlas, StatusText text, con
   constexpr int gap = 20;
   const int body_height = 2 * installer.height + hotspot.height + browser.height;
   const int top = center - (icon.height + title.height + body_height + 2 * gap) / 2;
-  centered(icon, top, white);
+  centered_setup_line(frame, text, rotation, icon, top, white);
   const int title_y = top + icon.height + gap;
-  centered(title, title_y, white);
+  centered_setup_line(frame, text, rotation, title, title_y, white);
   const int body_y = title_y + title.height + gap;
-  centered(installer, body_y, setup_muted);
-  centered(hotspot, body_y + installer.height, setup_muted);
+  centered_setup_line(frame, text, rotation, installer, body_y, setup_muted);
+  centered_setup_line(frame, text, rotation, hotspot, body_y + installer.height, setup_muted);
   const int ssid_y = body_y + installer.height + hotspot.height;
-  centered_setup_ssid(frame, text, rotation, network.ssid.data(), ssid_y);
-  centered(browser, ssid_y + installer.height, setup_muted);
+  centered_setup_value(frame, text, rotation, network.ssid.data(), ssid_y, setup_muted, ssid_characters,
+                       setup_glyph_start);
+  centered_setup_line(frame, text, rotation, browser, ssid_y + installer.height, setup_muted);
+}
+
+void draw_immich_setup(uint16_t *frame, StatusText text, std::string_view address, ScreenRotation rotation) {
+  const int center = Viewport{rotation}.height / 2;
+  std::fill_n(frame, pixel_count, setup_background);
+
+  const auto icon = line_at(text, cog_icon_index);
+  const auto title = line(text, StatusLabel::immich_setup);
+  const auto browser = line(text, StatusLabel::open_browser);
+  const auto first = line(text, StatusLabel::configure_immich_first);
+  const auto second = line(text, StatusLabel::configure_immich_second);
+  const int address_height = line_at(text, address_glyph_start).height;
+  constexpr int gap = 20;
+  const int height = icon.height + title.height + browser.height + address_height + first.height + second.height;
+  const int top = center - (height + 4 * gap) / 2;
+  centered_setup_line(frame, text, rotation, icon, top, white);
+  const int title_y = top + icon.height + gap;
+  centered_setup_line(frame, text, rotation, title, title_y, white);
+  const int browser_y = title_y + title.height + gap;
+  centered_setup_line(frame, text, rotation, browser, browser_y, setup_muted);
+  const int address_y = browser_y + browser.height + gap;
+  centered_setup_value(frame, text, rotation, address, address_y, white, address_characters, address_glyph_start);
+  const int instructions_y = address_y + address_height + gap;
+  centered_setup_line(frame, text, rotation, first, instructions_y, setup_muted);
+  centered_setup_line(frame, text, rotation, second, instructions_y + first.height, setup_muted);
 }
 
 void draw_recovery_card(uint16_t *frame, const uint8_t *atlas, StatusText text, const RecoveryNetwork &network,
