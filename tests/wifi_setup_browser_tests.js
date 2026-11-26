@@ -160,6 +160,7 @@ try {
   const nativeDir = path.join(__dirname, "../firmware/native/main/web");
   const nativePortal = fs.readFileSync(path.join(nativeDir, "recovery.html"), "utf8");
   const nativeScript = fs.readFileSync(path.join(nativeDir, "recovery.js"), "utf8");
+  const nativeStyles = fs.readFileSync(path.join(nativeDir, "recovery.css"), "utf8");
   for (const scanAvailable of [true, false]) {
     const mock = `<script>
       const names = ${JSON.stringify(names)};
@@ -167,10 +168,10 @@ try {
       let scans = 0;
       let sent;
       window.fetch = async (url, options) => {
-        if (url === "/api/recovery/networks") {
+        if (url === "/api/recovery/networks?details=1") {
           if (!scanAvailable) return new Response(null, {status: 404});
           if (++scans === 1) return new Response(null, {status: 202});
-          return Response.json(names);
+          return Response.json(names.map((ssid, index) => ({ssid, rssi: -50 - index * 10, secured: index !== 0})));
         }
         if (url !== "/api/recovery") throw new Error("Unexpected request");
         if (options.method === "POST") {
@@ -185,16 +186,22 @@ try {
         try {
           function check(value, message) { if (!value) throw new Error(message); }
           const form = document.querySelector("#recovery");
-          const chooser = document.querySelector("#networks");
+          const rows = document.querySelectorAll("#networks .network");
           const {ssid, password} = form.elements;
           password.value = "typed-password";
+          check(getComputedStyle(document.body).backgroundColor === "rgb(27, 27, 31)", "Legacy background missing");
+          check(getComputedStyle(document.querySelector("#setup")).borderRadius === "12px", "Legacy card styling missing");
+          check(getComputedStyle(form.querySelector("button")).backgroundColor === "rgb(92, 115, 231)", "Legacy button styling missing");
+          check(document.querySelector(".sp-brand-label").textContent === "EspFrame", "Legacy branding missing");
+          check(document.documentElement.scrollWidth <= window.innerWidth, "Native portal overflows narrow viewport");
           check(document.querySelector("#nearby").hidden === !scanAvailable, "Incorrect network chooser visibility");
           if (scanAvailable) {
             check(scans === 2, "Should retry a pending scan");
-            check(chooser.options.length === names.length + 1, "Missing scan results");
-            check(!chooser.querySelector("img"), "Network name was parsed as markup");
-            chooser.value = names[1];
-            chooser.dispatchEvent(new Event("change"));
+            check(rows.length === names.length, "Missing scan results");
+            check(!rows[2].querySelector("img"), "Network name was parsed as markup");
+            check(!rows[0].querySelector(".network-lock") && rows[1].querySelector(".network-lock"), "Network security indicator missing");
+            check(rows[1].querySelector(".network-signal").getAttribute("transform") === "scale(0.8)", "Signal indicator is incorrect");
+            rows[1].querySelector("button").click();
             check(ssid.value === names[1] && document.activeElement === password, "Network selection did not fill the form");
             check(password.value === "typed-password", "Selection reset the typed password");
           } else {
@@ -206,14 +213,18 @@ try {
           form.requestSubmit();
           await new Promise(resolve => setTimeout(resolve, 50));
           check(String(sent) === String([name.length, ...name, secret.length, ...secret]), "Unexpected provisioning body");
-          check(form.hidden && document.querySelector("#status").textContent.includes("192.168.1.42"), "Missing connected address");
+          check(form.hidden && !document.querySelector("#saved").hidden, "Saved confirmation missing");
+          check(document.querySelector("#saved-heading").textContent === "WiFi details saved", "Legacy confirmation heading missing");
+          check(document.querySelector("#continue-setup").textContent.includes("192.168.1.42"), "Missing connected address");
           document.body.append("NATIVE_WIFI_PASS");
         } catch (error) { document.body.textContent = "NATIVE_WIFI_FAIL " + error.message; }
       }, 1000);
     </script>`;
     const scenario = scanAvailable ? "native-selection" : "native-manual";
     const file = path.join(dir, `${scenario}.html`);
-    const page = nativePortal.replace('<script type="module" src="/recovery.js"></script>',
+    const page = nativePortal.replace('<link rel="stylesheet" href="/espframe/style.css">', `<style>${webStyles}</style>`)
+      .replace('<link rel="stylesheet" href="/recovery.css">', `<style>${nativeStyles}</style>`)
+      .replace('<script type="module" src="/recovery.js"></script>',
       `${mock}<script type="module">${nativeScript}</script>${assertions}`);
     fs.writeFileSync(file, page);
     const args = ["--headless=new", "--disable-gpu", "--disable-background-networking", "--no-first-run",

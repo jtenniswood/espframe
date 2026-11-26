@@ -115,8 +115,20 @@ int main(int argc, char **argv) {
       draw_wifi_setup(normal.data(), atlas.data(), localized, access_point, address, ScreenRotation::Normal);
       draw_wifi_setup(inverted.data(), atlas.data(), localized, access_point, address, ScreenRotation::UpsideDown);
       assert(std::equal(normal.begin(), normal.end(), inverted.rbegin()));
-      assert(std::find(normal.begin(), normal.end(), photo) == normal.end());
+      assert(std::count(normal.begin(), normal.end(), uint16_t{0}) > 0.9 * pixel_count);
       assert(std::count(normal.begin(), normal.end(), uint16_t{0xffff}) > 100);
+      if (address.empty()) {
+        const Viewport viewport{ScreenRotation::Normal};
+        const int x = viewport.width / 2;
+        const int y = viewport.height / 2;
+        assert(normal[viewport.offset(0, 0)] == 0);
+        // The icon fits above the heading and draws at every selected language.
+        int icon_pixels = 0;
+        for (int row = y - 165; row < y - 102; ++row)
+          for (int col = x - 32; col < x + 32; ++col)
+            icon_pixels += normal[viewport.offset(col, row)] == 0xffff;
+        assert(icon_pixels > 300);
+      }
       for (const auto rotation : {ScreenRotation::Clockwise, ScreenRotation::Counterclockwise}) {
         draw_wifi_setup(normal.data(), atlas.data(), localized, access_point, address, rotation);
         assert(std::count(normal.begin(), normal.end(), uint16_t{0xffff}) > 100);

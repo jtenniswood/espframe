@@ -3,33 +3,37 @@ const status = document.querySelector('#status')
 const button = form.querySelector('button')
 const nearby = document.querySelector('#nearby')
 const networks = document.querySelector('#networks')
+const networkRow = document.querySelector('#network-row')
+const setup = document.querySelector('#setup')
+const saved = document.querySelector('#saved')
+const continueSetup = document.querySelector('#continue-setup')
 const encoder = new TextEncoder()
 const delay = () => new Promise(resolve => setTimeout(resolve, 750))
 
 async function loadNearbyNetworks() {
   for (let attempt = 0; attempt < 8; attempt++) {
-    const response = await fetch('/api/recovery/networks', { signal: AbortSignal.timeout(2000) })
+    const response = await fetch('/api/recovery/networks?details=1', { signal: AbortSignal.timeout(2000) })
     if (!response.ok) return
     if (response.status === 202) {
       await delay()
       continue
     }
-    for (const name of await response.json()) {
-      const option = document.createElement('option')
-      option.value = name
-      option.textContent = name
-      networks.append(option)
+    for (const { ssid, rssi, secured } of await response.json()) {
+      const row = networkRow.content.cloneNode(true)
+      row.querySelector('.network-ssid').textContent = ssid
+      const signal = Math.max(0, Math.min(1, (rssi + 100) / 50))
+      row.querySelector('.network-signal').setAttribute('transform', `scale(${signal})`)
+      if (!secured) row.querySelector('.network-lock').remove()
+      row.querySelector('button').addEventListener('click', () => {
+        form.elements.ssid.value = ssid
+        form.elements.password.focus()
+      })
+      networks.append(row)
     }
-    nearby.hidden = networks.options.length < 2
+    nearby.hidden = networks.childElementCount === 0
     return
   }
 }
-
-networks.addEventListener('change', () => {
-  if (!networks.value) return
-  form.elements.ssid.value = networks.value
-  form.elements.password.focus()
-})
 
 async function readStatus() {
   const response = await fetch('/api/recovery', { signal: AbortSignal.timeout(2000) })
@@ -55,12 +59,15 @@ async function waitForConnection(conflictMessage) {
 }
 
 function show(result) {
-  form.hidden = result.status === 'connected'
+  const connected = result.status === 'connected'
+  form.hidden = setup.hidden = connected
+  saved.hidden = !connected
   switch (result.status) {
     case 'connected':
-      status.textContent = `Connected. Rejoin your usual Wi-Fi. The frame’s address is ${result.ipv4}.`
+      status.textContent = ''
+      continueSetup.textContent = `Open the address shown on the frame to continue setup. The frame’s address is ${result.ipv4}.`
       if (result.web_settings === false) {
-        status.textContent += ' To set up Immich or enable web settings, connect by USB and open “Connect Wi-Fi and Immich” in the native browser installer.'
+        continueSetup.textContent += ' To set up Immich or enable web settings, connect by USB and open “Connect Wi-Fi and Immich” in the native browser installer.'
       }
       break
     case 'saved':

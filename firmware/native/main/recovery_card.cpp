@@ -14,6 +14,8 @@ constexpr uint16_t compact_mask = 0x8000;
 constexpr uint16_t background = 0x1105;
 constexpr uint16_t muted = 0xaeb5;
 constexpr uint16_t white = 0xffff;
+constexpr uint16_t setup_background = 0x0000;
+constexpr uint16_t setup_muted = 0x8c51;
 
 enum class StatusLabel {
 #define ESPFRAME_STATUS_LABEL(name) name,
@@ -24,6 +26,7 @@ enum class StatusLabel {
 
 struct Line {
   int width{};
+  int height{};
   std::span<const uint8_t> runs;
   bool compact{};
 };
@@ -33,33 +36,40 @@ bool rtl(StatusText text) {
          std::string_view{espframe_i18n_catalogue::LANGUAGES[text.language]} == "he";
 }
 
-Line line(StatusText text, StatusLabel label) {
+constexpr size_t label_count = static_cast<size_t>(StatusLabel::Count);
+constexpr size_t icon_index = label_count * espframe_i18n_catalogue::LANGUAGE_COUNT;
+
+Line line_at(StatusText text, size_t index) {
   constexpr size_t fingerprint_bytes = 32;
-  constexpr size_t label_count = static_cast<size_t>(StatusLabel::Count);
-  constexpr size_t table_size = fingerprint_bytes + 4 * (label_count * espframe_i18n_catalogue::LANGUAGE_COUNT + 1);
-  if (text.masks.size() < table_size || label == StatusLabel::Count)
+  constexpr size_t table_size = fingerprint_bytes + 4 * (icon_index + 2);
+  if (text.masks.size() < table_size)
     return {};
-  const size_t language = text.language < espframe_i18n_catalogue::LANGUAGE_COUNT ? text.language : 0;
   const auto offset = [&](size_t index) -> size_t {
     const auto *bytes = text.masks.data() + fingerprint_bytes + index * 4;
     return uint32_t{bytes[0]} | (uint32_t{bytes[1]} << 8) | (uint32_t{bytes[2]} << 16) | (uint32_t{bytes[3]} << 24);
   };
-  const size_t index = language * label_count + static_cast<size_t>(label);
   const size_t begin = offset(index);
   const size_t end = offset(index + 1);
-  if (begin < table_size || end <= begin || end - begin <= 2 || end > text.masks.size())
+  if (begin < table_size || end <= begin || end - begin <= 3 || end > text.masks.size())
     return {};
   const auto header = text.masks[begin] | (text.masks[begin + 1] << 8);
   const int width = header & ~compact_mask;
-  if (width <= 0 || width > 668)
+  const int height = text.masks[begin + 2];
+  const int max_width = height == glyph_height ? 668 : 700;
+  if (width <= 0 || width > max_width || height <= 0 || height > 64)
     return {};
-  return {width, text.masks.subspan(begin + 2, end - begin - 2), bool(header & compact_mask)};
+  return {width, height, text.masks.subspan(begin + 3, end - begin - 3), bool(header & compact_mask)};
 }
 
-uint16_t masked(uint16_t color, unsigned opacity) {
+Line line(StatusText text, StatusLabel label) {
+  const size_t language = text.language < espframe_i18n_catalogue::LANGUAGE_COUNT ? text.language : 0;
+  return line_at(text, language * label_count + static_cast<size_t>(label));
+}
+
+uint16_t masked(uint16_t color, unsigned opacity, uint16_t backdrop) {
   const auto channel = [opacity](unsigned from, unsigned to) { return (from * (15 - opacity) + to * opacity + 7) / 15; };
-  return static_cast<uint16_t>((channel(background >> 11, color >> 11) << 11) |
-      (channel((background >> 5) & 63, (color >> 5) & 63) << 5) | channel(background & 31, color & 31));
+  return static_cast<uint16_t>((channel(backdrop >> 11, color >> 11) << 11) |
+      (channel((backdrop >> 5) & 63, (color >> 5) & 63) << 5) | channel(backdrop & 31, color & 31));
 }
 
 const uint8_t *ascii_glyph(const uint8_t *atlas, unsigned char character) {
@@ -74,7 +84,8 @@ int ascii_width(const uint8_t *atlas, std::string_view value) {
   return width;
 }
 
-void ascii_text(uint16_t *frame, const uint8_t *atlas, ScreenRotation rotation, int x, int y, std::string_view value) {
+void ascii_text(uint16_t *frame, const uint8_t *atlas, ScreenRotation rotation, int x, int y, std::string_view value,
+                uint16_t color = white, uint16_t backdrop = background) {
   const Viewport viewport{rotation};
   for (const unsigned char character : value) {
     const auto *glyph = ascii_glyph(atlas, character);
@@ -85,19 +96,20 @@ void ascii_text(uint16_t *frame, const uint8_t *atlas, ScreenRotation rotation, 
         const auto mask = glyph[row * (glyph_width / 2) + column / 2];
         const unsigned opacity = column % 2 ? mask & 15 : mask >> 4;
         if (opacity)
-          pixels[row * viewport.y_stride] = masked(white, opacity);
+          pixels[row * viewport.y_stride] = masked(color, opacity, backdrop);
       }
     }
     x += advance;
   }
 }
 
-void localized_text(uint16_t *frame, Line line, ScreenRotation rotation, int x, int y, uint16_t color) {
+void localized_text(uint16_t *frame, Line line, ScreenRotation rotation, int x, int y, uint16_t color,
+                    uint16_t backdrop = background) {
   const Viewport viewport{rotation};
-  if (line.width <= 0 || x < 0 || x + line.width > viewport.width || y < 0 || y + glyph_height > viewport.height)
+  if (line.width <= 0 || x < 0 || x + line.width > viewport.width || y < 0 || y + line.height > viewport.height)
     return;
   size_t pixel = 0;
-  const size_t pixel_count = line.width * glyph_height;
+  const size_t pixel_count = line.width * line.height;
   for (const uint8_t run : line.runs) {
     const unsigned opacity = line.compact ? (run >> 6) * 5 : run >> 4;
     const size_t end = std::min(pixel + (run & (line.compact ? 63 : 15)) + 1, pixel_count);
@@ -105,7 +117,7 @@ void localized_text(uint16_t *frame, Line line, ScreenRotation rotation, int x, 
       pixel = end;
       continue;
     }
-    const uint16_t value = masked(color, opacity);
+    const uint16_t value = masked(color, opacity, backdrop);
     for (; pixel < end; ++pixel) {
       const int column = pixel % line.width;
       const int row = pixel / line.width;
@@ -148,24 +160,38 @@ void draw_wifi_setup(uint16_t *frame, const uint8_t *atlas, StatusText text, con
                      std::string_view connected_address, ScreenRotation rotation) {
   const Viewport viewport{rotation};
   const int center = viewport.height / 2;
-  std::fill_n(frame, pixel_count, background);
-  const auto centered = [&](StatusLabel label, int y, uint16_t color) {
-    const auto message = line(text, label);
-    localized_text(frame, message, rotation, (viewport.width - message.width) / 2, y, color);
+  std::fill_n(frame, pixel_count, setup_background);
+  const auto centered = [&](Line message, int y, uint16_t color) {
+    localized_text(frame, message, rotation, (viewport.width - message.width) / 2, y, color, setup_background);
   };
-  const auto value = [&](std::string_view content, int y) {
-    ascii_text(frame, atlas, rotation, (viewport.width - ascii_width(atlas, content)) / 2, y, content);
+  const auto value = [&](std::string_view content, int y, uint16_t color) {
+    ascii_text(frame, atlas, rotation, (viewport.width - ascii_width(atlas, content)) / 2, y, content, color,
+               setup_background);
   };
   if (!connected_address.empty()) {
-    centered(StatusLabel::connected, center - 48, white);
-    value(connected_address, center + 4);
+    centered(line(text, StatusLabel::connected), center - 58, white);
+    value(connected_address, center + 18, white);
     return;
   }
-  centered(StatusLabel::wifi_setup, center - 134, white);
-  centered(StatusLabel::wifi_setup_installer, center - 62, muted);
-  centered(StatusLabel::wifi_setup_hotspot, center - 26, muted);
-  value(network.ssid.data(), center + 14);
-  centered(StatusLabel::wifi_setup_browser, center + 64, muted);
+  // Match the original LVGL stack: 64px Wi-Fi icon, 46px title, 30px body,
+  // with a 20px gap between each of the three widgets.
+  const auto icon = line_at(text, icon_index);
+  const auto title = line(text, StatusLabel::wifi_setup_title);
+  const auto installer = line(text, StatusLabel::wifi_setup_installer);
+  const auto hotspot = line(text, StatusLabel::wifi_setup_hotspot);
+  const auto browser = line(text, StatusLabel::wifi_setup_browser);
+  constexpr int gap = 20;
+  const int body_height = installer.height + hotspot.height + browser.height + glyph_height;
+  const int top = center - (icon.height + title.height + body_height + 2 * gap) / 2;
+  centered(icon, top, white);
+  const int title_y = top + icon.height + gap;
+  centered(title, title_y, white);
+  const int body_y = title_y + title.height + gap;
+  centered(installer, body_y, setup_muted);
+  centered(hotspot, body_y + installer.height, setup_muted);
+  const int ssid_y = body_y + installer.height + hotspot.height;
+  value(network.ssid.data(), ssid_y, setup_muted);
+  centered(browser, ssid_y + glyph_height, setup_muted);
 }
 
 void draw_recovery_card(uint16_t *frame, const uint8_t *atlas, StatusText text, const RecoveryNetwork &network,

@@ -64,6 +64,8 @@ extern const char style_start[] asm("_binary_setup_css_start");
 extern const char style_end[] asm("_binary_setup_css_end");
 extern const char recovery_start[] asm("_binary_recovery_html_start");
 extern const char recovery_end[] asm("_binary_recovery_html_end");
+extern const char recovery_style_start[] asm("_binary_recovery_css_start");
+extern const char recovery_style_end[] asm("_binary_recovery_css_end");
 extern const char recovery_script_start[] asm("_binary_recovery_js_start");
 extern const char recovery_script_end[] asm("_binary_recovery_js_end");
 
@@ -249,12 +251,19 @@ esp_err_t redirect_to_admin(httpd_req_t *request) {
   return httpd_resp_send(request, nullptr, 0);
 }
 esp_err_t shared_app(httpd_req_t *request) { return serve(request, "text/javascript", shared_app_start, shared_app_end); }
-esp_err_t shared_style(httpd_req_t *request) { return serve(request, "text/css", shared_style_start, shared_style_end); }
+esp_err_t shared_style(httpd_req_t *request) {
+  if (hotspot_socket(request))
+    return recovery_asset(request, "text/css", shared_style_start, shared_style_end);
+  return serve(request, "text/css", shared_style_start, shared_style_end);
+}
 esp_err_t native_style(httpd_req_t *request) { return serve(request, "text/css", native_style_start, native_style_end); }
 esp_err_t style(httpd_req_t *request) {
   if (hotspot_socket(request))
     return recovery_asset(request, "text/css", style_start, style_end);
   return serve(request, "text/css", style_start, style_end);
+}
+esp_err_t recovery_style(httpd_req_t *request) {
+  return recovery_asset(request, "text/css", recovery_style_start, recovery_style_end);
 }
 esp_err_t recovery_script(httpd_req_t *request) {
   return recovery_asset(request, "text/javascript", recovery_script_start, recovery_script_end);
@@ -298,17 +307,27 @@ esp_err_t recovery_networks(httpd_req_t *request) {
     return httpd_resp_send(request, nullptr, 0);
   }
 
+  char query[16]{};
+  const bool details = httpd_req_get_url_query_str(request, query, sizeof(query)) == ESP_OK &&
+                       std::string_view(query) == "details=1";
   const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> names(cJSON_CreateArray(), cJSON_Delete);
   if (!names)
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, nullptr);
   for (uint8_t i = 0; i < scan->count; ++i) {
-    const auto *ssid = scan->networks[i].ssid.data();
+    const auto &entry = scan->networks[i];
+    const auto *ssid = entry.ssid.data();
     bool duplicate = false;
     for (uint8_t j = 0; j < i; ++j)
       duplicate |= std::strcmp(ssid, scan->networks[j].ssid.data()) == 0;
     if (duplicate)
       continue;
-    auto *name = cJSON_CreateString(ssid);
+    auto *name = details ? cJSON_CreateObject() : cJSON_CreateString(ssid);
+    if (details && name && (!cJSON_AddStringToObject(name, "ssid", ssid) ||
+                            !cJSON_AddNumberToObject(name, "rssi", entry.rssi) ||
+                            !cJSON_AddBoolToObject(name, "secured", entry.secured))) {
+      cJSON_Delete(name);
+      return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, nullptr);
+    }
     if (!name || !cJSON_AddItemToArray(names.get(), name)) {
       cJSON_Delete(name);
       return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, nullptr);
@@ -924,6 +943,7 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
       {.uri = "/api/firmware", .method = HTTP_POST, .handler = update_firmware, .user_ctx = &network},
       {.uri = "/api/firmware/releases", .method = HTTP_GET, .handler = release_firmware, .user_ctx = &network},
       {.uri = "/api/firmware/releases", .method = HTTP_POST, .handler = release_firmware, .user_ctx = &network},
+      {.uri = "/recovery.css", .method = HTTP_GET, .handler = recovery_style, .user_ctx = &network},
       {.uri = "/recovery.js", .method = HTTP_GET, .handler = recovery_script, .user_ctx = &network},
       {.uri = "/api/recovery/networks", .method = HTTP_GET, .handler = recovery_networks, .user_ctx = &network},
       {.uri = "/api/recovery", .method = HTTP_GET, .handler = recovery_status, .user_ctx = &network},

@@ -503,8 +503,8 @@ languages redraws cached captions in the background. Before time sync the
 frame shows the capture date. Once time is available, the player refreshes
 cached captions in the background.
 When changing status translations, rerun `firmware/native/tools/rasterize_status.py`
-with Pillow, `python-bidi==0.6.6`, and the two font faces recorded in
-`product/source-ownership.json`. Running it with just the output path checks
+with Pillow, `python-bidi==0.6.6`, and the Noto Sans and Material Design Icons
+font faces recorded in `product/source-ownership.json`. Running it with just the output path checks
 that the shipped masks match the current catalogue.
 Turning on relative captions, a relative capture-date filter, or Memories
 requests time sync even when the clock is hidden.
