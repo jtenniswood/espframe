@@ -978,6 +978,15 @@ int main() {
   fail_commit = false;
   assert(current.read() && current.slide_seconds == 20 && active_slideshow_interval.load() == 20);
   assert(espframe::native::photo_source_revision.load() == interval_revision);
+  assert(!current.slideshow_progress_ring_enabled);
+  const auto ring_on = update_configuration(R"({"values":{"slideshow_progress_ring_enabled":true}})");
+  assert(!ring_on.error && ring_on.updated == 1 && !ring_on.restart_required);
+  assert(current.read() && current.slideshow_progress_ring_enabled &&
+         espframe::native::active_slideshow_progress_ring.load());
+  const auto ring_off = update_configuration(R"({"values":{"slideshow_progress_ring_enabled":false}})");
+  assert(!ring_off.error && ring_off.updated == 1 && !ring_off.restart_required);
+  assert(current.read() && !current.slideshow_progress_ring_enabled &&
+         !espframe::native::active_slideshow_progress_ring.load());
 
   using espframe::native::PhotoPreset;
   using espframe::native::active_photo_preset;

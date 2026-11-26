@@ -1954,14 +1954,19 @@ static void test_configuration_contract_capabilities() {
   using namespace esphome::espframe::contract;
   static_assert(CONTRACT_VERSION == 2);
   static_assert(API_VERSION == 1);
-  static_assert(SETTING_COUNT == 55);
-  static_assert(CONFIGURATION_FIELD_COUNT == 84);
+  static_assert(SETTING_COUNT == 56);
+  static_assert(CONFIGURATION_FIELD_COUNT == 85);
   bool has_language = false;
+  bool has_progress_ring = false;
   int wireguard_fields = 0;
   bool private_key_is_secret = false;
   for (const auto &field : CONFIGURATION_FIELDS) {
     if (std::string(field.key) == "device_language") {
       has_language = std::string(field.domain) == "select" && std::string(field.entity_name) == "Device: Language";
+    }
+    if (std::string(field.key) == "slideshow_progress_ring_enabled") {
+      has_progress_ring = std::string(field.domain) == "switch" &&
+                          std::string(field.entity_name) == "Photos: Slideshow Progress Ring" && !field.secret;
     }
     if (std::string(field.key).rfind("wireguard_", 0) == 0) {
       wireguard_fields++;
@@ -1972,6 +1977,7 @@ static void test_configuration_contract_capabilities() {
     }
   }
   assert(has_language);
+  assert(has_progress_ring);
   assert(wireguard_fields == 8);
   assert(private_key_is_secret);
   assert(std::string(CAPABILITIES_PATH) == "/espframe/api/v1/capabilities");

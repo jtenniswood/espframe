@@ -125,6 +125,7 @@ struct Settings : PhotoFeedSettings, PhotoConnectionSettings {
   bool home_assistant_key_set{};
   uint32_t reset_epoch{};
   uint32_t slide_seconds{15};
+  bool slideshow_progress_ring_enabled{};
   uint32_t connection_timeout_seconds{default_connection_timeout};
   std::string transition{"Cross Fade"};
   std::string transition_speed{"Fast"};

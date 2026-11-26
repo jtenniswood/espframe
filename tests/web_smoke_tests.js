@@ -420,6 +420,7 @@ function browserScriptForScenario(scenario) {
       "Photos: Transition": "None",
       "Photos: Transition Speed": "Normal",
       "Photos: Slideshow Interval": "15 seconds",
+      "Photos: Slideshow Progress Ring": false,
       "Device: Language": "en",
       "Device: Metadata Date": true,
       "Device: Metadata Location": true,
@@ -1437,6 +1438,14 @@ function smokeAssertionsForScenario(scenario) {
 
         setSelect("Connection Timeout", "5 minutes");
         setSelect("Slideshow Interval", "24 hours");
+        const progressRingToggle = toggleByText("Slideshow Progress Ring");
+        if (progressRingToggle.getAttribute("aria-checked") !== "false") {
+          throw new Error("The slideshow progress ring should start off");
+        }
+        progressRingToggle.click();
+        if (progressRingToggle.getAttribute("aria-checked") !== "true") {
+          throw new Error("The slideshow progress ring toggle should turn on");
+        }
         setSelect("Pairing Range", "Any Time");
         toggleByText("Show Paired Portraits Only").click();
         cardByTitle("Portrait Pairing").querySelector(".card-body .toggle").click();
@@ -1597,6 +1606,7 @@ function smokeAssertionsForScenario(scenario) {
           try {
             requireLatestPostParam("Connection timeout", "Screen: Connection Timeout", "option", "5 minutes");
             requireLatestPostParam("Slideshow interval", "Photos: Slideshow Interval", "option", "24 hours");
+            requirePostContains("Slideshow progress ring", "Photos: Slideshow Progress Ring", "turn_on");
             requireLatestPostParam("Portrait pairing range", "Photos: Portrait Pairing Range", "option", "Any Time");
             requirePostContains("Paired portraits only", "Photos: Paired Portraits Only", "turn_on");
             requirePostContains("Portrait pairing", "Photos: Portrait Pairing", "turn_off");

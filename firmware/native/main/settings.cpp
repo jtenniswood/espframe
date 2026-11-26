@@ -562,6 +562,7 @@ bool read_connection_timeout(const cJSON *root, uint32_t &seconds) {
 
 bool read_playback(const cJSON *root, Settings &settings) {
   return read_integer(root, "slide_seconds", 2, 86'400, settings.slide_seconds) && read_pairing(root, settings) &&
+         read_flag(root, "slideshow_progress_ring_enabled", settings.slideshow_progress_ring_enabled) &&
          read_transition(root, settings) && read_connection_timeout(root, settings.connection_timeout_seconds) &&
          read_display_mode(root, settings.display_mode) && read_orientation(root, settings.photo_orientation) &&
          read_rotation(root, settings.screen_rotation) &&
@@ -796,7 +797,8 @@ bool changes_photo_presentation(std::string_view key) {
 }
 
 bool changes_live_presentation(std::string_view key) {
-  return key == "slide_seconds" || key == "clock_format" || key == "transition" || key == "transition_speed" ||
+  return key == "slide_seconds" || key == "slideshow_progress_ring_enabled" || key == "clock_format" ||
+         key == "transition" || key == "transition_speed" ||
          key == "conn_timeout" || key == "screen_rotation" || key == "brightness_day" || key == "brightness_night" ||
          key == "schedule_enabled" || key == "schedule_on_hour" || key == "schedule_off_hour" ||
          key == "schedule_wake_timeout" || key == "show_clock" || key == "timezone" ||
@@ -1120,6 +1122,7 @@ bool Settings::add_playback_fields(cJSON *object, PhotoFilterUpdate filter_updat
          cJSON_AddStringToObject(object, "immich_url", immich_url.c_str()) &&
          cJSON_AddStringToObject(object, "prepared_slide_url", prepared_slide_url.c_str()) &&
          cJSON_AddNumberToObject(object, "slide_seconds", slide_seconds) &&
+         cJSON_AddBoolToObject(object, "slideshow_progress_ring_enabled", slideshow_progress_ring_enabled) &&
          cJSON_AddStringToObject(object, "conn_timeout", interval_label(connection_timeout_seconds).c_str()) &&
          cJSON_AddStringToObject(object, "transition", transition.c_str()) &&
          cJSON_AddStringToObject(object, "transition_speed", transition_speed.c_str()) &&
@@ -1195,6 +1198,7 @@ bool Settings::save_playback(const char *json, bool *restart_required) {
 
 void Settings::publish_live_presentation() const {
   active_slideshow_interval.store(slide_seconds, std::memory_order_relaxed);
+  active_slideshow_progress_ring.store(slideshow_progress_ring_enabled, std::memory_order_relaxed);
   requested_screen_rotation.store(screen_rotation, std::memory_order_relaxed);
   active_screen_brightness.store({brightness_day, night_brightness()}, std::memory_order_relaxed);
   active_screen_schedule.store(schedule.packed(), std::memory_order_relaxed);

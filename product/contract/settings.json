@@ -277,6 +277,23 @@
     ]
   },
   {
+    "key": "slideshow_progress_ring_enabled",
+    "entity": {
+      "domain": "switch",
+      "name": "Photos: Slideshow Progress Ring"
+    },
+    "default": false,
+    "docs_label": "Slideshow Progress Ring",
+    "docs_default": "Off",
+    "docs_description": "Show a ring in the top-right corner that fills as the next photo approaches.",
+    "firmware_files": [
+      "devices/guition-esp32-p4-jc8012p4a1/device/screen_slideshow.yaml"
+    ],
+    "docs_files": [
+      "docs/photo-sources.md"
+    ]
+  },
+  {
     "key": "conn_timeout",
     "entity": {
       "domain": "select",

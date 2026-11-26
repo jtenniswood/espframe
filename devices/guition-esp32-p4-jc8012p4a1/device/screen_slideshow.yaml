@@ -296,6 +296,32 @@ lvgl:
                   text: $icon_chevron_right
                   text_color: 0xFFFFFF
                   text_font: icon_font_setup
+        - arc:
+            id: slideshow_progress_ring
+            align: TOP_RIGHT
+            x: -24
+            y: 24
+            width: 32
+            height: 32
+            pad_all: 0
+            hidden: true
+            clickable: false
+            adjustable: false
+            min_value: 0
+            max_value: 360
+            value: 0
+            start_angle: 0
+            end_angle: 360
+            rotation: 270
+            arc_width: 3
+            arc_color: 0x000000
+            arc_opa: 20%
+            arc_rounded: false
+            indicator:
+              arc_width: 3
+              arc_color: 0xFFFFFF
+              arc_opa: 100%
+              arc_rounded: false
         - obj:
             id: connection_failed_overlay
             align: CENTER
@@ -672,6 +698,18 @@ globals:
 # USER-CONFIGURABLE SETTINGS
 # =============================================================================
 
+switch:
+  - platform: template
+    name: "Photos: Slideshow Progress Ring"
+    id: slideshow_progress_ring_enabled
+    optimistic: true
+    # ESPFRAME:SETTING_FIELDS slideshow_progress_ring_enabled START
+    restore_mode: RESTORE_DEFAULT_OFF
+    # ESPFRAME:SETTING_FIELDS slideshow_progress_ring_enabled END
+    icon: "mdi:progress-clock"
+    web_server:
+      sorting_group_id: sg_photos
+
 select:
   - platform: template
     name: "Photos: Slideshow Interval"
@@ -741,6 +779,22 @@ select:
 # =============================================================================
 
 interval:
+  - interval: 40ms
+    then:
+      - lambda: |-
+          const auto &state = id(espframe_core).slideshow().state();
+          auto *ring = id(slideshow_progress_ring);
+          const bool visible = id(slideshow_progress_ring_enabled).state && state.active_slot_displayed &&
+                               id(immich_fetch_started) &&
+                               !id(backlight_paused) && !id(photo_source_menu_open) &&
+                               lv_scr_act() == id(slideshow_page)->obj;
+          if (visible) {
+            const uint32_t duration_ms = id(slideshow_interval_sec) * 1000;
+            const uint32_t elapsed_ms = std::min(millis() - state.last_advance_ms, duration_ms);
+            const int32_t angle = static_cast<uint64_t>(elapsed_ms) * 360 / duration_ms;
+            lv_arc_set_value(ring, angle);
+          }
+          lv_obj_set_hidden(ring, !visible);
   - interval: ${slideshow_check_interval}
     then:
       - if:
