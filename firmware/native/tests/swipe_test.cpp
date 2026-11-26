@@ -421,12 +421,12 @@ int main() {
     std::fill(frame.begin(), frame.end(), 0xffff);
     espframe::native::paint_slideshow_progress_ring(frame.data(), view, 900);
     assert(ring_pixel(16, 1) == 0xffff);  // The arc starts clockwise from the top.
-    assert(ring_pixel(15, 1) == 0x52aa);
-    assert(ring_pixel(16, 30) == 0x52aa);  // Black at 67% opacity over white.
+    assert(ring_pixel(15, 1) == 0xce59);
+    assert(ring_pixel(16, 30) == 0xce59);  // Black at 20% opacity over white.
     assert(ring_pixel(16, 16) == 0xffff);  // The centre remains transparent.
     std::fill(frame.begin(), frame.end(), 0xffff);
     espframe::native::paint_slideshow_progress_ring(frame.data(), view, 20);
-    assert(ring_pixel(16, 1) > 0x52aa && ring_pixel(16, 1) < 0xffff);  // The advancing edge is blended.
+    assert(ring_pixel(16, 1) > 0xce59 && ring_pixel(16, 1) < 0xffff);  // The advancing edge is blended.
   }
 
   const std::array<uint16_t, 6> left{0, 1, 2, 3, 4, 5};

@@ -315,7 +315,7 @@ lvgl:
             rotation: 270
             arc_width: 3
             arc_color: 0x000000
-            arc_opa: 67%
+            arc_opa: 20%
             arc_rounded: false
             indicator:
               arc_width: 3
