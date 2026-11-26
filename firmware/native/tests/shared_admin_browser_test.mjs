@@ -144,7 +144,8 @@ const browserTest = String.raw`
     if (rating().tabIndex !== -1) throw new Error('Rating became available before discovery')
     await until(() => rating().tabIndex === 0, 'Immich to report support for structured filters')
     const vpnSwitch = setting(openCard('Connection'), 'Connect through WireGuard')
-    const vpn = vpnSwitch.closest('.field').parentElement
+    const vpn = vpnSwitch.closest('.wireguard')
+    if (getComputedStyle(vpn).borderTopWidth !== '1px') throw new Error('Missing WireGuard section divider')
     const tunnel = vpnSwitch.parentElement.querySelector('#wireguard-status')
     const notice = vpn.querySelector('.reset-backup-notice')
     await until(() => tunnel.textContent.includes('Tunnel is off'), 'the offline WireGuard badge')

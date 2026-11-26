@@ -234,7 +234,7 @@
   }
 
   function makeWireguardSettings() {
-    var body = el("div");
+    var body = el("div", "wireguard");
     var tunnelStatus = el("div", "disclosure-badge");
     tunnelStatus.id = "wireguard-status";
     updateWireguardStatus(tunnelStatus);
@@ -427,9 +427,7 @@
     keyField.appendChild(keyHint);
     detailsBody.appendChild(keyField);
 
-    body.appendChild(panel);
-    body.appendChild(status);
-    body.appendChild(restartNotice);
+    body.append(panel, status, restartNotice);
     if (nativeAdmin) {
       window["espframeWatchWireguard"](body, function (state) {
         restartRequired = state.restart_required;
