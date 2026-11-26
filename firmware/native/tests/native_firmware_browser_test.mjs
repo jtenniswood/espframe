@@ -21,6 +21,7 @@ const browserTest = String.raw`
     const button = label => [...document.querySelectorAll('.native-firmware button')].find(node => node.textContent === label)
     await waitFor(() => button('Check for Update') && !button('Check for Update').disabled)
     const panel = document.querySelector('.native-firmware')
+    if (panel.querySelector('a[href="/settings#firmware"]')) throw new Error('Obsolete firmware upload link is still visible')
     if (!panel.textContent.includes('v0.1.0-preview.8')) throw new Error('Current version missing')
     button('Check for Update').click()
     await waitFor(() => !button('Install Update').hidden && !button('Install Update').disabled)

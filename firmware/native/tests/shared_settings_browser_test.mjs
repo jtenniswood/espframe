@@ -56,7 +56,7 @@ const testScript = `
     check(getComputedStyle(save.parentElement).position === 'sticky', 'Save controls are not kept in view')
     check(save.getBoundingClientRect().bottom <= window.innerHeight, 'Save is initially off screen')
     check(document.querySelector('#native-frame-status').hidden, 'Older firmware showed an unsupported status panel')
-    check(document.querySelector('a[href="/settings"]'), 'Photo source and firmware tools are unreachable')
+    check(!document.querySelector('a[href="/settings"]'), 'Obsolete device-tools link is still visible')
     const edit = (name, value) => {
       field(name).value = value
       field(name).dispatchEvent(new Event('input', {bubbles: true}))
