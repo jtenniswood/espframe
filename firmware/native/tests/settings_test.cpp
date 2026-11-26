@@ -379,7 +379,7 @@ int main() {
   assert(legacy.connection_timeout_seconds == 600);
   assert(legacy.transition == "Cross Fade" && legacy.transition_speed == "Fast");
   assert(legacy.portrait_pairing);
-  assert(!legacy.portrait_pairs_only && !legacy.requires_portrait_pair() && legacy.portrait_pairing_days == 0);
+  assert(!legacy.portrait_pairs_only && !legacy.requires_portrait_pair() && legacy.portrait_pairing_days() == 0);
   assert(legacy.brightness_day == 64);
   assert(!legacy.tone.night_override);
   assert(legacy.metadata.language == 0);
@@ -612,7 +612,7 @@ int main() {
            R"({"values":{"brightness_day":50,"portrait_pairs_only":"true"}})",
            R"({"values":{"brightness_day":50,"transition":"Dissolve"}})",
            R"({"values":{"brightness_day":50,"transition_speed":500}})",
-           R"({"values":{"brightness_day":50,"portrait_pairing_range":"Within 3 Days"}})",
+           R"({"values":{"brightness_day":50,"portrait_pairing_range":"Within 4 Days"}})",
            R"({"values":{"brightness_day":50,"api_key":""}})",
            R"({"values":{"brightness_day":50,"brightness_day":80}})",
            R"({"values":{"brightness_day":50,"unsupported":true}})",
@@ -632,7 +632,7 @@ int main() {
   assert(!update_configuration(
       R"({"values":{"portrait_pairing":false,"portrait_pairs_only":true,"portrait_pairing_range":"Within 2 Days"}})").error);
   assert(current.read() && !current.portrait_pairing && current.portrait_pairs_only && !current.requires_portrait_pair());
-  assert(current.portrait_pairing_days == 2);
+  assert(current.portrait_pairing_days() == 2);
   const Json paused(configuration_snapshot(current), cJSON_Delete);
   assert(paused);
   const auto *paused_values = cJSON_GetObjectItemCaseSensitive(paused.get(), "values");
@@ -641,9 +641,20 @@ int main() {
   assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(paused_values, "portrait_pairing_range")) ==
          std::string_view("Within 2 Days"));
   assert(Settings::save_playback(R"({"immich_url":"https://photos.test","portrait_pairing":true})"));
-  assert(current.read() && current.requires_portrait_pair() && current.portrait_pairing_days == 2);
+  assert(current.read() && current.requires_portrait_pair() && current.portrait_pairing_days() == 2);
   assert(Settings::save_playback(R"({"immich_url":"https://photos.test","portrait_pairs_only":false})"));
   assert(current.read() && current.portrait_pairing && !current.requires_portrait_pair());
+
+  for (const auto &[range, days] : std::array<std::pair<std::string_view, int>, 6>{{
+           {"Within 3 Days", 3}, {"Within 5 Days", 5}, {"Within 7 Days", 7}, {"Within 14 Days", 14},
+           {"Within 30 Days", 30}, {"Any Time", espframe::native::portrait_pairing_any_time}}}) {
+    const auto update = R"({"values":{"portrait_pairing_range":")" + std::string(range) + R"("}})";
+    assert(!update_configuration(update.c_str()).error);
+    assert(current.read() && current.portrait_pairing_days() == days);
+    const Json snapshot(configuration_snapshot(current), cJSON_Delete);
+    const auto *values = cJSON_GetObjectItemCaseSensitive(snapshot.get(), "values");
+    assert(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(values, "portrait_pairing_range")) == range);
+  }
 
   assert(!current.has_prepared_slides());
   const auto before_service = stored;

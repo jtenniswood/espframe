@@ -101,11 +101,13 @@ std::optional<ImmichPhoto> read_asset(const cJSON *record) {
 }
 
 bool restrict_pairing_dates(CaptureDateRange &dates, std::optional<std::chrono::sys_days> local_day,
-                            unsigned pairing_days) {
+                            int pairing_days) {
   if (!local_day)
     return true;
   if (!dates.includes(local_day))
     return false;
+  if (pairing_days == portrait_pairing_any_time)
+    return true;
   using namespace std::chrono;
   const auto window = days{pairing_days};
   const auto earliest = std::max(*local_day - window, sys_days{year{2} / January / 1});
@@ -131,7 +133,7 @@ ImmichSearchApi parse_search_api(std::string_view json) {
 
 PhotoSearchRequest make_photo_search(size_t count, const PhotoSource &source, ImmichSearchApi api,
                                      std::optional<std::chrono::sys_days> local_day, uint32_t page,
-                                     bool with_location, CaptureDateRange dates, unsigned pairing_days) {
+                                     bool with_location, CaptureDateRange dates, int pairing_days) {
   if (source.mode == PhotoSourceMode::Memories || source.mode == PhotoSourceMode::Custom)
     return {};
   const bool album = source.mode == PhotoSourceMode::Album;
@@ -209,7 +211,7 @@ bool photo_filter_uses_metadata(const ImmichFilterBranch &branch, ImmichSearchAp
 PhotoSearchRequest make_filtered_photo_search(size_t count, const PhotoFilters &filters, const ImmichFilterBranch &branch,
                                               ImmichSearchApi api, std::optional<std::chrono::sys_days> local_day,
                                               uint32_t page, bool with_location, CaptureDateRange dates,
-                                              unsigned pairing_days) {
+                                              int pairing_days) {
   if (photo_filter_status(filters, api) != PhotoFilterStatus::Ready || !restrict_pairing_dates(dates, local_day, pairing_days))
     return {};
   auto criteria = filters.criteria;
@@ -270,21 +272,24 @@ std::string memory_request_path(std::chrono::sys_days date, unsigned index) {
   return "/memories?type=on_this_day&for=" + iso_day(date + offset);
 }
 
-bool is_portrait_companion(const ImmichPhoto &primary, const ImmichPhoto &candidate, unsigned pairing_days) {
-  return candidate.id != primary.id && candidate.portrait && primary.metadata.capture_day && candidate.metadata.capture_day &&
-         std::chrono::abs(*candidate.metadata.capture_day - *primary.metadata.capture_day) <= std::chrono::days{pairing_days};
+bool is_portrait_companion(const ImmichPhoto &primary, const ImmichPhoto &candidate, int pairing_days) {
+  return candidate.id != primary.id && candidate.portrait &&
+         (pairing_days == portrait_pairing_any_time ||
+          (primary.metadata.capture_day && candidate.metadata.capture_day &&
+           std::chrono::abs(*candidate.metadata.capture_day - *primary.metadata.capture_day) <= std::chrono::days{pairing_days}));
 }
 
-bool can_start_portrait_pair(const ImmichPhoto &photo) {
-  return photo.metadata.capture_day && (!photo.orientation_known || photo.portrait);
+bool can_start_portrait_pair(const ImmichPhoto &photo, int pairing_days) {
+  return (photo.metadata.capture_day || pairing_days == portrait_pairing_any_time) &&
+         (!photo.orientation_known || photo.portrait);
 }
 
-bool can_play_with_required_pairs(const ImmichPhoto &photo, PhotoOrientation orientation) {
+bool can_play_with_required_pairs(const ImmichPhoto &photo, PhotoOrientation orientation, int pairing_days) {
   return (orientation != PhotoOrientation::Portrait && photo.may_match_orientation(PhotoOrientation::Landscape)) ||
-         (orientation != PhotoOrientation::Landscape && can_start_portrait_pair(photo));
+         (orientation != PhotoOrientation::Landscape && can_start_portrait_pair(photo, pairing_days));
 }
 
-std::optional<size_t> find_pair_or_landscape_seed(std::span<const ImmichPhoto> photos, unsigned pairing_days,
+std::optional<size_t> find_pair_or_landscape_seed(std::span<const ImmichPhoto> photos, int pairing_days,
                                                   const AssetId &exclude, PhotoOrientation orientation) {
   // Match the pending queue's back-to-front preference among photos that
   // can be tried with no additional metadata request.

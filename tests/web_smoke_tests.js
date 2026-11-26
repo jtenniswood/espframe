@@ -1437,7 +1437,7 @@ function smokeAssertionsForScenario(scenario) {
 
         setSelect("Connection Timeout", "5 minutes");
         setSelect("Slideshow Interval", "24 hours");
-        setSelect("Pairing Range", "Within 2 Days");
+        setSelect("Pairing Range", "Any Time");
         toggleByText("Show Paired Portraits Only").click();
         cardByTitle("Portrait Pairing").querySelector(".card-body .toggle").click();
         setSelect("Display Photos", "Landscape Only");
@@ -1597,7 +1597,7 @@ function smokeAssertionsForScenario(scenario) {
           try {
             requireLatestPostParam("Connection timeout", "Screen: Connection Timeout", "option", "5 minutes");
             requireLatestPostParam("Slideshow interval", "Photos: Slideshow Interval", "option", "24 hours");
-            requireLatestPostParam("Portrait pairing range", "Photos: Portrait Pairing Range", "option", "Within 2 Days");
+            requireLatestPostParam("Portrait pairing range", "Photos: Portrait Pairing Range", "option", "Any Time");
             requirePostContains("Paired portraits only", "Photos: Paired Portraits Only", "turn_on");
             requirePostContains("Portrait pairing", "Photos: Portrait Pairing", "turn_off");
             requireLatestPostParam("Photo orientation", "Photos: Orientation", "option", "Landscape Only");

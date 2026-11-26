@@ -36,8 +36,12 @@ enum class PhotoSourceStatus : uint8_t {
 inline constexpr std::array<std::string_view, 5> memory_windows{
     "Same Day", "Within 1 Day", "Within 2 Days", "Within 3 Days", "Within 7 Days"};
 inline constexpr std::array<uint8_t, 5> memory_window_days{0, 1, 2, 3, 7};
-inline constexpr std::array<std::string_view, 3> portrait_pairing_ranges{
-    "Same Day", "Within 1 Day", "Within 2 Days"};
+inline constexpr int portrait_pairing_any_time = -1;
+inline constexpr std::array<std::string_view, 9> portrait_pairing_ranges{
+    "Same Day", "Within 1 Day", "Within 2 Days", "Within 3 Days", "Within 5 Days",
+    "Within 7 Days", "Within 14 Days", "Within 30 Days", "Any Time"};
+inline constexpr std::array<int, portrait_pairing_ranges.size()> portrait_pairing_range_days{
+    0, 1, 2, 3, 5, 7, 14, 30, portrait_pairing_any_time};
 
 struct PhotoSource {
   PhotoSourceMode mode{PhotoSourceMode::Library};

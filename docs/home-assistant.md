@@ -49,7 +49,7 @@ Under **Settings → Devices & Services → ESPHome** (device page):
 | **Photos: Transition Speed** | Select | Fast (0.5s), Normal (1s), or Slow (1.5s) |
 | **Photos: Slideshow Interval** | Select | 10s–24h between photos |
 | **Photos: Portrait Pairing** | Switch | Pair compatible portrait photos side-by-side |
-| **Photos: Portrait Pairing Range** | Select | Match portraits from the same day, ±1 day, or ±2 days |
+| **Photos: Portrait Pairing Range** | Select | Match portraits from the same day, within ±1, 2, 3, 5, 7, 14, or 30 days, or from any time |
 | **Photos: Paired Portraits Only** | Switch | Skip portrait photos unless a complete pair is ready |
 | **Screen: Connection Timeout** | Select | 30s–30min before showing connection-failed screen |
 | **Screen: Rotation** | Select | LVGL screen rotation: 0 or 180 degrees |

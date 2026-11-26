@@ -82,6 +82,17 @@ int main() {
   auto two_days_away = photos[4];
   two_days_away.metadata.capture_day = *primary.metadata.capture_day + days{2};
   assert(!is_portrait_companion(primary, two_days_away, 1) && is_portrait_companion(primary, two_days_away, 2));
+  auto month_away = photos[4];
+  month_away.metadata.capture_day = *primary.metadata.capture_day + days{30};
+  assert(!is_portrait_companion(primary, month_away, 14) && is_portrait_companion(primary, month_away, 30));
+  month_away.metadata.capture_day = *primary.metadata.capture_day + days{365};
+  assert(!is_portrait_companion(primary, month_away, 30));
+  assert(is_portrait_companion(primary, month_away, portrait_pairing_any_time));
+  month_away.metadata.capture_day.reset();
+  assert(can_start_portrait_pair(month_away, portrait_pairing_any_time));
+  assert(is_portrait_companion(primary, month_away, portrait_pairing_any_time));
+  assert(!is_portrait_companion(primary, primary, portrait_pairing_any_time));
+  assert(!is_portrait_companion(primary, photos[3], portrait_pairing_any_time));
   const std::array wider_pair{primary, two_days_away};
   const auto only_pairs = [](std::span<const ImmichPhoto> candidates, unsigned days = 0, const AssetId &exclude = {}) {
     return find_pair_or_landscape_seed(candidates, days, exclude, PhotoOrientation::Portrait);
@@ -167,6 +178,13 @@ int main() {
   const CaptureDateRange pairing_scope{leap_day, parse_calendar_day("2024-03-02")};
   const auto expanded = make_photo_search(12, {}, Api::Structured, march_first, 1, false, pairing_scope, 2);
   assert(expanded.dates == pairing_scope);
+  const auto any_time = make_photo_search(12, {}, Api::Structured, march_first, 1, false, march,
+                                          portrait_pairing_any_time);
+  assert(any_time.dates == march);
+  assert(any_time.body.find(R"("takenAt":)") != std::string::npos);
+  const auto unfiltered_any_time = make_photo_search(12, {}, Api::Structured, march_first, 1, false, {},
+                                                     portrait_pairing_any_time);
+  assert(unfiltered_any_time.body.find("takenAt") == std::string::npos);
   assert(expanded.body.find(R"("takenAt":{"gte":"2024-02-28T00:00:00.000Z","lte":"2024-03-03T23:59:59.999Z"})") !=
          std::string::npos);
   assert(parse_photo_search(response, 16, false, false, expanded.dates).photos.size() == 5);

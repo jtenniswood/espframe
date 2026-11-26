@@ -52,7 +52,7 @@ struct PhotoSearchResult {
 ImmichSearchApi parse_search_api(std::string_view json);
 PhotoSearchRequest make_photo_search(size_t count, const PhotoSource &source, ImmichSearchApi api,
                                      std::optional<std::chrono::sys_days> local_day = {}, uint32_t page = 1,
-                                     bool with_location = false, CaptureDateRange dates = {}, unsigned pairing_days = 0);
+                                     bool with_location = false, CaptureDateRange dates = {}, int pairing_days = 0);
 PhotoFilterStatus photo_filter_status(const PhotoFilters &filters, ImmichSearchApi api);
 ImmichFilterBranch next_photo_filter_branch(const PhotoFilters &filters, ImmichSearchApi api,
                                            uint8_t &next_group, int &next_album);
@@ -60,16 +60,16 @@ bool photo_filter_uses_metadata(const ImmichFilterBranch &branch, ImmichSearchAp
 PhotoSearchRequest make_filtered_photo_search(size_t count, const PhotoFilters &filters, const ImmichFilterBranch &branch,
                                               ImmichSearchApi api, std::optional<std::chrono::sys_days> local_day,
                                               uint32_t page, bool with_location, CaptureDateRange dates,
-                                              unsigned pairing_days);
+                                              int pairing_days);
 PhotoSearchResult parse_photo_search(std::string_view json, size_t limit, bool paged, bool favorites_only,
                                      CaptureDateRange dates = {}, bool exclude_favorites = false,
                                      PhotoOrientation orientation = PhotoOrientation::Any);
 std::optional<ImmichPhoto> parse_photo_asset(std::string_view json);
 std::string memory_request_path(std::chrono::sys_days date, unsigned index);
-bool is_portrait_companion(const ImmichPhoto &primary, const ImmichPhoto &candidate, unsigned pairing_days = 0);
-bool can_start_portrait_pair(const ImmichPhoto &photo);
-bool can_play_with_required_pairs(const ImmichPhoto &photo, PhotoOrientation orientation);
-std::optional<size_t> find_pair_or_landscape_seed(std::span<const ImmichPhoto> photos, unsigned pairing_days,
+bool is_portrait_companion(const ImmichPhoto &primary, const ImmichPhoto &candidate, int pairing_days = 0);
+bool can_start_portrait_pair(const ImmichPhoto &photo, int pairing_days = 0);
+bool can_play_with_required_pairs(const ImmichPhoto &photo, PhotoOrientation orientation, int pairing_days = 0);
+std::optional<size_t> find_pair_or_landscape_seed(std::span<const ImmichPhoto> photos, int pairing_days,
                                                   const AssetId &exclude, PhotoOrientation orientation);
 
 }  // namespace espframe::native

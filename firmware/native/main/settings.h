@@ -62,7 +62,7 @@ struct PhotoConnectionSettings {
 struct PhotoFeedSettings {
   bool portrait_pairing{true};
   bool portrait_pairs_only{};
-  uint8_t portrait_pairing_days{};
+  uint8_t portrait_pairing_range_index{};
   DisplayMode display_mode{DisplayMode::Fit};
   PairFraming pair_framing{PairFraming::FollowPhotos};
   PairDivider pair_divider{PairDivider::Black};
@@ -79,6 +79,7 @@ struct PhotoFeedSettings {
   bool needs_local_date() const {
     return metadata.needs_time() || capture_dates.needs_time() || photo_source.mode == PhotoSourceMode::Memories;
   }
+  int portrait_pairing_days() const { return portrait_pairing_range_days[portrait_pairing_range_index]; }
   bool pairs_portraits() const { return portrait_pairing && photo_orientation != PhotoOrientation::Landscape; }
   bool requires_portrait_pair() const { return pairs_portraits() && portrait_pairs_only; }
   DisplayMode pair_display_mode() const {

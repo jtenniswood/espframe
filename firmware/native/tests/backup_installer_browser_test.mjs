@@ -26,7 +26,7 @@ const backup = {
   connection: { immich_url: 'https://photos.test', api_key: 'old-api-key', home_assistant_key: 'backup-key' },
   firmware_updates: JSON.parse(oldBackup).firmware_updates,
   photos: { source: 'Memories', album_ids: album, portrait_pairing: false, portrait_pairs_only: true,
-    portrait_pairing_range: 'Within 1 Day', display_mode: 'Fit', orientation: 'Landscape Only',
+    portrait_pairing_range: 'Any Time', display_mode: 'Fit', orientation: 'Landscape Only',
     transition: 'Slide Down', transition_speed: 'Slow',
     memories_window: 'Within 7 Days', memories_fallback: false, date_filter_enabled: true,
     date_filter_mode: 'Fixed Range', date_from: '2024-02-29', date_to: '', relative_amount: 2, relative_unit: 'Months' },
@@ -157,7 +157,7 @@ const verify = `
       throw new Error('Photo and mounting orientation were not imported independently')
     if (!form.elements.portrait_pairs_only.checked || !form.elements.portrait_pairs_only.disabled)
       throw new Error('Inactive paired-portrait preference was not retained')
-    if (form.elements.portrait_pairing_range.value !== 'Within 1 Day' || !form.elements.portrait_pairing_range.disabled)
+    if (form.elements.portrait_pairing_range.value !== 'Any Time' || !form.elements.portrait_pairing_range.disabled)
       throw new Error('Inactive pairing range was not retained')
     if (form.elements.portrait_pair_framing.value !== 'Fill' || !form.elements.portrait_pair_framing.disabled)
       throw new Error('Inactive pair framing was not retained')
@@ -189,7 +189,7 @@ const verify = `
       || received.photo_source !== 'memories' || received.album_id !== '${album}' || received.slide_seconds !== 86400
       || received.memories_window !== 'Within 7 Days' || received.memories_fallback !== false
       || received.portrait_pairing !== false || received.portrait_pairs_only !== true
-      || received.portrait_pairing_range !== 'Within 1 Day' || received.portrait_pair_framing !== 'Fill'
+      || received.portrait_pairing_range !== 'Any Time' || received.portrait_pair_framing !== 'Fill'
       || received.transition !== 'Slide Down' || received.transition_speed !== 'Slow'
       || received.display_mode !== 'Fit' || received.home_assistant_key !== haKey || Object.hasOwn(received, 'backup'))
       throw new Error('Unexpected migrated USB settings')

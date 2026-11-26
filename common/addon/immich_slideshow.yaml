@@ -108,6 +108,12 @@ select:
       - "Same Day"
       - "Within 1 Day"
       - "Within 2 Days"
+      - "Within 3 Days"
+      - "Within 5 Days"
+      - "Within 7 Days"
+      - "Within 14 Days"
+      - "Within 30 Days"
+      - "Any Time"
     initial_option: "Same Day"
     optimistic: true
     restore_value: true

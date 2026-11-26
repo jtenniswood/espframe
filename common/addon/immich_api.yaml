@@ -1525,18 +1525,22 @@ script:
           then:
             - script.execute: delayed_prefetch_chain
             - script.stop: immich_fetch_portrait_companion
+      - if:
+          condition:
+            lambda: |-
+              return id(espframe_core).slideshow().state().portrait_search_datetime.size() < 10 &&
+                     portrait_pairing_range_days(id(portrait_pairing_range).current_option()) != IMMICH_PORTRAIT_PAIR_ANY_TIME;
+          then:
+            - logger.log:
+                level: WARN
+                tag: immich
+                format: "No datetime for companion search"
+            - script.execute: handle_companion_not_found
+            - script.stop: immich_fetch_portrait_companion
       - lambda: |-
-          std::string dt = id(espframe_core).slideshow().state().portrait_search_datetime;
-          if (dt.size() < 10) {
-            ESP_LOGW("immich", "No datetime for companion search");
-            id(handle_companion_not_found).execute();
-            return;
-          }
-          std::string day = dt.substr(0, 10);
-          int range_days = id(espframe_core).slideshow().state().portrait_search_expanded
-            ? portrait_pairing_range_days(id(portrait_pairing_range).current_option()) : 0;
-          ESP_LOGD("immich", "Searching companion portrait for slot %d, date %s, range +/- %d day(s)",
-                   id(espframe_core).slideshow().state().companion_target_slot, day.c_str(), range_days);
+          ESP_LOGD("immich", "Searching companion portrait for slot %d (pairing range: %s)",
+                   id(espframe_core).slideshow().state().companion_target_slot,
+                   std::string(id(portrait_pairing_range).current_option()).c_str());
           id(espframe_core).slideshow().mark_portrait_search_request_started();
       - http_request.post:
           id: http_req
@@ -1566,8 +1570,8 @@ script:
                 ESP_LOGW("immich", "Relative date filter skipped for companion search because time is not valid");
               }
             }
-            int range_days = id(espframe_core).slideshow().state().portrait_search_expanded
-              ? portrait_pairing_range_days(id(portrait_pairing_range).current_option()) : 0;
+            int range_days = portrait_pairing_range_days(id(portrait_pairing_range).current_option());
+            if (range_days > 0 && !id(espframe_core).slideshow().state().portrait_search_expanded) range_days = 0;
             auto dates = resolve_immich_companion_filter_dates(day, range, range_days);
             const auto &primary = get_slot(
               id(espframe_core).slideshow().state().companion_target_slot,

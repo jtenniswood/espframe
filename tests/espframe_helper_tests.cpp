@@ -333,7 +333,19 @@ static void test_immich_body_helpers() {
   assert(portrait_pairing_range_days("Same Day") == 0);
   assert(portrait_pairing_range_days("Within 1 Day") == 1);
   assert(portrait_pairing_range_days("Within 2 Days") == 2);
+  assert(portrait_pairing_range_days("Within 3 Days") == 3);
+  assert(portrait_pairing_range_days("Within 5 Days") == 5);
+  assert(portrait_pairing_range_days("Within 7 Days") == 7);
+  assert(portrait_pairing_range_days("Within 14 Days") == 14);
+  assert(portrait_pairing_range_days("Within 30 Days") == 30);
+  assert(portrait_pairing_range_days("Any Time") == IMMICH_PORTRAIT_PAIR_ANY_TIME);
   ImmichDateRange no_filter;
+  assert(build_immich_companion_date_filter_extra("2026-01-01", no_filter, 30) ==
+         "\"takenAfter\":\"2025-12-02T00:00:00.000Z\","
+         "\"takenBefore\":\"2026-01-31T23:59:59.999Z\"");
+  assert(build_immich_companion_date_filter_extra("2026-01-01", no_filter, IMMICH_PORTRAIT_PAIR_ANY_TIME).empty());
+  assert(build_immich_companion_date_filter_extra("", fixed, IMMICH_PORTRAIT_PAIR_ANY_TIME) ==
+         build_immich_date_filter_extra(fixed));
   assert(build_immich_companion_date_filter_extra("2026-01-01", no_filter, 2) ==
          "\"takenAfter\":\"2025-12-30T00:00:00.000Z\","
          "\"takenBefore\":\"2026-01-03T23:59:59.999Z\"");
@@ -2061,6 +2073,15 @@ static void test_structured_companion_pagination() {
   assert(state.advance_portrait_search(2, "ignored", false, 0));
   assert(state.portrait_search_page == 2 && state.portrait_search_cursor.empty());
   assert(!state.advance_portrait_search(0, "ignored", false, 0));
+  for (bool structured : {false, true}) {
+    state.reset();
+    const int any_time = IMMICH_PORTRAIT_PAIR_ANY_TIME;
+    assert(state.advance_portrait_search(0, "", structured, any_time));
+    assert(state.advance_portrait_search(2, "page-2", structured, any_time));
+    assert(state.advance_portrait_search(3, "page-3", structured, any_time));
+    assert(!state.advance_portrait_search(4, "page-4", structured, any_time));
+    assert(!state.portrait_search_expanded);
+  }
   ImmichFilterConfig config;
   ImmichFilterBranch branch;
   const std::string cursor = "opaque\"cursor";
