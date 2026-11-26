@@ -99,7 +99,10 @@ window.espframeShowLogs = (() => {
 })();
 
 window.espframeNativeBackupSchema = function (schema) {
-  schema.push({ group: "photos", field: "portrait_pair_framing", state_keys: ["portrait_pair_framing"] });
+  schema.push(
+    { group: "photos", field: "portrait_pair_framing", state_keys: ["portrait_pair_framing"] },
+    { group: "photos", field: "portrait_pair_divider", state_keys: ["portrait_pair_divider"] }
+  );
 };
 
 window.espframeNativeBackupDefaults = function (original, migrated) {
@@ -221,11 +224,20 @@ function refreshSettings(root, renderSettings) {
   }
 }
 
-window.espframePairFraming = function (field, select, current, save) {
-  const labels = { "Follow photo framing": "Follow photo framing", Fill: "Fill each half", Fit: "Fit both full photos" };
-  const control = field("Portrait pair framing");
-  control.appendChild(select(Object.keys(labels), current, save, value => labels[value]));
-  return control;
+window.espframeNativePortraitPairing = function (container, field, select, supported, values, save) {
+  if (supported.has("portrait_pair_framing")) {
+    const labels = { "Follow photo framing": "Follow photo framing", Fill: "Fill each half", Fit: "Fit both full photos" };
+    const control = field("Portrait pair framing");
+    control.appendChild(select(Object.keys(labels), values.portrait_pair_framing,
+      value => save("portrait_pair_framing", value), value => labels[value]));
+    container.appendChild(control);
+  }
+  if (supported.has("portrait_pair_divider")) {
+    const control = field("Portrait pair divider");
+    control.appendChild(select(["Black", "White"], values.portrait_pair_divider,
+      value => save("portrait_pair_divider", value)));
+    container.appendChild(control);
+  }
 };
 
 window.espframeNativeReconnect = async function (readSettings) {

@@ -9,6 +9,7 @@ const transitions = ['None', 'Cross Fade', 'Fade to Black', 'Fade to White',
   'Slide Left', 'Slide Right', 'Slide Up', 'Slide Down', 'Random']
 const transitionSpeeds = ['Fast', 'Normal', 'Slow']
 const pairFramings = ['Follow photo framing', ...displayModes]
+const pairDividers = ['Black', 'White']
 const photoOrientations = ['Any', 'Portrait Only', 'Landscape Only']
 const clockFormats = ['24 Hour', '12 Hour']
 const firmwareUpdateFrequencies = ['Hourly', 'Daily', 'Weekly', 'Monthly']
@@ -252,6 +253,10 @@ export function readBackup(data) {
     // portraits always fill their halves, independently of display_mode.
     settings.portrait_pair_framing = 'Fill'
   }
+  if (own(photos, 'portrait_pair_divider')) {
+    if (pairDividers.includes(photos.portrait_pair_divider)) settings.portrait_pair_divider = photos.portrait_pair_divider
+    else notices.push('Choose a portrait pair divider colour.')
+  }
   if (own(photos, 'orientation')) {
     if (photoOrientations.includes(photos.orientation)) settings.photo_orientation = photos.orientation
     else {
@@ -363,6 +368,7 @@ export function createBackup(settings, date = new Date()) {
       ...(transitionSpeeds.includes(settings.transition_speed) ? { transition_speed: settings.transition_speed } : {}),
       ...(pairFramings.includes(settings.portrait_pair_framing) ? { portrait_pair_framing: settings.portrait_pair_framing }
         : hasFirmwareUpdates ? { portrait_pair_framing: 'Follow photo framing' } : {}),
+      ...(pairDividers.includes(settings.portrait_pair_divider) ? { portrait_pair_divider: settings.portrait_pair_divider } : {}),
       ...(photoOrientations.includes(settings.photo_orientation) ? { orientation: settings.photo_orientation } : {}),
     },
     frequency: {

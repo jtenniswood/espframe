@@ -1105,6 +1105,8 @@ ImmichSource::PrepareResult ImmichSource::prepare(SlideIndex slide, uint16_t *pa
   const float night_progress = tone.night_enabled ? tone_daylight_.night_warmth(clock.time) : 0.0f;
   if (!tint_photo({panel, pixel_count}, tone.warmth(night_progress), this->checkpoint_) || !this->checkpoint_())
     return retry_frame();
+  if (paired)
+    paint_portrait_pair_divider(panel, rotation, this->feed_().pair_divider);
   describe_slide_(presentation, frame.metadata, rotation, clock.time);
   if (this->cancelled_)
     return retry_frame();

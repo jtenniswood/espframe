@@ -1390,7 +1390,6 @@
     "web_local_state_keys": [
       "api_key_configured",
       "immich_filter_support",
-      "portrait_pair_framing",
       "wireguard_available",
       "wireguard_private_key_configured",
       "backlight_on",

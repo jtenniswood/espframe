@@ -6,6 +6,9 @@ namespace espframe::native {
 
 enum class DisplayMode { Fit, Fill };
 enum class PairFraming { FollowPhotos, Fit, Fill };
+enum class PairDivider { Black, White };
+
+inline const char *pair_divider_name(PairDivider divider) { return divider == PairDivider::White ? "White" : "Black"; }
 
 inline const char *display_mode_name(DisplayMode mode) { return mode == DisplayMode::Fill ? "Fill" : "Fit"; }
 

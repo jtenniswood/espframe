@@ -890,7 +890,19 @@ int main() {
   assert(Settings::save(R"({"immich_url":"http://fresh.test","immich_key":"fresh-key","web_password":"new-settings",
       "display_mode":"Fit"})"));
   assert(current.read() && current.display_mode == DisplayMode::Fit && current.pair_display_mode() == DisplayMode::Fill);
+  assert(current.pair_divider == espframe::native::PairDivider::Black);
+  const auto before_divider = espframe::native::photo_source_revision.load();
+  const auto before_divider_selection = espframe::native::photo_selection_revision.load();
+  const auto white_divider = update_configuration(R"({"values":{"portrait_pair_divider":"White"}})");
+  assert(!white_divider.error && !white_divider.restart_required && espframe::native::photo_source_revision.load() == before_divider + 1);
+  assert(espframe::native::photo_selection_revision.load() == before_divider_selection);
+  assert(current.read() && current.pair_divider == espframe::native::PairDivider::White);
+  assert(Settings::save(R"({"immich_url":"http://fresh.test","immich_key":"fresh-key","web_password":"new-settings",
+      "display_mode":"Fit"})"));
+  assert(current.read() && current.pair_divider == espframe::native::PairDivider::White);
   const auto prior_framing = stored;
+  assert(update_configuration(R"({"values":{"portrait_pair_divider":"Grey"}})").error);
+  assert(stored == prior_framing);
   assert(update_configuration(R"({"values":{"portrait_pair_framing":"Stretch"}})").error);
   assert(stored == prior_framing);
   assert(!update_configuration(R"({"values":{"display_mode":"Fill","portrait_pair_framing":"Fit"}})").error);

@@ -478,6 +478,13 @@ DecodedPreview::Result DecodedPreview::decode(const uint8_t *encoded, size_t len
   return result;
 }
 
+void paint_portrait_pair_divider(uint16_t *panel, ScreenRotation rotation, PairDivider divider) {
+  const Viewport viewport{rotation};
+  const uint16_t pixel = divider == PairDivider::White ? 0xffff : 0;
+  for (int y = 0; y < viewport.height; ++y)
+    panel[viewport.offset(portrait_pair_width, y)] = pixel;
+}
+
 bool DecodedPreview::render(uint16_t *panel, const DecodedPreview *companion, DisplayMode pair_mode,
                             ScreenRotation rotation, PreparationCheckpoint checkpoint) const {
   const Viewport viewport{rotation};

@@ -2559,6 +2559,7 @@
     parent.appendChild(filterBody);
   }
   function makePortraitPairingCard() {
+    var _a;
     var pairingBody = el("div");
     var portraitRotationActive = isPortraitScreenRotation(effectiveScreenRotationForUi());
     var pairingEnabled = S2.portrait_pairing && !portraitRotationActive;
@@ -2614,16 +2615,7 @@
     if (portraitRotationActive) pairingRangeSelect.title = pairingOptionsDisabledTitle;
     fPairingRange.appendChild(pairingRangeSelect);
     pairingOptionsBody.appendChild(fPairingRange);
-    if (nativeSettings.has("portrait_pair_framing")) {
-      pairingOptionsBody.appendChild(window["espframePairFraming"](
-        field,
-        selectFromOptions,
-        S2.portrait_pair_framing,
-        function(value) {
-          saveSetting("portrait_pair_framing", value);
-        }
-      ));
-    }
+    (_a = window["espframeNativePortraitPairing"]) == null ? void 0 : _a.call(window, pairingOptionsBody, field, selectFromOptions, nativeSettings, S2, saveSetting);
     pairingBody.appendChild(pairingToggle.field);
     pairingOptionsBody.style.display = pairingEnabled ? "" : "none";
     pairingBody.appendChild(pairingOptionsBody);
