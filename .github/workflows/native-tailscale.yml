@@ -32,6 +32,9 @@ jobs:
           c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main \
             firmware/native/tests/tailscale_url_test.cpp -o "$RUNNER_TEMP/tailscale-url-test"
           "$RUNNER_TEMP/tailscale-url-test"
+          c++ -std=c++20 -Wall -Wextra -Werror -DNATIVE_MEMORY_TRACE=1 -Ifirmware/native/main \
+            firmware/native/tests/web_logs_test.cpp -o "$RUNNER_TEMP/memory-web-logs-test"
+          "$RUNNER_TEMP/memory-web-logs-test"
       - name: Compile baseline and Tailscale images
         env:
           BOARD: ${{ matrix.board }}

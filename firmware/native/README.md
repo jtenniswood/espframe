@@ -156,6 +156,10 @@ and code. The USB serial capture measures runtime heap separately.
    Keep a separate log for the relayed run or label the transition in your
    notes. Reboot once to check that enrollment persists.
 
+For a panel connected only over Wi-Fi, open the native admin’s **Logs** tab
+as soon as each build boots. Keep the tab open while the test runs, then copy
+the captured lines into the corresponding log file.
+
 ```bash
 python3 firmware/native/tools/report_native_memory.py baseline.log tailscale.log
 ```

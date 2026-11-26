@@ -23,7 +23,7 @@ int capture_log(const char *format, va_list arguments) {
   // records whose tag is safe to show on the admin page.
   if (format[0] == 'E' || format[0] == 'W' || format[0] == 'I' ||
       format[0] == 'D' || format[0] == 'V' || format[0] == '\x1b') {
-    std::array<char, 192> message{};
+    std::array<char, WebLogLine::message_capacity> message{};
     va_list copy;
     va_copy(copy, arguments);
     const int length = std::vsnprintf(message.data(), message.size(), format, copy);

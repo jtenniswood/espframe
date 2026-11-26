@@ -9,9 +9,14 @@
 namespace espframe::native {
 
 struct WebLogLine {
+#if NATIVE_MEMORY_TRACE
+  static constexpr size_t message_capacity = 256;
+#else
+  static constexpr size_t message_capacity = 192;
+#endif
   uint32_t id{};
   unsigned level{};
-  std::array<char, 192> message{};
+  std::array<char, message_capacity> message{};
 };
 
 struct WebLogPage {
@@ -76,9 +81,13 @@ class WebLogBuffer {
 
   // Match the browser's existing severity classes. Slot four is ESPHome's Config level.
   static constexpr std::string_view levels = "EWIDV";
-  static constexpr std::array<std::string_view, 9> public_tags{
+  static constexpr auto public_tags = std::to_array<std::string_view>({
       "swipe-probe", "network", "immich", "photo-display", "frame-blitter",
-      "web-settings", "firmware-update", "usb-setup", "native-release"};
+      "web-settings", "firmware-update", "usb-setup", "native-release",
+#if NATIVE_MEMORY_TRACE
+      "native-memory",
+#endif
+  });
   std::array<WebLogLine, capacity> entries_{};
   uint32_t sequence_{};
 };

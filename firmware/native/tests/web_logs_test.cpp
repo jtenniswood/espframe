@@ -31,4 +31,15 @@ int main() {
   assert(page.count == 3 && page.more && lines[0].id == 7 && lines[2].id == 9);
   page = buffer.read(17, WebLogBuffer::capacity + 5, lines);
   assert(page.count == 1 && !page.more && lines[0].id == WebLogBuffer::capacity + 6);
+
+  const std::string_view memory =
+      "I (123456) native-memory: tailnet-http-success internal_used=120000 internal_free=400000 internal_min=360000 "
+      "internal_largest=300000 psram_used=5000000 psram_free=27000000 psram_min=26000000 psram_largest=25000000";
+  buffer.append(memory);
+  page = buffer.read(17, WebLogBuffer::capacity + 6, lines);
+#if NATIVE_MEMORY_TRACE
+  assert(page.count == 1 && std::string_view(lines[0].message.data()) == memory);
+#else
+  assert(page.count == 0);
+#endif
 }
