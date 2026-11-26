@@ -28,8 +28,18 @@ window.espframeNativeUrl = function (url) {
 };
 
 window.espframeWatchWireguard = function (card, receive) {
+  let timer;
+  let reading = false;
+  let refreshRequested = false;
+
   async function read() {
+    clearTimeout(timer);
     if (!card.isConnected) return;
+    if (reading) {
+      refreshRequested = true;
+      return;
+    }
+    reading = true;
     try {
       if (document.hidden || !card.offsetWidth) return;
       const response = await fetch("/espframe/api/v1/wireguard", {
@@ -42,10 +52,13 @@ window.espframeWatchWireguard = function (card, receive) {
     } catch (_) {
       // The frame can be restarting to apply the saved tunnel settings.
     } finally {
-      if (card.isConnected) setTimeout(read, 3000);
+      reading = false;
+      if (card.isConnected) timer = setTimeout(read, refreshRequested ? 0 : 3000);
+      refreshRequested = false;
     }
   }
-  setTimeout(read, 0);
+  timer = setTimeout(read, 0);
+  return read;
 };
 
 window.espframeShowLogs = (() => {

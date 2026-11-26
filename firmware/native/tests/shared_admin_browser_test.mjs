@@ -409,6 +409,22 @@ const browserTest = String.raw`
       throw new Error('Live settings refresh closed an open panel')
     }
     await until(() => document.title.includes('Hallway'), 'the remote frame name after restart')
+    const liveVpnSwitch = setting(openCard('Connection'), 'Connect through WireGuard')
+    const liveVpn = liveVpnSwitch.closest('.wireguard')
+    const liveBadge = liveVpn.querySelector('#wireguard-status')
+    const liveNotice = liveVpn.querySelector('.reset-backup-notice')
+    await until(() => liveBadge.textContent.includes('Connected'), 'the connected WireGuard badge')
+    liveVpnSwitch.click()
+    await until(async () => await savedValue('wireguard_enabled', false) &&
+      liveBadge.textContent.includes('Tunnel is off') && getComputedStyle(liveNotice).display === 'none',
+      'the tunnel to disconnect and the restart notice to clear')
+    liveVpnSwitch.click()
+    await until(async () => await savedValue('wireguard_enabled', true) &&
+      getComputedStyle(liveNotice).display !== 'none' && liveBadge.textContent.includes('Tunnel is off'),
+      'reenabling WireGuard to request a restart')
+    liveVpnSwitch.click()
+    await until(async () => await savedValue('wireguard_enabled', false) &&
+      getComputedStyle(liveNotice).display === 'none', 'canceling the pending tunnel enable')
     tab('Device').click()
     if (!document.querySelector('#sun-info').textContent.includes('Sunrise: 6:30 AM') ||
         !document.querySelector('#sun-info').textContent.includes('Sunset: 7:05 PM')) {
@@ -494,7 +510,11 @@ const server = createServer(async (req, res) => {
         }
         if (api_key) snapshot.api_key_configured = true
         if (wireguard_private_key !== undefined) snapshot.secrets_configured.wireguard_private_key = !!wireguard_private_key
-        if (Object.keys(update.values).some(key => key.startsWith('wireguard_'))) wireguard.restart_required = true
+        if (values.wireguard_enabled === false) {
+          wireguard = { running: false, connected: false, restart_required: false }
+        } else if (Object.keys(update.values).some(key => key.startsWith('wireguard_'))) {
+          wireguard.restart_required = true
+        }
         restartPending = !wasConfigured && !!(api_key || values.immich_url)
         return json({ api_version: 1, status: 'accepted', restart_required: restartPending })
       }
@@ -648,6 +668,9 @@ try {
     { c6_auto_update: false },
     { update_frequency: 'Weekly' },
     { auto_update: false },
+    { wireguard_enabled: false },
+    { wireguard_enabled: true },
+    { wireguard_enabled: false },
     { developer_features_enabled: true },
     { screen_rotation: '90', portrait_pairing: false },
     { developer_features_enabled: false, screen_rotation: '0' },
@@ -670,7 +693,7 @@ try {
   assert.ok(unchangedReads > 0, 'idle polling should receive empty 304 replies')
   assert.ok(bootChecks > 2)
   assert.deepEqual(unexpected, [])
-  console.log('Shared admin verified photo sources, exact playback and display settings, firmware uploads, backups, logs and resets')
+  console.log('Shared admin verified WireGuard, photo sources, exact playback and display settings, firmware uploads, backups, logs and resets')
 } finally {
   server.close()
 }

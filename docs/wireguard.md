@@ -48,7 +48,7 @@ The private key is stored on the frame and is never shown again after saving. Th
 - IPv4 only, with one server peer.
 - The frame needs the correct time before the tunnel can start, so it waits for the clock to sync.
 - If the tunnel cannot be set up, for example because a field is missing or invalid, the frame logs the reason and carries on without it. It still starts normally and never reboots because the VPN is down.
-- Turning WireGuard off in the web UI and restarting returns the frame to its normal behaviour.
+- In Native Preview, turning WireGuard off disconnects the tunnel immediately. In ESPHome, restart after switching it off.
 
 ## Checking the tunnel
 

@@ -242,6 +242,7 @@
     var restartNotice = el("div", "reset-backup-notice mb-12");
     showRestart(false);
     var restartRequired;
+    var refreshWireguardStatus;
     var restartText = el("span");
     restartText.textContent = "WireGuard changes apply after the frame restarts.";
     var restartButton = button("Restart now", "btn btn-primary btn-sm", function () {
@@ -282,7 +283,10 @@
       setValue: function (value) { S.wireguard_enabled = value; },
       details: panel,
       onChange: function () {
-        saveSetting("wireguard_enabled", !!S.wireguard_enabled).then(() => saved(), () => {});
+        saveSetting("wireguard_enabled", !!S.wireguard_enabled).then(function () {
+          saved();
+          nativeAdminOnly: if (refreshWireguardStatus) refreshWireguardStatus();
+        }, () => {});
       }
     });
     panel.style.display = S.wireguard_enabled ? "" : "none";
@@ -428,8 +432,8 @@
     detailsBody.appendChild(keyField);
 
     body.append(panel, status, restartNotice);
-    if (nativeAdmin) {
-      window["espframeWatchWireguard"](body, function (state) {
+    nativeAdminOnly: if (nativeAdmin) {
+      refreshWireguardStatus = window["espframeWatchWireguard"](body, function (state) {
         restartRequired = state.restart_required;
         if (restartRequired !== undefined) showRestart(restartRequired);
         S.wireguard_connected = state.connected;
