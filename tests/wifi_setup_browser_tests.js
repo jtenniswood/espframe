@@ -157,6 +157,74 @@ try {
   const savedRendered = (savedResult.stdout || "").replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
   assert.equal(savedResult.status, 0, savedResult.stderr || String(savedResult.error));
   assert.ok(savedRendered.includes("WIFI_SAVED_PASS"), `Confirmation failed: ${savedRendered}`);
+  const nativeDir = path.join(__dirname, "../firmware/native/main/web");
+  const nativePortal = fs.readFileSync(path.join(nativeDir, "recovery.html"), "utf8");
+  const nativeScript = fs.readFileSync(path.join(nativeDir, "recovery.js"), "utf8");
+  for (const scanAvailable of [true, false]) {
+    const mock = `<script>
+      const names = ${JSON.stringify(names)};
+      const scanAvailable = ${scanAvailable};
+      let scans = 0;
+      let sent;
+      window.fetch = async (url, options) => {
+        if (url === "/api/recovery/networks") {
+          if (!scanAvailable) return new Response(null, {status: 404});
+          if (++scans === 1) return new Response(null, {status: 202});
+          return Response.json(names);
+        }
+        if (url !== "/api/recovery") throw new Error("Unexpected request");
+        if (options.method === "POST") {
+          sent = Array.from(options.body);
+          return new Response(null, {status: 202});
+        }
+        return Response.json(sent ? {status: "connected", ipv4: "192.168.1.42"} : {status: "ready"});
+      };
+    </script>`;
+    const assertions = `<script type="module">
+      setTimeout(async () => {
+        try {
+          function check(value, message) { if (!value) throw new Error(message); }
+          const form = document.querySelector("#recovery");
+          const chooser = document.querySelector("#networks");
+          const {ssid, password} = form.elements;
+          password.value = "typed-password";
+          check(document.querySelector("#nearby").hidden === !scanAvailable, "Incorrect network chooser visibility");
+          if (scanAvailable) {
+            check(scans === 2, "Should retry a pending scan");
+            check(chooser.options.length === names.length + 1, "Missing scan results");
+            check(!chooser.querySelector("img"), "Network name was parsed as markup");
+            chooser.value = names[1];
+            chooser.dispatchEvent(new Event("change"));
+            check(ssid.value === names[1] && document.activeElement === password, "Network selection did not fill the form");
+            check(password.value === "typed-password", "Selection reset the typed password");
+          } else {
+            ssid.value = "Manual network";
+          }
+          const encoder = new TextEncoder();
+          const name = encoder.encode(ssid.value);
+          const secret = encoder.encode(password.value);
+          form.requestSubmit();
+          await new Promise(resolve => setTimeout(resolve, 50));
+          check(String(sent) === String([name.length, ...name, secret.length, ...secret]), "Unexpected provisioning body");
+          check(form.hidden && document.querySelector("#status").textContent.includes("192.168.1.42"), "Missing connected address");
+          document.body.append("NATIVE_WIFI_PASS");
+        } catch (error) { document.body.textContent = "NATIVE_WIFI_FAIL " + error.message; }
+      }, 1000);
+    </script>`;
+    const scenario = scanAvailable ? "native-selection" : "native-manual";
+    const file = path.join(dir, `${scenario}.html`);
+    const page = nativePortal.replace('<script type="module" src="/recovery.js"></script>',
+      `${mock}<script type="module">${nativeScript}</script>${assertions}`);
+    fs.writeFileSync(file, page);
+    const args = ["--headless=new", "--disable-gpu", "--disable-background-networking", "--no-first-run",
+      `--user-data-dir=${path.join(dir, scenario + "-profile")}`, "--virtual-time-budget=2000", "--window-size=360,900", "--dump-dom", `file://${file}`];
+    if (process.platform === "linux" && process.getuid() === 0) args.unshift("--no-sandbox");
+    const result = spawnSync(chrome, args, {encoding: "utf8", timeout: 20000});
+    const rendered = (result.stdout || "").replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+    assert.equal(result.status, 0, result.stderr || String(result.error));
+    assert.ok(rendered.includes("NATIVE_WIFI_PASS"), `${scenario} failed: ${rendered}`);
+  }
+  console.log("Native Wi-Fi setup tests passed for scanned and manually entered networks");
   console.log("WiFi browser shared styling, narrow layout, saved confirmation instructions, branding, connection status, selection, password preservation, SSID escaping and manual-entry tests passed");
 } finally {
   fs.rmSync(dir, {recursive: true, force: true});

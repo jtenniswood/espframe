@@ -1,8 +1,35 @@
 const form = document.querySelector('#recovery')
 const status = document.querySelector('#status')
 const button = form.querySelector('button')
+const nearby = document.querySelector('#nearby')
+const networks = document.querySelector('#networks')
 const encoder = new TextEncoder()
 const delay = () => new Promise(resolve => setTimeout(resolve, 750))
+
+async function loadNearbyNetworks() {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const response = await fetch('/api/recovery/networks', { signal: AbortSignal.timeout(2000) })
+    if (!response.ok) return
+    if (response.status === 202) {
+      await delay()
+      continue
+    }
+    for (const name of await response.json()) {
+      const option = document.createElement('option')
+      option.value = name
+      option.textContent = name
+      networks.append(option)
+    }
+    nearby.hidden = networks.options.length < 2
+    return
+  }
+}
+
+networks.addEventListener('change', () => {
+  if (!networks.value) return
+  form.elements.ssid.value = networks.value
+  form.elements.password.focus()
+})
 
 async function readStatus() {
   const response = await fetch('/api/recovery', { signal: AbortSignal.timeout(2000) })
@@ -86,6 +113,8 @@ form.addEventListener('submit', async event => {
 try {
   const current = await readStatus()
   show(current.status === 'joining' ? await waitForConnection() : current)
+  if (current.status === 'ready' || current.status === 'failed')
+    loadNearbyNetworks().catch(() => {})
 } catch {
   show({ status: 'unreachable' })
 }

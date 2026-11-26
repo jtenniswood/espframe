@@ -344,19 +344,19 @@ Both builds use `espframe_ota_test_vN.bin` for their app filenames.
 
 ### Recover Wi-Fi from the frame
 
-A fresh frame opens a protected setup hotspot when it has no saved Wi-Fi.
-A configured frame opens it after 90 seconds without a home-network address.
-The frame displays the `espframe_` network name and a password generated at
-boot over the photo when the screen is awake and idle. If the screen is asleep,
-tap it to wake it. Cached photos remain available to swipe.
+When the frame has no saved Wi-Fi, use the USB installer or join the open
+`espframe_` network shown on the frame from a phone or laptop. The Wi-Fi
+setup page opens automatically on supported devices. You can also visit
+`http://192.168.4.1` directly. Choose a nearby Wi-Fi network or enter its
+name manually, then enter its password. The frame tests the connection
+before saving the credentials. Rejoin your usual Wi-Fi and open the address
+shown on the frame and in the setup page to continue.
 
-Join that network on a phone or laptop and open `http://192.168.4.1` in a
-browser. Enter the home network name and its password. The frame tests the
-connection and waits for an IPv4 address before saving the new credentials.
-If the trial fails, try again on the setup network. Existing Immich and
-playback settings stay in place. The setup hotspot turns off 15 seconds after
-the frame reconnects to home Wi-Fi, which gives the browser time to show the
-new address. Use the USB installer to enter Immich settings on a fresh frame.
+A configured frame opens a password-protected recovery hotspot after 90
+seconds without a home-network address. The frame shows its network name and
+password over the photo when the screen is awake and idle. Tap the screen
+to wake it. Cached photos remain available to swipe. When Wi-Fi is restored,
+the hotspot stays up for 15 seconds so the browser can show the new address.
 
 An older native prototype needs one USB install to add the update slots. Export
 a backup first and leave the installer's full erase option unchecked to retain

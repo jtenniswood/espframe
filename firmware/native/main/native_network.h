@@ -56,6 +56,12 @@ class NativeNetwork {
   bool submit(Request request, const WifiCredentials &wifi = {});
   bool poll(Reply &reply);
   RecoveryStatus recovery_status() const { return recovery_status_.load(std::memory_order_acquire); }
+  bool first_run_recovery() const {
+    return recovery_status() != RecoveryStatus::Off && first_run_recovery_.load(std::memory_order_relaxed);
+  }
+  const Reply *setup_networks() const {
+    return setup_scan_ready_.load(std::memory_order_acquire) ? &setup_scan_ : nullptr;
+  }
   const RecoveryNetwork &recovery_network() const { return recovery_network_; }
   bool submit_recovery(const WifiCredentials &wifi);
   FrameIdentity identity_for(const std::string &name) const;
@@ -70,7 +76,9 @@ class NativeNetwork {
   bool start_station_(const WifiCredentials &wifi);
   bool replace_station_(const WifiCredentials &wifi);
   bool prepare_recovery_();
-  bool start_recovery_();
+  bool configure_recovery_ap_(bool open);
+  bool start_recovery_(bool first_run);
+  static void serve_setup_dns_(void *context);
   bool stop_recovery_();
   bool try_provision_(const WifiCredentials &wifi);
   void handle_(const Command &command, WifiCredentials &saved);
@@ -103,6 +111,9 @@ class NativeNetwork {
   std::atomic<TrialLink> trial_link_{TrialLink::Ready};
 #endif
   RecoveryNetwork recovery_network_;
+  Reply setup_scan_{Request::Scan};
+  std::atomic<bool> setup_scan_ready_{};
+  std::atomic<bool> first_run_recovery_{};
   std::atomic<RecoveryStatus> recovery_status_{RecoveryStatus::Off};
 };
 

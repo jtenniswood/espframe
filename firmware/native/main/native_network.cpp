@@ -4,6 +4,7 @@
 #include "native_wireguard.h"
 #include "ntp_server_names.h"
 #include "settings.h"
+#include "setup_dns.h"
 #include "station_retry.h"
 #include "web_settings.h"
 
@@ -18,9 +19,11 @@
 #include "esp_random.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"
+#include "lwip/sockets.h"
 #include "mdns.h"
 
 #include <algorithm>
+#include <cerrno>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
@@ -268,24 +271,43 @@ bool NativeNetwork::prepare_recovery_() {
   esp_fill_random(recovery_network_.password.data(), recovery_network_.password.size() - 1);
   for (size_t i = 0; i + 1 < recovery_network_.password.size(); ++i)
     recovery_network_.password[i] = alphabet[static_cast<uint8_t>(recovery_network_.password[i]) & 31u];
+  return configure_recovery_ap_(false);
+}
+
+bool NativeNetwork::configure_recovery_ap_(bool open) {
   wifi_config_t config{};
   std::memcpy(config.ap.ssid, recovery_network_.ssid.data(), recovery_network_.ssid.size());
-  std::memcpy(config.ap.password, recovery_network_.password.data(), recovery_network_.password.size());
+  if (!open)
+    std::memcpy(config.ap.password, recovery_network_.password.data(), recovery_network_.password.size());
   config.ap.ssid_len = std::strlen(recovery_network_.ssid.data());
   config.ap.channel = 1;
   config.ap.max_connection = 2;
-  config.ap.authmode = WIFI_AUTH_WPA2_PSK;
-  // Set WPA2 credentials before the radio can advertise the hotspot.
+  config.ap.authmode = open ? WIFI_AUTH_OPEN : WIFI_AUTH_WPA2_PSK;
   return esp_wifi_set_config(WIFI_IF_AP, &config) == ESP_OK;
 }
 
-bool NativeNetwork::start_recovery_() {
+bool NativeNetwork::start_recovery_(bool first_run) {
   if (!hotspot_configured_)
     return false;
-  if (!hotspot_)
+  if (!hotspot_) {
     hotspot_ = esp_netif_create_default_wifi_ap();
+    if (hotspot_ && first_run) {
+      uint8_t offer_dns = 1;
+      esp_netif_dns_info_t dns{};
+      dns.ip.type = ESP_IPADDR_TYPE_V4;
+      dns.ip.u_addr.ip4.addr = inet_addr(recovery_host);
+      if (esp_netif_dhcps_option(hotspot_, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &offer_dns,
+                                 sizeof(offer_dns)) != ESP_OK ||
+          esp_netif_set_dns_info(hotspot_, ESP_NETIF_DNS_MAIN, &dns) != ESP_OK)
+        ESP_LOGW(tag, "Could not advertise the setup DNS address");
+    }
+  }
   if (!hotspot_ || !start_web_settings(*settings_, *this) || esp_wifi_set_mode(WIFI_MODE_APSTA) != ESP_OK)
     return false;
+  if (first_run && !configure_recovery_ap_(true)) {
+    esp_wifi_set_mode(WIFI_MODE_STA);
+    return false;
+  }
   if (!station_running_) {
     if (esp_wifi_start() != ESP_OK) {
       esp_wifi_set_mode(WIFI_MODE_STA);
@@ -301,12 +323,55 @@ bool NativeNetwork::start_recovery_() {
     }
     vTaskDelay(pdMS_TO_TICKS(25));
   }
+  first_run_recovery_.store(first_run, std::memory_order_relaxed);
   recovery_status_.store(RecoveryStatus::Ready, std::memory_order_release);
   ESP_LOGI(tag, "Wi-Fi setup hotspot %s ready at %s", recovery_network_.ssid.data(), recovery_url);
+  if (first_run) {
+    if (xTaskCreatePinnedToCore(serve_setup_dns_, "setup-dns", 3072, this, 2, nullptr, network_core) != pdPASS)
+      ESP_LOGW(tag, "Could not start the captive portal DNS task");
+    scan_(setup_scan_);
+    setup_scan_ready_.store(true, std::memory_order_release);
+  }
   return true;
 }
 
+void NativeNetwork::serve_setup_dns_(void *context) {
+  const auto &network = *static_cast<NativeNetwork *>(context);
+  const int fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  sockaddr_in local{};
+  local.sin_family = AF_INET;
+  local.sin_port = htons(53);
+  local.sin_addr.s_addr = inet_addr(recovery_host);
+  const timeval timeout{0, 250'000};
+  if (fd >= 0 && setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == 0 &&
+      bind(fd, reinterpret_cast<const sockaddr *>(&local), sizeof(local)) == 0) {
+    std::array<uint8_t, 512> packet;
+    std::array<uint8_t, 4> address;
+    std::memcpy(address.data(), &local.sin_addr.s_addr, address.size());
+    while (network.first_run_recovery()) {
+      sockaddr_in client{};
+      socklen_t client_length = sizeof(client);
+      const auto size = recvfrom(fd, packet.data(), packet.size(), 0, reinterpret_cast<sockaddr *>(&client), &client_length);
+      if (size < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)
+        break;
+      if (size <= 0 || !network.first_run_recovery())
+        continue;
+      const auto reply = setup_dns_reply(packet, static_cast<size_t>(size), address);
+      if (reply)
+        sendto(fd, packet.data(), reply, 0, reinterpret_cast<const sockaddr *>(&client), client_length);
+    }
+  } else {
+    ESP_LOGW(tag, "Could not bind the captive portal DNS socket");
+  }
+  if (fd >= 0)
+    close(fd);
+  vTaskDelete(nullptr);
+}
+
 bool NativeNetwork::stop_recovery_() {
+  // Restore the protected AP configuration before taking first-run setup down.
+  if (first_run_recovery() && !configure_recovery_ap_(false))
+    return false;
   if (esp_wifi_set_mode(WIFI_MODE_STA) != ESP_OK)
     return false;
   recovery_status_.store(RecoveryStatus::Off, std::memory_order_release);
@@ -458,7 +523,7 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
     if constexpr (!trial_immich) {
       if (const auto change = recovery.change_at(saved.configured(), hotspot);
           hotspot_configured_ && change && now >= std::max(*change, next_hotspot_attempt)) {
-        if (hotspot ? stop_recovery_() : start_recovery_()) {
+        if (hotspot ? stop_recovery_() : start_recovery_(!saved.configured())) {
           hotspot = !hotspot;
           next_hotspot_attempt = 0;
         } else {

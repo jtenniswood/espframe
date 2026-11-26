@@ -37,6 +37,7 @@
 #include "esp_cache.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_netif_ip_addr.h"
 #include "esp_random.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -50,6 +51,7 @@
 #include <cinttypes>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <limits>
 
 namespace espframe::native {
@@ -674,6 +676,8 @@ void run(void *) {
   bool clock_dirty = false;
   bool local_time_ready = false;
   bool recovery_painted = false;
+  std::optional<uint8_t> setup_language;
+  uint32_t setup_ipv4{};
   PhotoSourceStatus source_status = PhotoSourceStatus::None;
   PhotoSourceStatus painted_source_status = PhotoSourceStatus::None;
   InitialPhotoTimeout initial_photo_timeout;
@@ -868,6 +872,42 @@ void run(void *) {
       }
       if constexpr (trace_enabled)
         trace.frame(*scanout, submitted_stamp);
+    }
+
+    if constexpr (!esphome_trial) {
+      if (network.first_run_recovery()) {
+        TouchReport report;
+        while (touch.poll(report, rotation)) {
+          if (report.valid) {
+            confirm_firmware_boot();
+            if (report.contacts)
+              input.wait_for_new_contact();
+          }
+        }
+        const auto language = active_device_language.load(std::memory_order_relaxed);
+        const auto address = network.busy() ? 0 : network.address().ipv4;
+        if (setup_language != language || setup_ipv4 != address) {
+          if (auto *output = display.writable_buffer()) {
+            char url[sizeof("http://255.255.255.255")]{};
+            if (address) {
+              const esp_ip4_addr_t ip{address};
+              std::snprintf(url, sizeof(url), "http://" IPSTR, IP2STR(&ip));
+            }
+            const StatusText text{{status_masks, static_cast<size_t>(status_masks_end - status_masks)}, language};
+            draw_wifi_setup(output, recovery_atlas, text, network.recovery_network(), url, rotation);
+            if (submit_frame(swipe.settled() * viewport.width, false)) {
+              setup_language = language;
+              setup_ipv4 = address;
+            }
+          }
+        }
+        display.wait_for_frame_or_tick();
+        continue;
+      }
+      if (setup_language) {
+        setup_language.reset();
+        last_submitted = -1;
+      }
     }
 
     const auto center = swipe.settled();

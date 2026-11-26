@@ -15,6 +15,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from asset_generation.translations import load_catalogues
 
 HEIGHT = 36
+COMPACT_MASK = 0x8000
+SETUP_LABELS = {"connected", "wifi_setup_installer", "wifi_setup_hotspot", "wifi_setup_browser"}
 FONT_HASHES = (
     "5be701a9511117e73603bdab95947feef4f18bd1851dbddc30659370b26c69f1",
     "a5cc5ce90ed4f6393992728fcc63657c4dd83aed119acbd5f4ed223e40c71129",
@@ -25,8 +27,18 @@ def status_lines():
     labels = ROOT / "firmware/native/main/status_labels.def"
     keys = [re.fullmatch(r"ESPFRAME_STATUS_LABEL\(([a-z0-9_]+)\)", line)[1]
             for line in labels.read_text().splitlines()]
-    lines = [(language, words[key]) for language, words in load_catalogues().items() for key in keys]
-    assert all(text and "\n" not in text for _, text in lines)
+    recovery_header = ROOT / "firmware/native/main/wifi_recovery.h"
+    url = re.search(r'recovery_url\[\] = "([^"]+)"', recovery_header.read_text())[1]
+    lines = []
+    for language, words in load_catalogues().items():
+        installer, hotspot, browser = words["wifi_instructions"].splitlines()
+        setup = {
+            "wifi_setup_installer": installer,
+            "wifi_setup_hotspot": hotspot,
+            "wifi_setup_browser": browser.replace("{hotspot}", "").replace("{address}", url),
+        }
+        lines.extend((language, (setup if key in setup else words)[key], key in SETUP_LABELS) for key in keys)
+    assert all(text and "\n" not in text for _, text, _ in lines)
     return lines
 
 
@@ -34,16 +46,17 @@ def fingerprint(lines):
     return sha256(json.dumps(lines, ensure_ascii=False).encode()).digest()
 
 
-def encoded_mask(line, language, regular, hebrew):
+def encoded_mask(line, language, regular, hebrew, compact):
     from bidi.algorithm import get_display
     from PIL import Image, ImageDraw
 
     visual = get_display(line, base_dir="R") if language == "he" else line
     glyphs = [(char, hebrew if "\u0590" <= char <= "\u05ff" else regular) for char in visual]
-    width = ceil(sum(font.getlength(char) for char, font in glyphs)) + 8
+    padding = 12
+    width = ceil(sum(font.getlength(char) for char, font in glyphs)) + 2 * padding
     image = Image.new("L", (width, HEIGHT))
     draw = ImageDraw.Draw(image)
-    x = 4
+    x = padding
     for char, font in glyphs:
         if bytes(font.getmask(char)) == bytes(font.getmask("\uffff")):
             raise ValueError(f"No glyph for U+{ord(char):04X} in {line!r}")
@@ -53,18 +66,22 @@ def encoded_mask(line, language, regular, hebrew):
     if left == 0 or right == width or top == 0 or bottom == HEIGHT:
         raise ValueError(f"Clipped status mask for {line!r}")
     pixels = image.crop((left, 0, right, HEIGHT)).tobytes()
-    mask = bytearray(pack("<H", right - left))
+    # Setup has several long sentences per language. Give these masks longer
+    # runs at two bits of opacity so they fit the OTA partition.
+    mask = bytearray(pack("<H", (right - left) | (COMPACT_MASK if compact else 0)))
+    alpha_step = 85 if compact else 17
+    run_bits = 6 if compact else 4
     alpha = -1
     run = 0
     for value in pixels:
-        opacity = (value + 8) // 17
-        if opacity == alpha and run < 16:
+        opacity = (value + alpha_step // 2) // alpha_step
+        if opacity == alpha and run < 1 << run_bits:
             run += 1
         else:
             if run:
-                mask.append((alpha << 4) | (run - 1))
+                mask.append((alpha << run_bits) | (run - 1))
             alpha, run = opacity, 1
-    mask.append((alpha << 4) | (run - 1))
+    mask.append((alpha << run_bits) | (run - 1))
     return mask
 
 
@@ -75,10 +92,12 @@ def check(path, lines):
     offsets = unpack_from(f"<{len(lines) + 1}I", data, 32)
     if offsets[0] != 32 + 4 * len(offsets) or offsets[-1] != len(data):
         raise ValueError("Invalid status mask table")
-    for start, end in zip(offsets, offsets[1:]):
-        width, = unpack_from("<H", data, start)
-        if not (start + 2 < end and 0 < width <= 668 and
-                sum((run & 15) + 1 for run in data[start + 2:end]) == HEIGHT * width):
+    for (_, _, compact), start, end in zip(lines, offsets, offsets[1:]):
+        header, = unpack_from("<H", data, start)
+        width = header & ~COMPACT_MASK
+        run_mask = 63 if compact else 15
+        if not (bool(header & COMPACT_MASK) == compact and start + 2 < end and 0 < width <= 668 and
+                sum((run & run_mask) + 1 for run in data[start + 2:end]) == HEIGHT * width):
             raise ValueError("Invalid status line dimensions")
 
 
@@ -98,9 +117,9 @@ def main():
         offset = 32 + 4 * (len(lines) + 1)
         table = bytearray(fingerprint(lines))
         body = bytearray()
-        for language, line in lines:
+        for language, line, compact in lines:
             table.extend(pack("<I", offset + len(body)))
-            body.extend(encoded_mask(line, language, regular, hebrew))
+            body.extend(encoded_mask(line, language, regular, hebrew, compact))
         table.extend(pack("<I", offset + len(body)))
         args.output.write_bytes(table + body)
     check(args.output, lines)

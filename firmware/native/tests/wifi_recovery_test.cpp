@@ -1,4 +1,5 @@
 #include "recovery_card.h"
+#include "setup_dns.h"
 #include "i18n_generated.h"
 #include "wifi_recovery.h"
 
@@ -12,6 +13,23 @@
 using namespace espframe::native;
 
 int main(int argc, char **argv) {
+  constexpr std::array<uint8_t, 4> setup_ip{192, 168, 4, 1};
+  constexpr std::array<uint8_t, 19> query{
+      0x12, 0x34, 0x01, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 'a', 0, 0, 1, 0, 1};
+  std::array<uint8_t, 64> dns{};
+  std::copy(query.begin(), query.end(), dns.begin());
+  assert(setup_dns_reply(dns, query.size() + 11, setup_ip) == query.size() + 16);
+  assert(dns[0] == 0x12 && dns[1] == 0x34 && dns[2] == 0x84 && dns[7] == 1 && dns[11] == 0);
+  assert(std::equal(setup_ip.begin(), setup_ip.end(), dns.begin() + query.size() + 12));
+  std::copy(query.begin(), query.end(), dns.begin());
+  dns[16] = 28;
+  assert(setup_dns_reply(dns, query.size(), setup_ip) == query.size());
+  assert(dns[7] == 0);
+  std::copy(query.begin(), query.end(), dns.begin());
+  assert(setup_dns_reply(dns, query.size() - 1, setup_ip) == 0);
+  dns[12] = 64;
+  assert(setup_dns_reply(dns, query.size(), setup_ip) == 0);
+
   RecoveryWindow recovery;
   assert(!recovery.change_at(true, false));
   recovery.update(0, false);
@@ -91,5 +109,18 @@ int main(int argc, char **argv) {
       draw_connection_notice(frame, localized, ImmichResponse::Rejected, rotation);
     });
     assert((normal == english_warning) == (language == 0));
+
+    for (const auto address : {std::string_view{}, std::string_view{"http://192.168.1.42"}}) {
+      std::fill(normal.begin(), normal.end(), photo);
+      draw_wifi_setup(normal.data(), atlas.data(), localized, access_point, address, ScreenRotation::Normal);
+      draw_wifi_setup(inverted.data(), atlas.data(), localized, access_point, address, ScreenRotation::UpsideDown);
+      assert(std::equal(normal.begin(), normal.end(), inverted.rbegin()));
+      assert(std::find(normal.begin(), normal.end(), photo) == normal.end());
+      assert(std::count(normal.begin(), normal.end(), uint16_t{0xffff}) > 100);
+      for (const auto rotation : {ScreenRotation::Clockwise, ScreenRotation::Counterclockwise}) {
+        draw_wifi_setup(normal.data(), atlas.data(), localized, access_point, address, rotation);
+        assert(std::count(normal.begin(), normal.end(), uint16_t{0xffff}) > 100);
+      }
+    }
   }
 }

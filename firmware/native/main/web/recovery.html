@@ -8,6 +8,12 @@
   <h1>Connect Espframe to Wi-Fi</h1>
   <section>
     <form id="recovery" hidden>
+      <div id="nearby" hidden>
+        <label for="networks">Nearby Wi-Fi networks</label>
+        <select id="networks">
+          <option value="">Choose a network</option>
+        </select>
+      </div>
       <label for="ssid">Network name</label>
       <input id="ssid" name="ssid" required maxlength="32" autocapitalize="off" spellcheck="false">
       <label for="password">Wi-Fi password</label>

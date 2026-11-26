@@ -10,6 +10,7 @@ namespace {
 constexpr int glyph_width = 32;
 constexpr int glyph_height = 36;
 constexpr int glyph_bytes = 1 + glyph_width * glyph_height / 2;
+constexpr uint16_t compact_mask = 0x8000;
 constexpr uint16_t background = 0x1105;
 constexpr uint16_t muted = 0xaeb5;
 constexpr uint16_t white = 0xffff;
@@ -24,6 +25,7 @@ enum class StatusLabel {
 struct Line {
   int width{};
   std::span<const uint8_t> runs;
+  bool compact{};
 };
 
 bool rtl(StatusText text) {
@@ -47,10 +49,11 @@ Line line(StatusText text, StatusLabel label) {
   const size_t end = offset(index + 1);
   if (begin < table_size || end <= begin || end - begin <= 2 || end > text.masks.size())
     return {};
-  const int width = text.masks[begin] | (text.masks[begin + 1] << 8);
+  const auto header = text.masks[begin] | (text.masks[begin + 1] << 8);
+  const int width = header & ~compact_mask;
   if (width <= 0 || width > 668)
     return {};
-  return {width, text.masks.subspan(begin + 2, end - begin - 2)};
+  return {width, text.masks.subspan(begin + 2, end - begin - 2), bool(header & compact_mask)};
 }
 
 uint16_t masked(uint16_t color, unsigned opacity) {
@@ -96,8 +99,8 @@ void localized_text(uint16_t *frame, Line line, ScreenRotation rotation, int x, 
   size_t pixel = 0;
   const size_t pixel_count = line.width * glyph_height;
   for (const uint8_t run : line.runs) {
-    const unsigned opacity = run >> 4;
-    const size_t end = std::min(pixel + (run & 15) + 1, pixel_count);
+    const unsigned opacity = line.compact ? (run >> 6) * 5 : run >> 4;
+    const size_t end = std::min(pixel + (run & (line.compact ? 63 : 15)) + 1, pixel_count);
     if (opacity == 0) {
       pixel = end;
       continue;
@@ -140,6 +143,30 @@ void source_notice(uint16_t *frame, StatusText text, StatusLabel key, ScreenRota
 }
 
 }  // namespace
+
+void draw_wifi_setup(uint16_t *frame, const uint8_t *atlas, StatusText text, const RecoveryNetwork &network,
+                     std::string_view connected_address, ScreenRotation rotation) {
+  const Viewport viewport{rotation};
+  const int center = viewport.height / 2;
+  std::fill_n(frame, pixel_count, background);
+  const auto centered = [&](StatusLabel label, int y, uint16_t color) {
+    const auto message = line(text, label);
+    localized_text(frame, message, rotation, (viewport.width - message.width) / 2, y, color);
+  };
+  const auto value = [&](std::string_view content, int y) {
+    ascii_text(frame, atlas, rotation, (viewport.width - ascii_width(atlas, content)) / 2, y, content);
+  };
+  if (!connected_address.empty()) {
+    centered(StatusLabel::connected, center - 48, white);
+    value(connected_address, center + 4);
+    return;
+  }
+  centered(StatusLabel::wifi_setup, center - 134, white);
+  centered(StatusLabel::wifi_setup_installer, center - 62, muted);
+  centered(StatusLabel::wifi_setup_hotspot, center - 26, muted);
+  value(network.ssid.data(), center + 14);
+  centered(StatusLabel::wifi_setup_browser, center + 64, muted);
+}
 
 void draw_recovery_card(uint16_t *frame, const uint8_t *atlas, StatusText text, const RecoveryNetwork &network,
                         ScreenRotation rotation) {
