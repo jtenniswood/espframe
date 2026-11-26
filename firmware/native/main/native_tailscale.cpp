@@ -16,6 +16,7 @@
 #include <utility>
 
 extern "C" bool espframe_tailscale_prepare_peer(microlink_t *client, uint32_t peer);
+extern "C" void espframe_tailscale_reconnect_relay(microlink_t *client);
 
 namespace espframe::native {
 namespace {
@@ -28,9 +29,15 @@ std::atomic<uint32_t> generation{};
 std::atomic<bool> wireguard{};
 std::atomic<TaskHandle_t> worker{};
 std::string device_name;
-uint32_t priority_peer{};
+std::string photo_host;
+uint32_t photo_ip{};
+std::string active_photo_host;
+uint32_t active_photo_ip{};
+std::atomic<uint32_t> priority_peer{};
+std::atomic<uint16_t> relay_region{};
 uint32_t reset_epoch{};
 std::mutex client_mutex;
+std::mutex photo_host_mutex;
 uint32_t next_generation{};
 std::mutex status_mutex;
 TailscaleStatus status;
@@ -109,6 +116,11 @@ TailscaleStatus read_status() {
 }
 
 void service_tailscale(uint32_t station_lease) {
+  {
+    const std::lock_guard lock(photo_host_mutex);
+    if (client && !same_dns_name(photo_host, active_photo_host))
+      restart_client = true;
+  }
   const auto action = pending.exchange(0);
   uint32_t previous_generation = generation.load();
   if (action || enrollment == Enrollment::Forget || restart_client || station_lease != active_lease)
@@ -139,10 +151,16 @@ void service_tailscale(uint32_t station_lease) {
   if (station_lease != active_lease || action)
     previous_generation = 0;
   if (!client) {
+    {
+      const std::lock_guard lock(photo_host_mutex);
+      active_photo_host = photo_host;
+      active_photo_ip = photo_ip;
+    }
+    priority_peer.store(active_photo_ip);
+    relay_region.store(0);
     trace_memory("tailscale-before-start");
     microlink_config_t config{};
     config.device_name = device_name.empty() ? nullptr : device_name.c_str();
-    config.priority_peer_ip = priority_peer;
     client = microlink_init(&config);
     if (!client || microlink_start(client) != ESP_OK) {
       stop_client();
@@ -187,19 +205,55 @@ void service(void *) {
 
 }  // namespace
 
+// This hook runs on MicroLink's coordination task before the peer reaches the
+// bounded WireGuard table. Inspect the full name before MicroLink truncates it.
+extern "C" void espframe_tailscale_map_peer(microlink_t *instance, const char *hostname, uint32_t ip, uint16_t region) {
+  if ((ip & 0xffc00000U) != 0x64400000U || active_photo_host.empty())
+    return;
+  const bool match = active_photo_ip ? active_photo_ip == ip : hostname && same_dns_name(hostname, active_photo_host);
+  if (!match) {
+    // An incremental update can rename a peer or reassign its address.
+    if (priority_peer.load() == ip)
+      priority_peer.store(0);
+    return;
+  }
+  priority_peer.store(ip);
+  if (region && relay_region.exchange(region) != region)
+    espframe_tailscale_reconnect_relay(instance);
+}
+
+extern "C" uint32_t espframe_tailscale_priority_peer() { return priority_peer.load(); }
+
+extern "C" uint16_t espframe_tailscale_relay_region() { return relay_region.load(); }
+
 void start_tailscale(std::string_view hostname, std::string_view immich_url, bool wireguard_active,
                      uint32_t settings_reset_epoch) {
   wireguard.store(wireguard_active, std::memory_order_release);
   if (wireguard_active)
     return;
   device_name = hostname;
-  priority_peer = tailnet_host(immich_url).ipv4;
+  set_tailscale_photo_url(immich_url);
   reset_epoch = settings_reset_epoch;
   TaskHandle_t task{};
   if (xTaskCreate(service, "tailscale", 4096, nullptr, 2, &task) == pdPASS)
     worker.store(task, std::memory_order_release);
   else
     publish({.state = "error", .address = {}, .login_url = {}});
+}
+
+void set_tailscale_photo_url(std::string_view url) {
+  if (wireguard.load(std::memory_order_acquire))
+    return;
+  {
+    const std::lock_guard lock(photo_host_mutex);
+    const auto host = tailnet_host(url);
+    if (photo_ip == host.ipv4 && same_dns_name(photo_host, host.hostname))
+      return;
+    photo_host = host.hostname;
+    photo_ip = host.ipv4;
+  }
+  if (const auto task = worker.load(std::memory_order_acquire))
+    xTaskNotifyGive(task);
 }
 
 void update_tailscale_network(uint32_t station_lease) {
@@ -237,10 +291,12 @@ TailscaleRoute tailscale_route_for(std::string_view url) {
   if (before != tailscale_generation() || !client || !microlink_is_connected(client))
     return route;
   const auto host = tailnet_host(url);
-  std::string hostname(host.hostname);
-  if (hostname.ends_with('.'))
-    hostname.pop_back();
-  const auto peer = host.ipv4 != 0 ? host.ipv4 : microlink_resolve(client, hostname.c_str());
+  auto peer = host.ipv4;
+  if (!peer) {
+    peer = same_dns_name(host.hostname, active_photo_host)
+               ? priority_peer.load()
+               : microlink_resolve(client, std::string(without_dns_root(host.hostname)).c_str());
+  }
   if ((peer & 0xffc00000U) != 0x64400000U)
     return route;
   if (!espframe_tailscale_prepare_peer(client, peer)) {

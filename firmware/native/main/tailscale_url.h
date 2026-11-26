@@ -11,6 +11,28 @@ struct TailnetHost {
   uint32_t ipv4{};
 };
 
+constexpr std::string_view without_dns_root(std::string_view name) {
+  if (name.ends_with('.'))
+    name.remove_suffix(1);
+  return name;
+}
+
+constexpr char lower_dns_ascii(char character) {
+  return character >= 'A' && character <= 'Z' ? character + ('a' - 'A') : character;
+}
+
+constexpr bool same_dns_name(std::string_view first, std::string_view second) {
+  first = without_dns_root(first);
+  second = without_dns_root(second);
+  if (first.size() != second.size())
+    return false;
+  for (size_t i = 0; i < first.size(); ++i) {
+    if (lower_dns_ascii(first[i]) != lower_dns_ascii(second[i]))
+      return false;
+  }
+  return true;
+}
+
 // The experimental photo transport accepts one Tailscale peer, addressed by
 // its IPv4 address or full MagicDNS name. Ports and paths remain part of the URL.
 inline TailnetHost tailnet_host(std::string_view url) {
@@ -21,19 +43,11 @@ inline TailnetHost tailnet_host(std::string_view url) {
   if (authority.find('@') != std::string_view::npos)
     return {};
   const auto hostname = authority.substr(0, authority.find(':'));
-  auto dns_name = hostname;
-  if (dns_name.ends_with('.'))
-    dns_name.remove_suffix(1);
+  const auto dns_name = without_dns_root(hostname);
   constexpr std::string_view suffix = ".ts.net";
   if (dns_name.size() > suffix.size()) {
     const auto ending = dns_name.substr(dns_name.size() - suffix.size());
-    bool magicdns = true;
-    for (size_t i = 0; i < suffix.size(); ++i) {
-      const auto character = ending[i];
-      const auto lower = character >= 'A' && character <= 'Z' ? character + ('a' - 'A') : character;
-      magicdns &= lower == suffix[i];
-    }
-    if (magicdns)
+    if (same_dns_name(ending, suffix))
       return {hostname, 0};
   }
 

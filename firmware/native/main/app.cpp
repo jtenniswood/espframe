@@ -249,7 +249,9 @@ bool decode_photo(const EncodedPhoto &photo, uint16_t *pixels, jpeg_decoder_hand
 
 void allocate_slide_buffers(SlideCache::Buffers &buffers, size_t first, size_t last) {
   constexpr size_t bytes = pixel_count * sizeof(uint16_t);
-  constexpr size_t decode_and_download_reserve = 10 * 1024 * 1024;
+  // Keep one extra frame's worth of headroom in the Tailscale build. The
+  // relay and netmap can allocate while a preview is downloading or decoding.
+  constexpr size_t decode_and_download_reserve = 10 * 1024 * 1024 + (NATIVE_TAILSCALE ? bytes : 0);
   constexpr auto caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
   for (size_t slot = first; slot < last; ++slot) {
     const bool extra = slot >= SlideCache::minimum_capacity;

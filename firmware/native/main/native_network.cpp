@@ -95,6 +95,7 @@ void NativeNetwork::use_photo_connection(const PhotoConnectionSettings &connecti
   const bool https = connection.immich_url.starts_with("https://");
   photo_needs_time_.store(https, std::memory_order_relaxed);
 #if NATIVE_TAILSCALE
+  set_tailscale_photo_url(connection.immich_url);
   photo_uses_tailnet_.store(use_tailscale_for(connection.immich_url), std::memory_order_release);
 #endif
   set_wireguard_photo_url(connection.immich_url);

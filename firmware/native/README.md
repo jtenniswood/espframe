@@ -150,11 +150,13 @@ and code. The USB serial capture measures runtime heap separately.
    the server’s tailnet address. Use the same photo source and the same HTTP
    or HTTPS scheme for both runs. Verify that the card shows **Immich is
    reachable** and that fresh photos display. Repeat the swipe sequence.
-4. Repeat the Tailscale run from a network that requires a relay, and verify
-   the path from the Immich-side Tailscale peer while photos load. Briefly
-   interrupt the frame’s Wi-Fi during prefetch and check that it resumes.
-   Keep a separate log for the relayed run or label the transition in your
-   notes. Reboot once to check that enrollment persists.
+4. Repeat the Tailscale run from a network that requires a relay, or build a
+   separate traced image with `-D NATIVE_TAILSCALE_RELAY_TEST=ON` to force
+   the frame to use a relay. Verify the path from the Immich-side Tailscale
+   peer while photos load. Briefly interrupt the frame’s Wi-Fi during
+   prefetch and check that it resumes. Keep a separate log for the relayed
+   run or label the transition in your notes. Reboot once to check that
+   enrollment persists.
 
 For a panel connected only over Wi-Fi, open the native admin’s **Logs** tab
 as soon as each build boots. Keep the tab open while the test runs, then copy

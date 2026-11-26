@@ -11,6 +11,10 @@ set(SWIPE_BOARD "v3" CACHE STRING "Guition JC8012P4A1 prototype board: v1, v2, o
 option(SWIPE_TRACE "Record native playback timings over USB" OFF)
 option(NATIVE_MEMORY_TRACE "Record native heap diagnostics over USB" OFF)
 option(NATIVE_TAILSCALE "Build experimental native Tailscale enrollment" OFF)
+option(NATIVE_TAILSCALE_RELAY_TEST "Disable direct Tailscale traffic for memory tests" OFF)
+if(NATIVE_TAILSCALE_RELAY_TEST AND (NOT NATIVE_TAILSCALE OR NOT NATIVE_MEMORY_TRACE))
+    message(FATAL_ERROR "Relay testing requires NATIVE_TAILSCALE and NATIVE_MEMORY_TRACE")
+endif()
 if(NATIVE_TAILSCALE)
     include(FetchContent)
     FetchContent_Declare(microlink
