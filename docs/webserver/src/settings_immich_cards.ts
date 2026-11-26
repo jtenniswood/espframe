@@ -183,16 +183,16 @@
     connBody.appendChild(productSelectSettingField("Connection Timeout", "conn_timeout"));
 
     connBody.appendChild(connStatus);
+    if (S.wireguard_available) connBody.appendChild(makeWireguardSettings());
     return makeCollapsibleCard("Connection", connBody, true);
 
   }
 
   function saveAndVerifyWireguardPrivateKey(value) {
     var privateKey = String(value || "").trim();
-    if (!isValidWireguardKey(privateKey)) return Promise.reject(Error("invalid_wireguard_key"));
-    // Like the API key, the private key is write-only: only whether it is set
-    // enters browser state.
-    return settingSaves.save({ wireguard_private_key_configured: true }, function () {
+    var configured = !!privateKey;
+    // The key is write-only. Only whether it is set enters browser state.
+    return settingSaves.save({ wireguard_private_key_configured: configured }, function () {
       return apiClient.updateSettings(
         { wireguard_private_key: privateKey },
         [legacySettingWrite("wireguard_private_key", privateKey)]
@@ -200,23 +200,7 @@
         .then(function () { return delayMs(150); })
         .then(function () { return getConfigurationSnapshot(); })
         .then(function (snapshot) {
-          if (!snapshot.secrets_configured || !snapshot.secrets_configured.wireguard_private_key) {
-            throw Error("verify_failed");
-          }
-        });
-    });
-  }
-
-  function removeWireguardPrivateKey() {
-    return settingSaves.save({ wireguard_private_key_configured: false }, function () {
-      return apiClient.updateSettings(
-        { wireguard_private_key: "" },
-        [legacySettingWrite("wireguard_private_key", "")]
-      )
-        .then(function () { return delayMs(150); })
-        .then(function () { return getConfigurationSnapshot(); })
-        .then(function (snapshot) {
-          if (!snapshot.secrets_configured || snapshot.secrets_configured.wireguard_private_key) {
+          if (!snapshot.secrets_configured || !!snapshot.secrets_configured.wireguard_private_key !== configured) {
             throw Error("verify_failed");
           }
         });
@@ -230,11 +214,10 @@
     return value === true || value === "true" || value === "ON";
   }
 
-  function updateWireguardStatus(statusEl, badgeEl) {
+  function updateWireguardStatus(statusEl) {
     if (!statusEl) return;
     if (S.wireguard_connected === undefined || S.wireguard_connected === "") {
       statusEl.style.display = "none";
-      setBadgeActive(badgeEl, false);
       return;
     }
     statusEl.style.display = "";
@@ -242,38 +225,29 @@
     var connected = running && wireguardSensorOn(S.wireguard_connected);
     var age = running ? formatWireguardHandshakeAge(S.wireguard_handshake_age) : "";
     var message = !running ? "Tunnel is off" : (connected ? "Connected" : "Not connected");
-    if (age) message += " \u00b7 last handshake " + age;
-    if (!!S.wireguard_enabled !== running) message += " \u00b7 restart to apply the saved setting";
+    statusEl.title = age ? "Last handshake " + age : "";
     setStatus(statusEl, message, connected ? "green" : (running ? "red" : "orange"));
-    setBadgeActive(badgeEl, connected);
   }
 
   function updateWireguardStatusFromPage() {
-    updateWireguardStatus(document.getElementById("wireguard-status"), document.getElementById("wireguard-badge"));
+    updateWireguardStatus(document.getElementById("wireguard-status"));
   }
 
-  function makeWireguardCard() {
-    // Firmware without the WireGuard entities does not list the secret.
-    if (!S.wireguard_available) return null;
+  function makeWireguardSettings() {
     var body = el("div");
-    var tunnelStatus = el("div", "status mb-12");
+    var tunnelStatus = el("div", "disclosure-badge");
     tunnelStatus.id = "wireguard-status";
-    var tunnelBadge = makeBadge(false, "Connected");
-    tunnelBadge.id = "wireguard-badge";
-    updateWireguardStatus(tunnelStatus, tunnelBadge);
-    body.appendChild(tunnelStatus);
+    updateWireguardStatus(tunnelStatus);
     var status = el("div", "status mb-12");
     var restartNotice = el("div", "reset-backup-notice mb-12");
-    restartNotice.style.display = "none";
+    showRestart(false);
+    var restartRequired;
     var restartText = el("span");
     restartText.textContent = "WireGuard changes apply after the frame restarts.";
-    var restartButton = button("Restart now", "btn btn-secondary btn-sm", function () {
+    var restartButton = button("Restart now", "btn btn-primary btn-sm", function () {
       restartButton.disabled = true;
       restartButton.textContent = "Restarting...";
-      rebootFrame()
-        .catch(function () {
-          // Shared request helpers already surface failures in the UI.
-        })
+      rebootFrame().then(() => showRestart(false), () => {})
         .finally(function () {
           setTimeout(function () {
             restartButton.disabled = false;
@@ -284,9 +258,16 @@
     restartNotice.appendChild(restartText);
     restartNotice.appendChild(restartButton);
 
-    function saved(message) {
+    function showRestart(pending) {
+      restartNotice.style.display = pending ? "" : "none";
+    }
+    function saved(message = "Saved") {
       setStatus(status, message, "green", 3000);
-      restartNotice.style.display = "";
+      if (restartRequired === undefined) showRestart(true);
+    }
+    function saveWireguardSetting(key, value) {
+      if (String(value) === String(S[key] ?? "")) return;
+      saveSetting(key, value).then(() => saved(), () => {});
     }
     function failed(message) {
       setStatus(status, message, "red");
@@ -300,12 +281,13 @@
       setValue: function (value) { S.wireguard_enabled = value; },
       details: detailsBody,
       onChange: function () {
-        saveSetting("wireguard_enabled", !!S.wireguard_enabled).then(function () {
-          saved("Saved");
-        }, function () {});
+        saveSetting("wireguard_enabled", !!S.wireguard_enabled).then(() => saved(), () => {});
       }
     });
     detailsBody.style.display = S.wireguard_enabled ? "" : "none";
+    var controls = el("div", "inline-disclosure-right");
+    enabled.toggle.replaceWith(controls);
+    controls.append(tunnelStatus, enabled.toggle);
     body.appendChild(enabled.field);
 
     function trimmed(value) { return String(value == null ? "" : value).trim(); }
@@ -325,7 +307,7 @@
         var value = raw && canonical ? canonical(raw) : raw;
         error.textContent = "";
         inputEl.value = value;
-        saveSetting(key, value).then(function () { saved("Saved"); }, function () {});
+        saveWireguardSetting(key, value);
       };
       f.appendChild(inputEl);
       f.appendChild(error);
@@ -354,7 +336,7 @@
         return;
       }
       portError.textContent = "";
-      saveSetting("wireguard_port", Number(value)).then(function () { saved("Saved"); }, function () {});
+      saveWireguardSetting("wireguard_port", Number(value));
     };
     portField.appendChild(portInput);
     portField.appendChild(portError);
@@ -396,7 +378,7 @@
         connectFieldLabels(keyField);
       });
       row.appendChild(button("Remove", "btn btn-secondary", function () {
-        removeWireguardPrivateKey().then(function () {
+        saveAndVerifyWireguardPrivateKey("").then(function () {
           saved("Private key removed");
           showKeyInput();
         }, function () {
@@ -449,16 +431,17 @@
     body.appendChild(detailsBody);
     body.appendChild(status);
     body.appendChild(restartNotice);
-    var card = makeCollapsibleCard("WireGuard VPN", body, true, tunnelBadge);
     if (nativeAdmin) {
-      window["espframeWatchWireguard"](card, function (state) {
+      window["espframeWatchWireguard"](body, function (state) {
+        restartRequired = state.restart_required;
+        if (restartRequired !== undefined) showRestart(restartRequired);
         S.wireguard_connected = state.connected;
         S.wireguard_tunnel_enabled = state.running;
         S.wireguard_handshake_age = state.handshake_age;
-        updateWireguardStatus(tunnelStatus, tunnelBadge);
+        updateWireguardStatus(tunnelStatus);
       });
     }
-    return card;
+    return body;
   }
 
   function makeFrequencyCard() {

@@ -196,9 +196,8 @@ separate **Auto Update** switch applies to the Wi-Fi chip and is included
 in settings backups. The frame checks the ESPHome Wi-Fi firmware feed after
 connecting and then daily.
 
-The **WireGuard VPN** card on the **Immich** tab uses the existing
-[WireGuard setup](../../docs/wireguard.md). Save the tunnel settings and
-choose **Restart now** to apply them. The frame keeps the private key
+Use **Immich → Connection** to configure [WireGuard](../../docs/wireguard.md).
+After changing the tunnel settings, choose **Restart now** to apply them. The frame keeps the private key
 write-only and excludes WireGuard settings from web backups.
 The page uses HTTP on the local network. Keep it on a trusted network.
 

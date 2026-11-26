@@ -43,6 +43,7 @@ class NativeNetwork {
   Address address() const;
   uint32_t station_lease() const;
   uint32_t photo_connection() const;
+  bool wireguard_restart_required(const Settings &saved) const;
   void use_photo_connection(const PhotoConnectionSettings &connection);
   void request_time_sync();
 #if SWIPE_TRIAL_WIFI_OUTAGE
