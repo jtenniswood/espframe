@@ -1256,6 +1256,22 @@ int main() {
   assert(saved_list.photo_filters.criteria.album_ids == "33333333-3333-4333-8333-333333333333");
   assert(saved_list.photo_source.album_id == "11111111-1111-4111-8111-111111111111");
 
+  const auto standalone = apply_shared_filters(R"({"values":{"photo_source_mode":"album",
+      "album_id":"AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA"}})");
+  assert(standalone.photo_source.mode == PhotoSourceMode::Album);
+  assert(standalone.photo_source.album_id == "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+  assert(standalone.photo_filters.criteria.album_ids == saved_list.photo_filters.criteria.album_ids);
+  assert(current.read());
+  const Json standalone_snapshot(configuration_snapshot(current), cJSON_Delete);
+  const auto *standalone_values = cJSON_GetObjectItemCaseSensitive(standalone_snapshot.get(), "values");
+  assert(std::string_view(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(standalone_values, "photo_source_mode"))) == "album");
+  assert(std::string_view(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(standalone_values, "album_id"))) ==
+         standalone.photo_source.album_id);
+  assert(update_configuration(R"({"values":{"photo_source_mode":"album","album_id":"invalid"}})").error);
+  assert(update_configuration(R"({"values":{"photo_source_mode":"all","photo_source":"Memories"}})").error);
+  const auto restored_custom = apply_shared_filters(R"({"values":{"photo_source_mode":"custom"}})");
+  assert(restored_custom.photo_source.mode == PhotoSourceMode::Custom && restored_custom.photo_filters.criteria.location_enabled);
+
   save_filter_frame("favorites");
   assert(current.read() && !current.photo_filters.criteria.favorites_enabled);
   const Json favorites_snapshot(configuration_snapshot(current), cJSON_Delete);

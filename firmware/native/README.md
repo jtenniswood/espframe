@@ -180,14 +180,19 @@ The frame adds its own four-character MAC suffix to the hostname.
 Under **Clock**, choose whether to show the local time and select the timezone
 and 12- or 24-hour format. After time synchronization, the clock stays fixed
 while photos move beneath it. New browser installs enable the clock by
-default. Older native settings keep it hidden until enabled. Under **Time
-servers**, set up to three NTP hosts in preference order. Backups carry the
+default. Older native settings keep it hidden until enabled. Under
+**Clock → Advanced**, set up to three NTP hosts in preference order. Backups carry the
 clock settings and time servers. Existing native setups use `pool.ntp.org`
 until you set a server. Leaving all three fields blank selects the same
 default time-server pool as ESPHome. Changing the servers restarts time
 synchronization while the frame keeps running.
 The frame address opens the **Immich**, **Device**, and **Logs** tabs.
 Use **Backup** in the **Device** tab to export or restore your settings.
+Use **Immich → Filters → Photo source presets** to select All photos,
+Favourites, a standalone album by link or ID, On This Day, or Custom filters.
+Combine filters in **Filters** and adjust On This Day in **Memories**. Choose
+**Custom** in **Frequency** or **Night Schedule** to enter an exact duration.
+Use **Device → Firmware → Upload firmware file** to install a local image.
 Under **Firmware → WiFi firmware**, see the current and latest compatible
 Wi-Fi chip firmware, check manually, or install an available update. The
 separate **Auto Update** switch applies to the Wi-Fi chip and is included
@@ -275,6 +280,13 @@ flash erase.
 
 Open **Device → Firmware** to check for and install published Native Preview
 releases or configure automatic updates.
+
+Download the installer artifact for the build you want to use. Open
+**Device → Firmware → Upload firmware file**, select `v1-ota.bin`, `v2-ota.bin` or
+`v3-ota.bin` for the revision shown, then select **Install update and restart**. Use
+images from builds you trust. The package includes SHA-256 checksums for those
+files. The prototype checks image integrity and board identity and accepts
+unsigned firmware.
 
 To install a local build over Wi-Fi, use the native OTA API. Verify the
 SHA-256 checksum of the accompanying `v1-ota.bin`, `v2-ota.bin`, or
@@ -510,7 +522,7 @@ search with Immich 3.2 or later. On earlier supported Immich versions it
 plays the available photos in capture-date order, newest first. An empty or
 unavailable selection leaves the current photo or startup scene visible.
 
-For All photos, Favourites, or Album, enable **Capture date filter** to
+For All photos, Favourites, or Album, enable **Filter by Date** to
 limit playback and portrait pairing by the photo's local capture date.
 Fixed ranges include both endpoints, and either end can be blank. Relative
 ranges use the frame's local day and wait for the clock to synchronise.

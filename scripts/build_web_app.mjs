@@ -3,10 +3,11 @@ import { resolve } from "node:path";
 import { build, transform } from "esbuild";
 
 const sourcePath = process.argv[2];
-if (!sourcePath) throw new Error("Usage: node scripts/build_web_app.mjs <source> [--embedded-css]");
+if (!sourcePath) throw new Error("Usage: node scripts/build_web_app.mjs <source> [--embedded-css|--esphome-admin]");
 
 const source = await readFile(sourcePath, "utf8");
-if (process.argv[3] === "--embedded-css") {
+const target = process.argv[3];
+if (target === "--embedded-css") {
   const result = await transform(source, { loader: "css", minifyWhitespace: true, minifySyntax: true, target: "es2018" });
   process.stdout.write(result.code);
 } else {
@@ -16,6 +17,8 @@ if (process.argv[3] === "--embedded-css") {
     write: false,
     format: "iife",
     target: "es2018",
+    // Native controls should not consume ESPHome's embedded web budget.
+    dropLabels: target === "--esphome-admin" ? ["nativeAdminOnly"] : undefined,
     // Keep the generated product contract declarations in the entry readable
     // by the compatibility checker while compacting the imported helpers.
     plugins: [{

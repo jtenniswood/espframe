@@ -1382,6 +1382,8 @@
     "web_local_state_keys": [
       "api_key_configured",
       "immich_filter_support",
+      "photo_source_mode",
+      "album_id",
       "wireguard_available",
       "wireguard_private_key_configured",
       "backlight_on",
@@ -1626,6 +1628,7 @@
       "devices/guition-esp32-p4-jc8012p4a1-v3/packages.yaml",
       "docs/public/webserver/app.js",
       "docs/public/webserver/style.css",
+      "firmware/native/main/web/admin/app.js",
       "firmware/native/main/web/shared_settings.js",
       "components/espframe/i18n_generated.h"
     ],
@@ -1638,6 +1641,7 @@
       "devices/guition-esp32-p4-jc8012p4a1-v3/packages.yaml": "# ESPFRAME: generated from product/contract; run `npm run generate` to update.",
       "docs/public/webserver/app.js": "// ESPFRAME: generated from typed docs/webserver/src and product/contract; run `npm run generate` to update.",
       "docs/public/webserver/style.css": "/* ESPFRAME: generated from docs/webserver/src/style.css; run `npm run generate` to update. */",
+      "firmware/native/main/web/admin/app.js": "// ESPFRAME: generated from typed docs/webserver/src and product/contract; run `npm run generate` to update.",
       "firmware/native/main/web/shared_settings.js": "// ESPFRAME: generated from typed docs/webserver/src and product/contract; run `npm run generate` to update.",
       "components/espframe/i18n_generated.h": "// ESPFRAME: generated from product/translations; run `npm run generate` to update."
     },

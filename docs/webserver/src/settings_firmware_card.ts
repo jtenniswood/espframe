@@ -569,6 +569,26 @@
     els.fwPreviousPanel = previousPanel;
     if (showAppFirmware) subpanels.appendChild(previousPanel);
 
+    nativeAdminOnly: if (nativeAdmin) {
+      var uploadForm = el("form");
+      var imageField = field("Native firmware image");
+      var image = el("input");
+      image.type = "file";
+      image.accept = ".bin,application/octet-stream";
+      image.required = true;
+      image.disabled = true;
+      imageField.appendChild(image);
+      var upload = button("Install update and restart", "btn btn-secondary btn-sm") as HTMLButtonElement;
+      upload.type = "submit";
+      upload.disabled = true;
+      var uploadStatus = el("p", "fw-status");
+      uploadStatus.setAttribute("role", "status");
+      uploadForm.append(imageField, upload, uploadStatus);
+      var uploadPanel = makeInlineDisclosure("Upload firmware file", uploadForm, false);
+      window["espframeNativeFirmwareUpload"](uploadPanel, uploadForm, image, upload, uploadStatus, S, refreshFirmwareUi);
+      subpanels.appendChild(uploadPanel);
+    }
+
     fwBody.appendChild(subpanels);
     var cardBadge = makeBadge(false, "Update available", "Firmware update available");
     els.firmwareCardBadge = cardBadge;

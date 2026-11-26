@@ -171,6 +171,8 @@ cJSON *configuration_snapshot(const Settings &settings, std::optional<SolarTimes
                                                              search_api == ImmichSearchApi::Legacy ? "legacy" : "unknown") ||
       !cJSON_AddStringToObject(values, "portrait_pair_framing", pair_framing_name(settings.pair_framing)) ||
       !cJSON_AddStringToObject(values, "portrait_pair_divider", pair_divider_name(settings.pair_divider)) ||
+      !cJSON_AddStringToObject(values, "photo_source_mode", photo_source_name(settings.photo_source.mode)) ||
+      !cJSON_AddStringToObject(values, "album_id", settings.photo_source.album_id.c_str()) ||
       !cJSON_AddStringToObject(values, "prepared_slide_url", settings.prepared_slide_url.c_str()) ||
       !cJSON_AddBoolToObject(values, "prepared_slide_token_configured", settings.has_prepared_slides()) ||
       !cJSON_AddBoolToObject(values, "auto_update", settings.stock_update_preferences.auto_update.value_or(true)) ||
@@ -302,6 +304,15 @@ ConfigurationUpdate update_configuration(const char *json) {
       ++count;
       continue;
     }
+    if (requested_key == "photo_source_mode" || requested_key == "album_id") {
+      const auto *native_key = requested_key == "photo_source_mode" ? "photo_source" : "album_id";
+      if (!cJSON_IsString(value) || cJSON_HasObjectItem(update.get(), native_key))
+        return {"422 Unprocessable Entity", "invalid_value", value->string};
+      if (!add_copy(update.get(), native_key, value))
+        return {"500 Internal Server Error", "settings_unavailable", {}};
+      ++count;
+      continue;
+    }
     if (requested_key == "frame_name") {
       const auto *input = cJSON_GetStringValue(value);
       std::string name;
@@ -360,9 +371,14 @@ ConfigurationUpdate update_configuration(const char *json) {
     ++count;
   }
 
+  const bool direct_source = cJSON_HasObjectItem(update.get(), "photo_source");
+  if (source_preset && (direct_source || cJSON_HasObjectItem(update.get(), "album_id")))
+    return {"422 Unprocessable Entity", "invalid_value", direct_source ? "photo_source_mode" : "album_id"};
+
+  const auto filter_update = direct_source ? PhotoFilterUpdate::KeepSource : PhotoFilterUpdate::Compose;
   const auto result = count == 0 && !expected_epoch ? Settings::UpdateResult::Unchanged
                                                     : Settings::update_playback(update.get(), expected_epoch,
-                                                                                PhotoFilterUpdate::Compose, source_preset);
+                                                                                filter_update, source_preset);
   if (result == Settings::UpdateResult::Invalid)
     return {"422 Unprocessable Entity", "invalid_value", {}};
   if (result == Settings::UpdateResult::Stale)

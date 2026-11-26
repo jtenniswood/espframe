@@ -20,6 +20,7 @@ from asset_generation.firmware_fields import (
 )
 from asset_generation.paths import (
     LEGACY_PRODUCT_PATH,
+    NATIVE_ADMIN_APP_PATH,
     NATIVE_WEB_APP_PATH,
     ROOT,
     TIME_YAML_PATH,
@@ -75,6 +76,7 @@ def generate(check: bool) -> int:
     changed |= write_or_check(TIME_YAML_PATH, replace_timezone_yaml(TIME_YAML_PATH.read_text(), timezone_options()), check)
     changed |= write_or_check(WEB_PUBLIC_STYLE_PATH, GENERATED_CSS_HEADER + WEB_STYLE_PATH.read_text(), check)
     changed |= write_or_check(WEB_APP_PATH, GENERATED_JS_HEADER + web_app_bundle(), check)
+    changed |= write_or_check(NATIVE_ADMIN_APP_PATH, GENERATED_JS_HEADER + web_app_bundle(native_admin=True), check)
     changed |= write_or_check(NATIVE_WEB_APP_PATH, GENERATED_JS_HEADER + native_web_app_bundle(), check)
     for path, content in generated_device_package_files(product).items():
         changed |= write_or_check(path, content, check)

@@ -442,11 +442,72 @@
   }
 
   function makeFrequencyCard() {
-    // Frequency
     var dispBody = el("div");
+    nativeAdminOnly: if (nativeAdmin) {
+      dispBody.appendChild(nativeDurationSettingField("Slideshow Interval", productSettingOptions("interval"), S.interval,
+        nativeIntervalSeconds, String, 2, 86400, function (seconds) {
+          saveSetting("interval", nativeIntervalLabel(seconds));
+        }));
+      return makeCollapsibleCard("Frequency", dispBody, true);
+    }
     dispBody.appendChild(productSelectSettingField("Slideshow Interval", "interval"));
     return makeCollapsibleCard("Frequency", dispBody, true);
 
+  }
+
+  function makeNativePhotoSourcePanel() {
+    var labels = { all: "All photos", favorites: "Favourites", album: "Album", memories: "On This Day", custom: "Custom filters" };
+    var form = el("form");
+    var sourceField = field("Photo source");
+    var source = selectFromOptions(Object.keys(labels), S.photo_source_mode, syncAlbum,
+      function (value) { return labels[value]; });
+    sourceField.appendChild(source);
+    var albumField = field("Immich album link or ID");
+    var album = input("text", S.album_id, "Paste album link or UUID", 512);
+    var albumHint = el("div", "setting-hint");
+    albumHint.textContent = "The Immich API key needs album.read permission.";
+    albumField.append(album, albumHint);
+    var apply = button("Save photo source", "btn btn-secondary btn-sm") as HTMLButtonElement;
+    apply.type = "submit";
+    var status = el("div", "status");
+    status.setAttribute("role", "status");
+    form.append(sourceField, albumField, apply, status);
+
+    function syncAlbum() {
+      albumField.hidden = source.value !== "album";
+      album.disabled = albumField.hidden;
+      album.required = !albumField.hidden;
+      album.setCustomValidity("");
+    }
+    album.oninput = function () { album.setCustomValidity(""); };
+    syncAlbum();
+
+    form.onsubmit = async function (event) {
+      event.preventDefault();
+      if (apply.disabled) return;
+      var values: ConfigurationValues = { photo_source_mode: source.value };
+      if (source.value === "album") {
+        var albumId = normalizeImmichAlbumId(album.value.trim());
+        if (!albumId || !isValidUuidList(albumId) || albumId.includes(",")) {
+          album.setCustomValidity("Enter one Immich album link or ID.");
+          album.reportValidity();
+          return;
+        }
+        values.album_id = albumId;
+      }
+      source.disabled = album.disabled = apply.disabled = true;
+      setStatus(status, "");
+      try {
+        await saveSettingValues(values);
+        showBanner("Photo source saved.", "success");
+      } catch (_) {
+        setStatus(status, "Could not save the photo source.", "red");
+      } finally {
+        source.disabled = apply.disabled = false;
+        syncAlbum();
+      }
+    };
+    return makeInlineDisclosure("Photo source presets", form, false);
   }
 
   function makeFiltersCard() {
@@ -655,6 +716,8 @@
         inclusionParent.appendChild(addSelect("Matching " + label, matchingKey, !supportsStructured,
           "Choose any selected item to clear the retained all-selected rule.",
           "Any selected " + noun));
+      } else nativeAdminOnly: if (nativeAdmin && supportsStructured) {
+        inclusionParent.appendChild(addSelect("Matching " + label, matchingKey, false, ""));
       }
       addExclusions(details, "Excluded " + label, options.excludedIdKey, options.excludedLabelKey, noun);
       if (options && options.order) {
@@ -681,6 +744,8 @@
       var inclusionHint = el("div", "setting-hint compatibility-disabled");
       inclusionHint.textContent = "Matching all enabled groups with multiple any-selected people or tags requires Immich 3.2 or newer. Choose Match any enabled group, keep only one group enabled, or reduce the people and tag lists to one item.";
       inclusionRecovery.appendChild(inclusionHint);
+    } else nativeAdminOnly: if (nativeAdmin) {
+      addSelect("Inclusion Groups", "inclusion_matching", false, "");
     }
 
     function addValueGroup(label, enabledKey, settingKey, defaultValue, disabled, reason) {
@@ -739,7 +804,12 @@
     });
     locationDetails.style.display = S.location_enabled ? "" : "none";
     body.appendChild(locationDetails);
-    filterCard = makeCollapsibleCard("Filters", body, true, filterBadge);
+    var content = body;
+    nativeAdminOnly: if (nativeAdmin && hasWritableSetting("photo_source_mode") && hasWritableSetting("album_id")) {
+      content = el("div");
+      content.append(makeNativePhotoSourcePanel(), body);
+    }
+    filterCard = makeCollapsibleCard("Filters", content, true, filterBadge);
     syncMemoryFilterUi = function () {
       memoriesActive = S.photo_source === "Memories";
       updateMemoryFilterLock();
@@ -1016,6 +1086,7 @@
   function appendDateFilterControls(parent, onEnabledChange) {
     var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
     function isValidDate(s) {
+      nativeAdminOnly: if (nativeAdmin) return isValidNativeCaptureDate(s);
       if (!DATE_RE.test(s)) return false;
       var parts = s.split("-");
       var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
@@ -1067,6 +1138,10 @@
     dateToInput.value = S.date_to || "";
     dateToInput.placeholder = "YYYY-MM-DD";
     dateToInput.maxLength = productTextMaxLength("date_to", 10);
+    nativeAdminOnly: if (nativeAdmin) {
+      dateFromInput.min = dateToInput.min = "0002-01-01";
+      dateFromInput.max = dateToInput.max = "9998-12-31";
+    }
     var dateToError = el("div", "field-error");
     fDateTo.appendChild(dateToInput);
     fDateTo.appendChild(dateToError);

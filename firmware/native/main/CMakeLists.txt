@@ -40,7 +40,7 @@ idf_component_register(
                   app_update bootloader_support esp_app_format libjpeg-turbo-esp32 libwebp-esp32 home_assistant lwip
                   esphome__libsodium
     EMBED_TXTFILES web/native_settings.html web/native_settings.css web/shared_settings.js
-                   web/admin_preview.html web/admin_cards.js "${repo_root}/docs/public/webserver/app.js"
+                   web/admin_preview.html web/admin_cards.js web/admin/app.js
                    web/recovery.html web/recovery.js
                    "${repo_root}/docs/public/webserver/style.css"
                    "../installer/setup.css"

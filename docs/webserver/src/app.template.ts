@@ -6,6 +6,7 @@ import { EspframeApiClient, EspframeApiError, type LegacySettingWrite } from "./
 import {
   MAX_PHOTO_ID_FIELD_LENGTH, extractUrlHost, extractUrlPort, isValidHttpUrl,
   normalizeImmichUrl, normalizeNtpServer, normalizeDateTakenFormat,
+  normalizeImmichAlbumId, nativeIntervalSeconds, nativeIntervalLabel, isValidNativeCaptureDate,
   parsePhotoLabelList, photoIdFieldTooLong, photoLabelFieldTooLong,
   splitPhotoIdList, isValidUuidList, formatWireguardHandshakeAge, isValidWireguardKey, isValidWireguardAddress,
   isValidIpv4Netmask, isValidWireguardPort, isValidWireguardEndpoint, normalizeWireguardAllowedIps

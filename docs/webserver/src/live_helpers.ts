@@ -112,6 +112,38 @@
     return f;
   }
 
+  function nativeDurationSettingField(label: string, options: string[], current: string,
+    toSeconds: (value: string) => number, format: (value: string) => string,
+    min: number, max: number, save: (seconds: number) => void) {
+    var preset = field(label);
+    var exact = field("Exact duration (seconds)");
+    var seconds = el("input");
+    seconds.type = "number";
+    seconds.min = String(min);
+    seconds.max = String(max);
+    seconds.step = "1";
+    seconds.required = true;
+    seconds.value = String(toSeconds(current));
+    seconds.onchange = function () {
+      if (seconds.reportValidity()) save(seconds.valueAsNumber);
+    };
+    exact.appendChild(seconds);
+    exact.hidden = options.indexOf(current) !== -1;
+    preset.appendChild(selectFromOptions(options.concat("Custom"), exact.hidden ? current : "Custom", function (value) {
+      exact.hidden = value !== "Custom";
+      if (exact.hidden) {
+        var selected = toSeconds(value);
+        seconds.value = String(selected);
+        save(selected);
+      } else {
+        seconds.focus();
+      }
+    }, function (value) { return value === "Custom" ? value : format(value); }));
+    var wrapper = el("div");
+    wrapper.append(preset, exact);
+    return wrapper;
+  }
+
   function segmentedControl(options, current, onChange, optionDisplayFn?) {
     var display = optionDisplayFn || function (o) { return o; };
     var seg = el("div", "segment");
@@ -285,6 +317,7 @@
     slider.min = productNumberMin(key, opts.minFallback);
     slider.max = productNumberMax(key, opts.maxFallback);
     slider.step = productNumberStep(key, opts.stepFallback);
+    nativeAdminOnly: if (nativeAdmin) slider.step = "1";
     slider.value = S[key];
     rw.appendChild(slider);
     if (opts.rightLabel) {

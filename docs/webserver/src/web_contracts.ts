@@ -59,6 +59,8 @@ interface ProductSetting {
 interface RuntimeState {
   immich_filter_support?: "unknown" | "legacy" | "structured";
   portrait_pair_framing?: string;
+  photo_source_mode?: string;
+  album_id?: string;
   tz_options: string[];
   tz_labels: Record<string, string>;
   brightness: number;

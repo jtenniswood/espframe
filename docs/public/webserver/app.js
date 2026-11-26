@@ -279,11 +279,11 @@
 
   // docs/webserver/src/compat.ts
   var MAX_PHOTO_ID_FIELD_LENGTH = 255;
-  function d(t) {
+  function p2(t) {
     return String(t == null ? "" : t).trim();
   }
-  var m = 4;
-  function l2(t) {
+  var d = 4;
+  function o(t) {
     var r = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(String(t == null ? "" : t));
     if (!r) return null;
     for (var n = 0, i = 1; i <= 4; i++) {
@@ -301,46 +301,46 @@
       t % 256
     ].join(".");
   }
-  function p2(t) {
+  function I(t) {
     var r = Number(t);
     return t == null || t === "" || !isFinite(r) || r < 0 ? "" : (r = Math.round(r), r < 120 ? r + "s ago" : r < 7200 ? Math.floor(r / 60) + " min ago" : Math.floor(r / 3600) + " h ago");
   }
   function A(t) {
     return /^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw480]=$/.test(String(t == null ? "" : t).trim());
   }
-  function I(t) {
-    var r = l2(String(t == null ? "" : t).trim());
+  function L(t) {
+    var r = o(String(t == null ? "" : t).trim());
     return r !== null && r !== 0 && r !== 4294967295;
   }
-  function L(t) {
-    var r = l2(String(t == null ? "" : t).trim());
+  function S(t) {
+    var r = o(String(t == null ? "" : t).trim());
     if (r === null) return false;
     var n = 4294967295 - r;
     return (n + 1 & n) === 0;
   }
-  function S(t) {
+  function y(t) {
     var r = String(t == null ? "" : t).trim();
     if (!/^\d{1,5}$/.test(r)) return false;
     var n = parseInt(r, 10);
     return n >= 1 && n <= 65535;
   }
-  function y(t) {
+  function _(t) {
     var r = String(t == null ? "" : t).trim();
     return !r || r.length > 253 ? false : /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/.test(r) && r.indexOf("..") === -1;
   }
-  function _(t) {
+  function x(t) {
     var r = String(t == null ? "" : t).split(/[\s,;]+/).filter(Boolean);
-    if (!r.length || r.length > m) return "";
+    if (!r.length || r.length > d) return "";
     for (var n = [], i = 0; i < r.length; i++) {
       var e = r[i].split("/");
       if (e.length > 2) return "";
-      var u = l2(e[0]);
+      var u = o(e[0]);
       if (u === null) return "";
       var a = 32;
       if (e.length === 2 && (!/^\d{1,2}$/.test(e[1]) || (a = parseInt(e[1], 10), a > 32)))
         return "";
-      var f2 = Math.pow(2, 32 - a);
-      n.push(v(Math.floor(u / f2) * f2) + "/" + a);
+      var c3 = Math.pow(2, 32 - a);
+      n.push(v(Math.floor(u / c3) * c3) + "/" + a);
     }
     return n.join(", ");
   }
@@ -350,15 +350,15 @@
     "Month Day, Year": "January 1, 2026",
     "Month Day Ordinal, Year": "January 1, 2026"
   };
-  function M(t) {
+  function z(t) {
     return O[t] || "1 January, 2026";
   }
-  function c3(t) {
+  function s3(t) {
     for (var r = String(t == null ? "" : t); r.length > 0 && r.charAt(r.length - 1) === "/" && !/^[a-z][a-z0-9+.-]*:\/\/$/i.test(r); )
       r = r.slice(0, -1);
     return r;
   }
-  function z(t) {
+  function M(t) {
     try {
       var r = new URL(t);
       return (r.protocol === "http:" || r.protocol === "https:") && !!r.hostname;
@@ -366,12 +366,12 @@
       return false;
     }
   }
-  function s3(t) {
+  function h(t) {
     var r = String(t || "");
     return r.indexOf("//") === 0 && (r = r.slice(2)), r.split(/[/?#]/)[0] || "";
   }
-  function h(t) {
-    var r = s3(t), n = r.lastIndexOf("@");
+  function m(t) {
+    var r = h(t), n = r.lastIndexOf("@");
     if (n >= 0 && (r = r.slice(n + 1)), !r) return "";
     if (r.charAt(0) === "[") {
       var i = r.indexOf("]");
@@ -379,8 +379,8 @@
     }
     return r.split(":")[0].toLowerCase();
   }
-  function o(t) {
-    var r = s3(t), n = r.lastIndexOf("@");
+  function l2(t) {
+    var r = h(t), n = r.lastIndexOf("@");
     if (n >= 0 && (r = r.slice(n + 1)), !r) return "";
     if (r.charAt(0) === "[") {
       var i = r.indexOf("]");
@@ -389,48 +389,48 @@
     var e = r.indexOf(":");
     return e >= 0 ? r.slice(e + 1).match(/^\d*/)[0] : "";
   }
-  function x(t) {
-    return o(t) !== "";
+  function w(t) {
+    return l2(t) !== "";
   }
-  function E(t) {
+  function D(t) {
     return t ? t === "localhost" || t.charAt(0) === "[" || /^\d{1,3}(\.\d{1,3}){3}$/.test(t) ? true : t.slice(-6) === ".local" || t.slice(-4) === ".lan" : false;
   }
-  function U(t) {
-    var r = c3(String(t == null ? "" : t).trim());
+  function E(t) {
+    var r = s3(String(t == null ? "" : t).trim());
     if (!r) return "";
     if (r.indexOf("//") === 0)
       r = "https:" + r;
     else if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(r)) {
-      var n = h(r), i = o(r), e = E(n) || x(r);
+      var n = m(r), i = l2(r), e = D(n) || w(r);
       i === "443" && (e = false), r = (e ? "http://" : "https://") + r;
     }
-    return c3(r.replace(/^([a-z][a-z0-9+.-]*):\/\//i, function(u, a) {
+    return s3(r.replace(/^([a-z][a-z0-9+.-]*):\/\//i, function(u, a) {
       return a.toLowerCase() + "://";
     }));
   }
   function g() {
     return 255;
   }
-  function D(t) {
-    return String(t != null ? t : "").trim().length > g();
-  }
   function T(t) {
     return String(t != null ? t : "").trim().length > g();
   }
-  var w = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  function F(t) {
+  function U(t) {
+    return String(t != null ? t : "").trim().length > g();
+  }
+  var f2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  function N(t) {
     var r = t.trim();
     return r ? r.split(",").every(function(n) {
-      return w.test(n.trim());
+      return f2.test(n.trim());
     }) : true;
   }
-  function H(t) {
+  function b(t) {
     var r = String(t || "").split(",").map(function(n) {
       return n.trim();
     }).filter(Boolean);
     return r.length ? r : [""];
   }
-  function J(t) {
+  function $(t) {
     var r = String(t || "").trim();
     if (!r) return [];
     try {
@@ -826,7 +826,7 @@
     return resp && (resp.value || resp.state) || "";
   }
   function normalizeConnectionUrl(value) {
-    var url = U(value);
+    var url = E(value);
     return nativeAdmin ? window["espframeNativeUrl"](url) : url;
   }
   function saveAndVerifyConnectionUrl(value) {
@@ -839,7 +839,7 @@
         throw err;
       });
       await delayMs(1200);
-      if (U(connectionResponseValue(await safeGet(path))) !== value) throw Error("verify_failed");
+      if (E(connectionResponseValue(await safeGet(path))) !== value) throw Error("verify_failed");
     });
   }
   function saveAndVerifyApiKey(value) {
@@ -871,7 +871,7 @@
         savedUrl = connectionResponseValue(url);
         keyConfigured = key && (key.api_key_configured || connectionResponseValue(key));
       }
-      if (changes.immich_url !== void 0 && U(savedUrl) !== changes.immich_url || changes.api_key && !keyConfigured) throw Error("verify_failed");
+      if (changes.immich_url !== void 0 && E(savedUrl) !== changes.immich_url || changes.api_key && !keyConfigured) throw Error("verify_failed");
     });
   }
   var PHOTO_SOURCE_APPLY_SETTING_KEYS = [
@@ -981,7 +981,7 @@
     return nativeAdmin ? nativeSettings.has(key) : !!endpoints[key];
   }
   function saveNtpServer(key, value) {
-    return saveSettingValues({ [key]: d(value) });
+    return saveSettingValues({ [key]: p2(value) });
   }
   function saveScheduleWakeTimeoutSetting(key, value) {
     return saveGenericSetting(key, normalizeScheduleWakeTimeout(value));
@@ -1021,10 +1021,10 @@
     return result;
   }
   function makeConnectionUrlField(value) {
-    var f2 = field("Immich Server URL");
+    var f3 = field("Immich Server URL");
     var urlInput = input("url", value, "http://192.168.0.1:2283");
-    f2.appendChild(urlInput);
-    return { field: f2, input: urlInput };
+    f3.appendChild(urlInput);
+    return { field: f3, input: urlInput };
   }
   function makeApiKeyInputGroup(options) {
     var opts = options || {};
@@ -1240,14 +1240,14 @@
       received = v2 !== void 0 && v2 !== null ? String(v2) : spec.default !== void 0 ? spec.default : "";
     }
     if (spec.key === "timezone") received = normalizeTimezoneOption(received);
-    if (spec.key && spec.key.indexOf("ntp_server_") === 0) received = d(received);
+    if (spec.key && spec.key.indexOf("ntp_server_") === 0) received = p2(received);
     if (spec.optionsKey && d2.option && d2.option.length) S2[spec.optionsKey] = d2.option;
     if (spec.key === "photo_metadata_date_format" && received !== "Relative Date" && received !== "Date Taken") {
-      settingSaves.receive("photo_metadata_date_taken_format", M(received));
+      settingSaves.receive("photo_metadata_date_taken_format", z(received));
       received = "Date Taken";
     }
     if (spec.key === "photo_metadata_date_taken_format") {
-      received = M(received);
+      received = z(received);
     }
     settingSaves.receive(spec.key, received);
   }
@@ -1512,7 +1512,7 @@
       var urlField = makeConnectionUrlField(S2.immich_url);
       var urlInput = urlField.input;
       card.appendChild(urlField.field);
-      var f2 = field("API Key");
+      var f22 = field("API Key");
       var keyControl = makeApiKeyInputGroup({
         type: "password",
         value: "",
@@ -1520,8 +1520,8 @@
         toggleVisibility: true
       });
       var keyInput = keyControl.input;
-      f2.appendChild(keyControl.group);
-      card.appendChild(f2);
+      f22.appendChild(keyControl.group);
+      card.appendChild(f22);
       var nav = el("div", "wizard-nav");
       var nextBtn = el("button", "btn btn-primary");
       nextBtn.textContent = "Connect";
@@ -1555,13 +1555,13 @@
         })
       );
       card.appendChild(f1);
-      var f2 = field("Timezone");
-      f2.appendChild(
+      var f22 = field("Timezone");
+      f22.appendChild(
         timezoneSelect(S2.tz_options, S2.timezone, function(v2) {
           saveSetting("timezone", v2);
         })
       );
-      card.appendChild(f2);
+      card.appendChild(f22);
       card.appendChild(ntpServersField());
       var nav = el("div", "wizard-nav");
       var backBtn = el("button", "btn btn-secondary");
@@ -1720,8 +1720,8 @@
       });
     };
     connBody.appendChild(urlField.field);
-    var f2 = field("API Key");
-    if (highlightApiKeyAfterRestore) f2.classList.add("api-key-restore-required");
+    var f22 = field("API Key");
+    if (highlightApiKeyAfterRestore) f22.classList.add("api-key-restore-required");
     var keyConfigured = S2.api_key_configured;
     var keyWrap = el("div");
     function showKeyMasked() {
@@ -1729,7 +1729,7 @@
       keyWrap.appendChild(makeMaskedApiKeyRow(function() {
         keyWrap.replaceChildren();
         keyWrap.appendChild(makeKeyInput());
-        connectFieldLabels(f2);
+        connectFieldLabels(f22);
       }));
     }
     function makeKeyInput() {
@@ -1747,7 +1747,7 @@
           saveAndVerifyApiKey(v2).then(function() {
             var wasHighlighted = highlightApiKeyAfterRestore;
             highlightApiKeyAfterRestore = false;
-            f2.classList.remove("api-key-restore-required");
+            f22.classList.remove("api-key-restore-required");
             if (wasHighlighted) showBanner("Immich API key saved.", "success");
             showSaved("API key saved");
             showKeyMasked();
@@ -1765,8 +1765,8 @@
     } else {
       keyWrap.appendChild(makeKeyInput());
     }
-    f2.appendChild(keyWrap);
-    connBody.appendChild(f2);
+    f22.appendChild(keyWrap);
+    connBody.appendChild(f22);
     connBody.appendChild(productSelectSettingField("Connection Timeout", "conn_timeout"));
     connBody.appendChild(connStatus);
     if (S2.wireguard_available) connBody.appendChild(makeWireguardSettings());
@@ -1802,7 +1802,7 @@
     statusEl.style.display = "";
     var running = wireguardSensorOn(S2.wireguard_tunnel_enabled);
     var connected = running && wireguardSensorOn(S2.wireguard_connected);
-    var age = running ? p2(S2.wireguard_handshake_age) : "";
+    var age = running ? I(S2.wireguard_handshake_age) : "";
     var message = !running ? "Tunnel is off" : connected ? "Connected" : "Not connected";
     statusEl.title = age ? "Last handshake " + age : "";
     setStatus(statusEl, message, connected ? "green" : running ? "red" : "orange");
@@ -1873,7 +1873,7 @@
     controls.append(tunnelStatus, enabled.toggle);
     body.appendChild(enabled.field);
     function textField(label, key, placeholder, hint, maxLength, isValid, invalidMessage, canonical) {
-      var f2 = field(label);
+      var f3 = field(label);
       var inputEl = input("text", S2[key], placeholder, maxLength);
       var error = makeFieldError();
       inputEl.onchange = function() {
@@ -1887,14 +1887,14 @@
         inputEl.value = value;
         saveWireguardSetting(key, value);
       };
-      f2.appendChild(inputEl);
-      f2.appendChild(error);
+      f3.appendChild(inputEl);
+      f3.appendChild(error);
       if (hint) {
         var hintEl = el("div", "field-hint");
         hintEl.textContent = hint;
-        f2.appendChild(hintEl);
+        f3.appendChild(hintEl);
       }
-      return f2;
+      return f3;
     }
     detailsBody.appendChild(textField(
       "Server Address",
@@ -1902,7 +1902,7 @@
       "vpn.example.com",
       "Public IP address or hostname of your WireGuard server, such as your router.",
       253,
-      y,
+      _,
       "Enter a hostname or IPv4 address without http:// or a port."
     ));
     var portField = field("Server Port");
@@ -1911,7 +1911,7 @@
     var portError = makeFieldError();
     portInput.onchange = function() {
       var value = portInput.value.trim();
-      if (!S(value)) {
+      if (!y(value)) {
         portError.textContent = "Enter a port from 1 to 65535.";
         return;
       }
@@ -1927,7 +1927,7 @@
       "192.168.88.200",
       "The address this frame has inside the VPN. It must match the peer you create on the server. Choose an unused address in the same network as your Immich server.",
       15,
-      I,
+      L,
       "Enter an IPv4 address such as 192.168.88.200."
     ));
     detailsBody.appendChild(textField(
@@ -1936,7 +1936,7 @@
       "255.255.255.0",
       "Only traffic inside this network is sent through the VPN. Use the mask of the network Immich is on.",
       15,
-      L,
+      S,
       "Enter a netmask such as 255.255.255.0."
     ));
     detailsBody.appendChild(textField(
@@ -1946,10 +1946,10 @@
       "Networks reachable through the VPN, separated by commas (up to 4).",
       100,
       function(value) {
-        return !!_(value);
+        return !!x(value);
       },
       "Enter up to 4 networks such as 192.168.88.0/24.",
-      _
+      x
     ));
     detailsBody.appendChild(textField(
       "Server Public Key",
@@ -2121,7 +2121,7 @@
     body.appendChild(filtersInfoBanner);
     appendDateFilterControls(body, updateFilterBadge);
     function addSelect(label, key, disabled, reason, recoveryValue) {
-      var f2 = field(label);
+      var f3 = field(label);
       var control = selectFromOptions(productSettingOptions(key), S2[key], function(value) {
         S2[key] = value;
         applySetting(key, value);
@@ -2131,24 +2131,24 @@
           optionEl.disabled = String(optionEl.value) !== String(recoveryValue);
         });
       }
-      f2.appendChild(control);
+      f3.appendChild(control);
       if (disabled && reason) {
         var hint = el("div", "setting-hint");
         hint.textContent = reason;
-        f2.appendChild(hint);
+        f3.appendChild(hint);
       }
-      body.appendChild(f2);
-      return f2;
+      body.appendChild(f3);
+      return f3;
     }
     function saveList(editor, idKey, labelKey) {
       var ids = editor.getIdsValue();
       var labels = editor.getLabelsValue();
       editor.error.textContent = "";
-      if (D(ids) || T(labels)) {
+      if (T(ids) || U(labels)) {
         editor.error.textContent = "List exceeds the 255-character device limit.";
         return;
       }
-      if (ids && !F(ids)) {
+      if (ids && !N(ids)) {
         editor.error.textContent = "Invalid UUID format";
         return;
       }
@@ -2275,7 +2275,7 @@
           "Choose any selected item to clear the retained all-selected rule.",
           "Any selected " + noun
         ));
-      }
+      } else ;
       addExclusions(details, "Excluded " + label, options.excludedIdKey, options.excludedLabelKey, noun);
       if (options && options.order) {
         var order = productSelectSettingField("Album Order", "album_order");
@@ -2309,7 +2309,7 @@
       var inclusionHint = el("div", "setting-hint compatibility-disabled");
       inclusionHint.textContent = "Matching all enabled groups with multiple any-selected people or tags requires Immich 3.2 or newer. Choose Match any enabled group, keep only one group enabled, or reduce the people and tag lists to one item.";
       inclusionRecovery.appendChild(inclusionHint);
-    }
+    } else ;
     function addValueGroup(label, enabledKey, settingKey, defaultValue, disabled, reason) {
       var details = el("div", "filter-group-details");
       var valueField = addSelect(label, settingKey, disabled, reason, "Any");
@@ -2373,7 +2373,7 @@
     });
     body.appendChild(locationRow.field);
     [["Country", "filter_country"], ["State / Province", "filter_state"], ["City", "filter_city"]].forEach(function(spec) {
-      var f2 = field(spec[0]);
+      var f3 = field(spec[0]);
       var inputEl = input("text", S2[spec[1]] || "", "Exact Immich value", productTextMaxLength(spec[1], 96));
       var hint = el("div", "setting-hint");
       var timer = null;
@@ -2386,13 +2386,14 @@
           applySetting(spec[1], nextValue);
         }, 600);
       };
-      f2.appendChild(inputEl);
-      f2.appendChild(hint);
-      locationDetails.appendChild(f2);
+      f3.appendChild(inputEl);
+      f3.appendChild(hint);
+      locationDetails.appendChild(f3);
     });
     locationDetails.style.display = S2.location_enabled ? "" : "none";
     body.appendChild(locationDetails);
-    filterCard = makeCollapsibleCard("Filters", body, true, filterBadge);
+    var content = body;
+    filterCard = makeCollapsibleCard("Filters", content, true, filterBadge);
     syncMemoryFilterUi = function() {
       memoriesActive = S2.photo_source === "Memories";
       updateMemoryFilterLock();
@@ -2828,7 +2829,6 @@
     }).field);
     schedDetails.appendChild(hourSelectSettingField("On Time", "schedule_on_hour"));
     schedDetails.appendChild(hourSelectSettingField("Off Time", "schedule_off_hour"));
-    var fWakeTimeout = field("When Woken, Idle Time To Screen Off");
     var scheduleWakeMin = productNumberMin("schedule_wake_timeout", 10);
     var scheduleWakeMax = productNumberMax("schedule_wake_timeout", 3600);
     var scheduleWakeOptions = [10, 30, 60, 120, 300, 600, 1800, 3600].filter(function(v2) {
@@ -2837,10 +2837,11 @@
     var scheduleWakeCurrent = normalizeScheduleWakeTimeout(S2.schedule_wake_timeout);
     if (scheduleWakeOptions.indexOf(scheduleWakeCurrent) === -1) {
       scheduleWakeOptions.push(scheduleWakeCurrent);
-      scheduleWakeOptions.sort(function(a, b) {
-        return a - b;
+      scheduleWakeOptions.sort(function(a, b2) {
+        return a - b2;
       });
     }
+    var fWakeTimeout = field("When Woken, Idle Time To Screen Off");
     fWakeTimeout.appendChild(
       selectFromOptions(scheduleWakeOptions, scheduleWakeCurrent, function(v2) {
         saveSetting("schedule_wake_timeout", v2);
@@ -2945,30 +2946,30 @@
   }
   function compareFirmwareVersions(left, right) {
     var a = parseFirmwareVersion(left);
-    var b = parseFirmwareVersion(right);
-    if (!a || !b) return null;
+    var b2 = parseFirmwareVersion(right);
+    if (!a || !b2) return null;
     for (var i = 0; i < a.core.length; i++) {
-      if (a.core[i] !== b.core[i]) return a.core[i] > b.core[i] ? 1 : -1;
+      if (a.core[i] !== b2.core[i]) return a.core[i] > b2.core[i] ? 1 : -1;
     }
-    if (!a.prerelease.length || !b.prerelease.length) {
-      if (a.prerelease.length === b.prerelease.length) return 0;
+    if (!a.prerelease.length || !b2.prerelease.length) {
+      if (a.prerelease.length === b2.prerelease.length) return 0;
       return a.prerelease.length ? -1 : 1;
     }
-    var length = Math.max(a.prerelease.length, b.prerelease.length);
+    var length = Math.max(a.prerelease.length, b2.prerelease.length);
     for (var index = 0; index < length; index++) {
       if (a.prerelease[index] === void 0) return -1;
-      if (b.prerelease[index] === void 0) return 1;
-      if (a.prerelease[index] === b.prerelease[index]) continue;
+      if (b2.prerelease[index] === void 0) return 1;
+      if (a.prerelease[index] === b2.prerelease[index]) continue;
       var aNumeric = /^[0-9]+$/.test(a.prerelease[index]);
-      var bNumeric = /^[0-9]+$/.test(b.prerelease[index]);
-      if (aNumeric && bNumeric) return Number(a.prerelease[index]) > Number(b.prerelease[index]) ? 1 : -1;
+      var bNumeric = /^[0-9]+$/.test(b2.prerelease[index]);
+      if (aNumeric && bNumeric) return Number(a.prerelease[index]) > Number(b2.prerelease[index]) ? 1 : -1;
       if (aNumeric !== bNumeric) return aNumeric ? -1 : 1;
-      return a.prerelease[index] > b.prerelease[index] ? 1 : -1;
+      return a.prerelease[index] > b2.prerelease[index] ? 1 : -1;
     }
     return 0;
   }
-  function firmwareVersionsSame(a, b) {
-    return String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+  function firmwareVersionsSame(a, b2) {
+    return String(a || "").trim().toLowerCase() === String(b2 || "").trim().toLowerCase();
   }
   function installedFirmwareVersion() {
     return String(S2.firmware || S2.installed_version || "").trim();
@@ -3858,15 +3859,15 @@
   }
   function productSelectSettingField(labelText, key, options) {
     var opts = options || {};
-    var f2 = field(labelText);
+    var f3 = field(labelText);
     var current = opts.current !== void 0 ? opts.current : S2[key];
-    f2.appendChild(
+    f3.appendChild(
       selectFromOptions(productSettingOptions(key, opts.includeDeveloper), current, function(v2) {
         saveSetting(key, v2);
         if (opts.onChange) opts.onChange(v2);
       }, opts.optionDisplayFn)
     );
-    return f2;
+    return f3;
   }
   function segmentedControl(options, current, onChange, optionDisplayFn) {
     var display = optionDisplayFn || function(o2) {
@@ -4003,7 +4004,7 @@
   }
   function toggleSettingRow(options) {
     var opts = options || {};
-    var f2 = field("");
+    var f3 = field("");
     var row = el("div", "toggle-row");
     var label = el("span");
     label.textContent = opts.label || "";
@@ -4041,12 +4042,12 @@
     };
     row.appendChild(label);
     row.appendChild(toggle);
-    f2.appendChild(row);
-    return { field: f2, toggle };
+    f3.appendChild(row);
+    return { field: f3, toggle };
   }
   function rangeSettingField(labelText, key, options) {
     var opts = options || {};
-    var f2 = field(labelText || "");
+    var f3 = field(labelText || "");
     var rw = el("div", "range-wrap");
     if (opts.leftLabel) {
       var left = el("span", "range-label");
@@ -4077,28 +4078,28 @@
       saveSetting(key, slider.value);
       if (opts.onChange) opts.onChange(slider.value);
     };
-    f2.appendChild(rw);
-    return { field: f2, input: slider };
+    f3.appendChild(rw);
+    return { field: f3, input: slider };
   }
   function hourSelectSettingField(labelText, key) {
     var min = productNumberMin(key, 0);
     var max = productNumberMax(key, 23);
     var options = [];
     for (var h2 = min; h2 <= max; h2++) options.push(h2);
-    var f2 = field(labelText);
-    f2.appendChild(
+    var f3 = field(labelText);
+    f3.appendChild(
       selectFromOptions(options, Math.round(S2[key]), function(v2) {
         saveSetting(key, parseInt(v2));
       }, formatHour)
     );
-    return f2;
+    return f3;
   }
   function makeFieldError() {
     return el("div", "field-error");
   }
   function photoIdListField(options) {
     var opts = options || {};
-    var f2 = field(opts.label);
+    var f3 = field(opts.label);
     var list = el("div", "photo-id-list");
     var idInputs = [];
     var labelInputs = [];
@@ -4135,7 +4136,7 @@
         list.insertBefore(rows[toIndex], row);
       }
       refreshRowButtons();
-      connectFieldLabels(f2);
+      connectFieldLabels(f3);
       notify(opts.reorderChanges, 0);
     }
     function addRow(value, labelValue) {
@@ -4182,7 +4183,7 @@
         labelInputs.splice(removeIndex, 1);
         row.parentNode.removeChild(row);
         refreshRowButtons();
-        connectFieldLabels(f2);
+        connectFieldLabels(f3);
         notify(opts.clearChanges, 0);
       };
       idInput.oninput = function() {
@@ -4203,8 +4204,8 @@
       labelInputs.push(labelInput);
       refreshRowButtons();
     }
-    var ids = H(S2[opts.idKey]);
-    var labels = J(S2[opts.labelKey]);
+    var ids = b(S2[opts.idKey]);
+    var labels = $(S2[opts.labelKey]);
     for (var i = 0; i < Math.max(ids.length, labels.length, 1); i++) {
       addRow(ids[i] || "", labels[i] || "");
     }
@@ -4217,11 +4218,11 @@
     addBtn.setAttribute("aria-label", opts.addText);
     addBtn.disabled = !!opts.disableEditing;
     addRowWrap.appendChild(addBtn);
-    f2.appendChild(list);
-    f2.appendChild(addRowWrap);
-    f2.appendChild(error);
+    f3.appendChild(list);
+    f3.appendChild(addRowWrap);
+    f3.appendChild(error);
     return {
-      field: f2,
+      field: f3,
       error,
       getIdsValue: function() {
         return idInputs.map(function(inputEl) {
@@ -4305,16 +4306,16 @@
     return makeCollapsibleCard("Import Settings", importBody, false);
   }
   function field(labelText) {
-    var f2 = el("div", "field");
+    var f3 = el("div", "field");
     if (labelText) {
       var l3 = document.createElement("label");
       l3.textContent = labelText;
-      f2.appendChild(l3);
+      f3.appendChild(l3);
     }
-    return f2;
+    return f3;
   }
   function ntpServersField() {
-    var f2 = field("NTP Servers");
+    var f3 = field("NTP Servers");
     var list = el("div", "photo-id-list");
     [
       { key: "ntp_server_1", placeholder: "0.pool.ntp.org", label: "NTP Server 1" },
@@ -4329,8 +4330,8 @@
       };
       list.appendChild(serverInput);
     });
-    f2.appendChild(list);
-    return f2;
+    f3.appendChild(list);
+    return f3;
   }
   function input(type, value, placeholder, maxLength) {
     var i = document.createElement("input");
@@ -4444,8 +4445,8 @@
     if (!frameIdentity) return null;
     if (name === frameIdentity.name) return frameIdentity.hostname;
     if (!name || !frameIdentity.mac_suffix) return null;
-    var slug = name.replace(/[A-Z]/g, function(c4) {
-      return c4.toLowerCase();
+    var slug = name.replace(/[A-Z]/g, function(c3) {
+      return c3.toLowerCase();
     }).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "frame";
     return slug.slice(0, 19).replace(/-$/, "") + "-" + frameIdentity.mac_suffix;
   }
@@ -4919,10 +4920,10 @@
     var entryKey = backupEntryKey(entry);
     if (/^photos\.excluded_(album|person|tag)_ids$/.test(entryKey)) {
       var excludedIds = String(value == null ? "" : value).trim();
-      if (D(excludedIds)) {
+      if (T(excludedIds)) {
         return skipBackupImportField("Excluded IDs exceed 255 characters - not imported");
       }
-      if (excludedIds && !F(excludedIds)) {
+      if (excludedIds && !N(excludedIds)) {
         return skipBackupImportField("Import skipped invalid excluded IDs");
       }
       return queueBackupImportSetting(backupImportStateKey(entry), excludedIds);
@@ -4931,52 +4932,52 @@
       case "connection.immich_url":
         var importUrl = normalizeConnectionUrl(value);
         if (importUrl.length > 255) return skipBackupImportField("Immich URL exceeds 255 characters - not imported");
-        if (importUrl && !z(importUrl)) return skipBackupImportField("Immich URL was invalid - not imported");
+        if (importUrl && !M(importUrl)) return skipBackupImportField("Immich URL was invalid - not imported");
         return queueBackupImportSetting("immich_url", importUrl);
       case "photos.album_ids":
         var importAlbum = String(value).trim();
-        if (D(importAlbum)) {
+        if (T(importAlbum)) {
           return skipBackupImportField("Album IDs exceed 255 characters - not imported");
-        } else if (!F(importAlbum)) {
+        } else if (!N(importAlbum)) {
           return skipBackupImportField("Import skipped invalid album IDs");
         } else {
           return queueBackupImportSetting("album_ids", importAlbum);
         }
       case "photos.album_labels":
         var importAlbumLabels = String(value).trim();
-        if (T(importAlbumLabels)) {
+        if (U(importAlbumLabels)) {
           return skipBackupImportField("Album labels exceed 255 characters - not imported");
         } else {
           return queueBackupImportSetting("album_labels", importAlbumLabels);
         }
       case "photos.person_ids":
         var importPerson = String(value).trim();
-        if (D(importPerson)) {
+        if (T(importPerson)) {
           return skipBackupImportField("Person IDs exceed 255 characters - not imported");
-        } else if (!F(importPerson)) {
+        } else if (!N(importPerson)) {
           return skipBackupImportField("Import skipped invalid person IDs");
         } else {
           return queueBackupImportSetting("person_ids", importPerson);
         }
       case "photos.person_labels":
         var importPersonLabels = String(value).trim();
-        if (T(importPersonLabels)) {
+        if (U(importPersonLabels)) {
           return skipBackupImportField("Person labels exceed 255 characters - not imported");
         } else {
           return queueBackupImportSetting("person_labels", importPersonLabels);
         }
       case "photos.tag_ids":
         var importTag = String(value).trim();
-        if (D(importTag)) {
+        if (T(importTag)) {
           return skipBackupImportField("Tag IDs exceed 255 characters - not imported");
-        } else if (!F(importTag)) {
+        } else if (!N(importTag)) {
           return skipBackupImportField("Import skipped invalid tag IDs");
         } else {
           return queueBackupImportSetting("tag_ids", importTag);
         }
       case "photos.tag_labels":
         var importTagLabels = String(value).trim();
-        if (T(importTagLabels)) {
+        if (U(importTagLabels)) {
           return skipBackupImportField("Tag labels exceed 255 characters - not imported");
         } else {
           return queueBackupImportSetting("tag_labels", importTagLabels);
@@ -4990,14 +4991,14 @@
       case "clock.ntp_servers":
         if (Array.isArray(value) && value.length <= 3) {
           for (var ntpIndex = 0; ntpIndex < value.length; ntpIndex++) {
-            var server = d(value[ntpIndex]);
+            var server = p2(value[ntpIndex]);
             if (server.length > MAX_NTP_SERVER_LENGTH) {
               return skipBackupImportField("NTP servers exceeded 253 characters - not imported");
             }
           }
           ["ntp_server_1", "ntp_server_2", "ntp_server_3"].forEach(function(key, idx) {
             if (value[idx] === void 0) return;
-            queueBackupImportSetting(key, d(value[idx]));
+            queueBackupImportSetting(key, p2(value[idx]));
           });
           return true;
         }
