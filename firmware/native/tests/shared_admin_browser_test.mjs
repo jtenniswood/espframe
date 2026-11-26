@@ -52,6 +52,7 @@ const snapshot = {
     portrait_pairs_only: false,
     portrait_pairing_range: 'Same Day',
     portrait_pair_framing: 'Follow photo framing',
+    portrait_pair_divider: 'Black',
     interval: '15 seconds',
     photo_orientation: 'Any', display_mode: 'Fit', transition: 'Cross Fade', transition_speed: 'Fast',
     screen_rotation: '0',
@@ -169,6 +170,12 @@ const browserTest = String.raw`
     if (!framing) throw new Error('Portrait fill control was missing')
     change(framing, 'Fill')
     await until(() => savedValue('portrait_pair_framing', 'Fill'), 'portrait fill save')
+    const divider = [...pairing.querySelectorAll('select')].find(control =>
+      [...control.options].some(option => option.value === 'White'))
+    if (!divider || divider.value !== 'Black' || divider.options.length !== 2)
+      throw new Error('Portrait divider did not default to Black')
+    change(divider, 'White')
+    await until(() => savedValue('portrait_pair_divider', 'White'), 'portrait divider save')
 
     const memories = openCard('Memories')
     const filters = openCard('Filters')
@@ -292,6 +299,7 @@ const browserTest = String.raw`
     await until(() => exported, 'the exported backup')
     const backup = await exported
     if (backup.version !== 3 || backup.photos.portrait_pair_framing !== 'Fill' ||
+        backup.photos.portrait_pair_divider !== 'White' ||
         backup.connection.api_key !== undefined || backup.wireguard !== undefined ||
         backup.firmware_updates.wifi_auto_update !== false) {
       throw new Error('Backup included a secret or lost a native setting')
@@ -517,6 +525,7 @@ try {
     { wireguard_private_key: 'A'.repeat(43) + '=' },
     { interval: '30 seconds' },
     { portrait_pair_framing: 'Fill' },
+    { portrait_pair_divider: 'White' },
     { photo_source: 'Memories' },
     { photo_source: 'Custom' },
     { album_ids: '22222222-2222-4222-8222-222222222222', album_labels: '["Family trip"]' },

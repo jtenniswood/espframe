@@ -82,6 +82,7 @@ try {
   form.elements.portrait_pairs_only.checked = settings.portrait_pairs_only === true
   form.elements.portrait_pairing_range.value = settings.portrait_pairing_range ?? 'Same Day'
   form.elements.portrait_pair_framing.value = settings.portrait_pair_framing ?? 'Follow photo framing'
+  form.elements.portrait_pair_divider.value = settings.portrait_pair_divider ?? 'Black'
   updatePairing()
   form.elements.display_mode.value = settings.display_mode ?? 'Fit'
   form.elements.photo_orientation.value = settings.photo_orientation ?? 'Any'
@@ -159,6 +160,7 @@ form.addEventListener('submit', async event => {
   data.portrait_pairs_only = form.elements.portrait_pairs_only.checked
   data.portrait_pairing_range = form.elements.portrait_pairing_range.value
   data.portrait_pair_framing = form.elements.portrait_pair_framing.value
+  data.portrait_pair_divider = form.elements.portrait_pair_divider.value
   data.show_clock = form.elements.show_clock.checked
   data.memories_fallback = form.elements.memories_fallback.checked
   data.photo_metadata_date_enabled = form.elements.photo_metadata_date_enabled.checked

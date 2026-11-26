@@ -508,6 +508,7 @@
       ["transition_speed", "Transition speed"],
       ["portrait_pairing", "Pair portrait photos"],
       ["portrait_pair_framing", "Portrait pair framing"],
+      ["portrait_pair_divider", "Portrait pair divider"],
       ["portrait_pairs_only", "Show paired portraits only"],
       ["portrait_pairing_range", "Pairing range"]
     ]],
@@ -552,7 +553,7 @@
   function nativeSettingControl(key, value, developer) {
     var _a, _b;
     const spec = PRODUCT_SETTINGS[key];
-    const options = key === "timezone" ? TIMEZONES.slice() : key === "portrait_pair_framing" ? ["Follow photo framing", "Fill", "Fit"] : key === "screen_rotation" && !developer ? ["0", "180"] : (_b = (_a = spec == null ? void 0 : spec.options) == null ? void 0 : _a.slice()) != null ? _b : [];
+    const options = key === "timezone" ? TIMEZONES.slice() : key === "portrait_pair_framing" ? ["Follow photo framing", "Fill", "Fit"] : key === "portrait_pair_divider" ? ["Black", "White"] : key === "screen_rotation" && !developer ? ["0", "180"] : (_b = (_a = spec == null ? void 0 : spec.options) == null ? void 0 : _a.slice()) != null ? _b : [];
     if (options.length) {
       const current = String(value);
       if (!options.includes(current)) options.push(current);
@@ -595,7 +596,7 @@
     return control;
   }
   function nativeSettingsForm(snapshot, savedNotice = "") {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b, _c, _d, _e, _f, _g;
     const frameName = typeof snapshot.values.frame_name === "string" ? snapshot.values.frame_name : "";
     document.title = frameName ? `${frameName} \xB7 Espframe` : "Espframe settings";
     const form = el("form");
@@ -658,11 +659,12 @@
     const pairingOptions = [
       (_b = controls.get("portrait_pairs_only")) == null ? void 0 : _b.element,
       (_c = controls.get("portrait_pairing_range")) == null ? void 0 : _c.element,
-      (_d = controls.get("portrait_pair_framing")) == null ? void 0 : _d.element
+      (_d = controls.get("portrait_pair_framing")) == null ? void 0 : _d.element,
+      (_e = controls.get("portrait_pair_divider")) == null ? void 0 : _e.element
     ];
     const preparedUrl = controls.get("prepared_slide_url");
-    const preparedToken = (_e = controls.get("prepared_slide_token")) == null ? void 0 : _e.element;
-    const nameInput = (_f = controls.get("frame_name")) == null ? void 0 : _f.element;
+    const preparedToken = (_f = controls.get("prepared_slide_token")) == null ? void 0 : _f.element;
+    const nameInput = (_g = controls.get("frame_name")) == null ? void 0 : _g.element;
     const noteChange = () => {
       if (pairing instanceof HTMLInputElement) {
         for (const option of pairingOptions) {

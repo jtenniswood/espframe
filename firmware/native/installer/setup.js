@@ -124,6 +124,7 @@ backup.addEventListener('change', async () => {
     form.elements.photo_orientation.value = 'Any'
     form.elements.display_mode.value = ''
     form.elements.portrait_pair_framing.value = ''
+    form.elements.portrait_pair_divider.value = ''
     form.elements.conn_timeout.value = ''
     form.elements.device_language.value = ''
     form.elements.warm_tone_override.value = ''
@@ -348,6 +349,9 @@ if ('serial' in navigator) {
     const pairFraming = form.elements.portrait_pair_framing.value
     if (pairFraming) data.portrait_pair_framing = pairFraming
     else delete data.portrait_pair_framing
+    const pairDivider = form.elements.portrait_pair_divider.value
+    if (pairDivider) data.portrait_pair_divider = pairDivider
+    else delete data.portrait_pair_divider
     data.show_clock = form.elements.show_clock.checked
     data.memories_fallback = form.elements.memories_fallback.checked
     data.photo_metadata_date_enabled = form.elements.photo_metadata_date_enabled.checked
