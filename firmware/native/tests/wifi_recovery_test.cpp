@@ -139,6 +139,14 @@ int main(int argc, char **argv) {
               right = std::max(right, col);
             }
         assert(right - left > 245 && right - left < 300);
+
+        for (const int top : {y - 2, y + 40, y + 124}) {
+          int instruction_pixels = 0;
+          for (int row = top; row < top + 42; ++row)
+            for (int col = 0; col < viewport.width; ++col)
+              instruction_pixels += normal[viewport.offset(col, row)] != 0;
+          assert(instruction_pixels > 100);
+        }
       }
       for (const auto rotation : {ScreenRotation::Clockwise, ScreenRotation::Counterclockwise}) {
         draw_wifi_setup(normal.data(), atlas.data(), localized, access_point, address, rotation);

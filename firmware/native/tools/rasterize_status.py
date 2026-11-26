@@ -15,6 +15,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from asset_generation.translations import load_catalogues
 
 COMPACT_MASK = 0x8000
+GLYPH_SEQUENCE = 0x4000
+GLYPH_BEARING = 4
 SETUP_SIZES = {
     "connected": (46, 60),
     "wifi_setup_title": (46, 60),
@@ -53,7 +55,11 @@ def status_lines():
     lines.append(("", wifi_icon, 64, 64, True))
     ssid_characters = re.search(r'recovery_ssid_characters\[\] = "([^"]+)"', recovery)[1]
     size, height = SETUP_SIZES["wifi_setup_hotspot"]
-    lines.extend(("ssid", char, size, height, True) for char in ssid_characters)
+    body_characters = set("".join(text for _, text, font_size, _, _ in lines if font_size == size))
+    glyphs = ssid_characters + "".join(sorted(body_characters - set(ssid_characters)))
+    if len(glyphs) > 256:
+        raise ValueError("Setup glyph indices must fit in one byte")
+    lines.extend(("glyph", char, size, height, True) for char in glyphs)
     assert all(text and "\n" not in text for _, text, _, _, _ in lines)
     return lines
 
@@ -62,14 +68,24 @@ def fingerprint(lines):
     return sha256(json.dumps(lines, ensure_ascii=False).encode()).digest()
 
 
+def visible_text(line, language):
+    if language == "he":
+        from bidi.algorithm import get_display
+
+        return get_display(line, base_dir="R")
+    return line
+
+
+def setup_sequence(language, size):
+    return size == SETUP_SIZES["wifi_setup_hotspot"][0] and language != "glyph"
+
+
 def encoded_mask(line, language, fonts, icon, size, height, compact):
-    from bidi.algorithm import get_display
     from PIL import Image, ImageDraw
 
-    visual = get_display(line, base_dir="R") if language == "he" else line
     if language:
         regular, hebrew = fonts[size]
-        glyphs = [(char, hebrew if "\u0590" <= char <= "\u05ff" else regular) for char in visual]
+        glyphs = [(char, hebrew if "\u0590" <= char <= "\u05ff" else regular) for char in line]
         baseline = size + 1
     else:
         glyphs = [(line, icon)]
@@ -85,16 +101,17 @@ def encoded_mask(line, language, fonts, icon, size, height, compact):
             raise ValueError(f"No glyph for U+{ord(char):04X} in {line!r}")
         draw.text((x, baseline), char, font=font, fill=255, anchor="ls")
         x += font.getlength(char)
-    left, top, right, bottom = image.getbbox()
-    if left == 0 or right == width or top == 0 or bottom == height:
-        raise ValueError(f"Clipped status mask for {line!r}")
-    if language == "ssid":
-        # Keep the normal character advance and two pixels on either side
-        # for glyph bearings. The firmware lets adjacent glyphs overlap.
-        start, end = padding - 2, int(x) + 2
-        if left < start or right > end:
-            raise ValueError(f"SSID glyph exceeds its bearings for {line!r}")
-        left, right = start, end
+    bounds = image.getbbox()
+    if language == "glyph":
+        # Include the full advance and both bearings so the glyph can be
+        # composed at the same positions as the original full-line raster.
+        left, right = padding - GLYPH_BEARING, int(x) + GLYPH_BEARING
+        if bounds and (bounds[0] < left or bounds[2] > right or bounds[1] == 0 or bounds[3] == height):
+            raise ValueError(f"Setup glyph exceeds its bounds for {line!r}")
+    else:
+        left, top, right, bottom = bounds
+        if left == 0 or right == width or top == 0 or bottom == height:
+            raise ValueError(f"Clipped status mask for {line!r}")
     pixels = image.crop((left, 0, right, height)).tobytes()
     # Setup has several long sentences per language. Give these masks longer
     # runs at two bits of opacity so they fit the OTA partition.
@@ -122,14 +139,24 @@ def check(path, lines):
     offsets = unpack_from(f"<{len(lines) + 1}I", data, 32)
     if offsets[0] != 32 + 4 * len(offsets) or offsets[-1] != len(data):
         raise ValueError("Invalid status mask table")
-    for (_, _, _, height, compact), start, end in zip(lines, offsets, offsets[1:]):
+    glyphs = [(unpack_from("<H", data, start)[0] & ~COMPACT_MASK) - 2 * GLYPH_BEARING
+              for (language, *_), start in zip(lines, offsets) if language == "glyph"]
+    for (language, _, size, height, compact), start, end in zip(lines, offsets, offsets[1:]):
         header, recorded_height = unpack_from("<HB", data, start)
-        width = header & ~COMPACT_MASK
-        run_mask = 63 if compact else 15
+        width = header & ~(COMPACT_MASK | GLYPH_SEQUENCE)
+        sequence = setup_sequence(language, size)
+        contents = data[start + 3:end]
         max_width = 668 if height == 36 else 700
-        if not (bool(header & COMPACT_MASK) == compact and start + 3 < end and 0 < width <= max_width and
-                height == recorded_height and sum((run & run_mask) + 1 for run in data[start + 3:end]) == height * width):
+        if not (bool(header & COMPACT_MASK) == compact and bool(header & GLYPH_SEQUENCE) == sequence and
+                start + 3 < end and 0 < width <= max_width and height == recorded_height):
             raise ValueError("Invalid status line dimensions")
+        if sequence:
+            if any(index >= len(glyphs) for index in contents) or sum(glyphs[index] for index in contents) != width:
+                raise ValueError("Invalid setup glyph sequence")
+        else:
+            run_mask = 63 if compact else 15
+            if sum((run & run_mask) + 1 for run in contents) != height * width:
+                raise ValueError("Invalid status mask dimensions")
 
 
 def main():
@@ -151,12 +178,24 @@ def main():
         fonts = {size: tuple(ImageFont.truetype(str(path), size, layout_engine=ImageFont.Layout.BASIC)
                              for path in args.fonts) for size in (26, 30, 46)}
         icon = ImageFont.truetype(str(args.icon_font), 64, layout_engine=ImageFont.Layout.BASIC)
+        glyph_masks = {line: encoded_mask(line, language, fonts, icon, size, height, compact)
+                       for language, line, size, height, compact in lines if language == "glyph"}
+        glyph_index = {char: index for index, char in enumerate(glyph_masks)}
         offset = 32 + 4 * (len(lines) + 1)
         table = bytearray(fingerprint(lines))
         body = bytearray()
         for language, line, size, height, compact in lines:
             table.extend(pack("<I", offset + len(body)))
-            body.extend(encoded_mask(line, language, fonts, icon, size, height, compact))
+            visual = visible_text(line, language)
+            if setup_sequence(language, size):
+                width = sum((unpack_from("<H", glyph_masks[char])[0] & ~COMPACT_MASK) - 2 * GLYPH_BEARING
+                            for char in visual)
+                body.extend(pack("<HB", width | COMPACT_MASK | GLYPH_SEQUENCE, height))
+                body.extend(bytes(glyph_index[char] for char in visual))
+            elif language == "glyph":
+                body.extend(glyph_masks[line])
+            else:
+                body.extend(encoded_mask(visual, language, fonts, icon, size, height, compact))
         table.extend(pack("<I", offset + len(body)))
         args.output.write_bytes(table + body)
     check(args.output, lines)

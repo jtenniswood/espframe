@@ -11,6 +11,7 @@ constexpr int glyph_width = 32;
 constexpr int glyph_height = 36;
 constexpr int glyph_bytes = 1 + glyph_width * glyph_height / 2;
 constexpr uint16_t compact_mask = 0x8000;
+constexpr uint16_t glyph_sequence = 0x4000;
 constexpr uint16_t background = 0x1105;
 constexpr uint16_t muted = 0xaeb5;
 constexpr uint16_t white = 0xffff;
@@ -29,6 +30,7 @@ struct Line {
   int height{};
   std::span<const uint8_t> runs;
   bool compact{};
+  bool glyphs{};
 };
 
 bool rtl(StatusText text) {
@@ -38,31 +40,35 @@ bool rtl(StatusText text) {
 
 constexpr size_t label_count = static_cast<size_t>(StatusLabel::Count);
 constexpr size_t icon_index = label_count * espframe_i18n_catalogue::LANGUAGE_COUNT;
-constexpr size_t ssid_glyph_start = icon_index + 1;
+constexpr size_t setup_glyph_start = icon_index + 1;
 constexpr std::string_view ssid_characters = recovery_ssid_characters;
-constexpr int ssid_glyph_padding = 2;
+constexpr int setup_glyph_bearing = 4;
 
 Line line_at(StatusText text, size_t index) {
   constexpr size_t fingerprint_bytes = 32;
-  constexpr size_t line_count = ssid_glyph_start + ssid_characters.size();
-  constexpr size_t table_size = fingerprint_bytes + 4 * (line_count + 1);
-  if (text.masks.size() < table_size || index >= line_count)
+  constexpr size_t minimum_table_size = fingerprint_bytes + 4 * (setup_glyph_start + ssid_characters.size() + 1);
+  if (text.masks.size() < minimum_table_size)
     return {};
   const auto offset = [&](size_t index) -> size_t {
     const auto *bytes = text.masks.data() + fingerprint_bytes + index * 4;
     return uint32_t{bytes[0]} | (uint32_t{bytes[1]} << 8) | (uint32_t{bytes[2]} << 16) | (uint32_t{bytes[3]} << 24);
   };
+  const auto table_size = offset(0);
+  if (table_size < minimum_table_size || table_size > text.masks.size() ||
+      index + 1 >= (table_size - fingerprint_bytes) / 4)
+    return {};
   const size_t begin = offset(index);
   const size_t end = offset(index + 1);
   if (begin < table_size || end <= begin || end - begin <= 3 || end > text.masks.size())
     return {};
   const auto header = text.masks[begin] | (text.masks[begin + 1] << 8);
-  const int width = header & ~compact_mask;
+  const int width = header & ~(compact_mask | glyph_sequence);
   const int height = text.masks[begin + 2];
   const int max_width = height == glyph_height ? 668 : 700;
   if (width <= 0 || width > max_width || height <= 0 || height > 64)
     return {};
-  return {width, height, text.masks.subspan(begin + 3, end - begin - 3), bool(header & compact_mask)};
+  return {width, height, text.masks.subspan(begin + 3, end - begin - 3), bool(header & compact_mask),
+          bool(header & glyph_sequence)};
 }
 
 Line line(StatusText text, StatusLabel label) {
@@ -130,21 +136,31 @@ void localized_text(uint16_t *frame, Line line, ScreenRotation rotation, int x, 
   }
 }
 
+int setup_advance(Line mask) { return std::max(0, mask.width - 2 * setup_glyph_bearing); }
+
+void draw_setup_glyphs(uint16_t *frame, StatusText text, ScreenRotation rotation, int x, int y, uint16_t color,
+                       std::span<const uint8_t> indices) {
+  for (const auto index : indices) {
+    const auto glyph = line_at(text, setup_glyph_start + index);
+    localized_text(frame, glyph, rotation, x - setup_glyph_bearing, y, color, setup_background);
+    x += setup_advance(glyph);
+  }
+}
+
 void centered_setup_ssid(uint16_t *frame, StatusText text, ScreenRotation rotation,
                          std::string_view ssid, int y) {
-  const auto glyph = [&](char character) {
-    const auto index = ssid_characters.find(character);
-    return index == std::string_view::npos ? Line{} : line_at(text, ssid_glyph_start + index);
-  };
+  std::array<uint8_t, std::tuple_size_v<decltype(RecoveryNetwork::ssid)>> indices;
+  size_t count = 0;
   int width = 0;
-  for (const char character : ssid)
-    width += std::max(0, glyph(character).width - 2 * ssid_glyph_padding);
-  int x = (Viewport{rotation}.width - width) / 2;
   for (const char character : ssid) {
-    const auto mask = glyph(character);
-    localized_text(frame, mask, rotation, x - ssid_glyph_padding, y, setup_muted, setup_background);
-    x += std::max(0, mask.width - 2 * ssid_glyph_padding);
+    const auto index = ssid_characters.find(character);
+    if (index != std::string_view::npos && count < indices.size()) {
+      indices[count++] = static_cast<uint8_t>(index);
+      width += setup_advance(line_at(text, setup_glyph_start + index));
+    }
   }
+  draw_setup_glyphs(frame, text, rotation, (Viewport{rotation}.width - width) / 2, y, setup_muted,
+                    {indices.data(), count});
 }
 
 void card(uint16_t *frame, ScreenRotation rotation, int left, int top, int width, int height) {
@@ -183,7 +199,11 @@ void draw_wifi_setup(uint16_t *frame, const uint8_t *atlas, StatusText text, con
   const int center = viewport.height / 2;
   std::fill_n(frame, pixel_count, setup_background);
   const auto centered = [&](Line message, int y, uint16_t color) {
-    localized_text(frame, message, rotation, (viewport.width - message.width) / 2, y, color, setup_background);
+    const int x = (viewport.width - message.width) / 2;
+    if (message.glyphs)
+      draw_setup_glyphs(frame, text, rotation, x, y, color, message.runs);
+    else
+      localized_text(frame, message, rotation, x, y, color, setup_background);
   };
   const auto value = [&](std::string_view content, int y, uint16_t color) {
     ascii_text(frame, atlas, rotation, (viewport.width - ascii_width(atlas, content)) / 2, y, content, color,
