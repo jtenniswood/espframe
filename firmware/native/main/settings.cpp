@@ -1283,7 +1283,7 @@ Settings::UpdateResult Settings::update_playback(const cJSON *update, std::optio
   if (!settings.add_playback_fields(next.get()))
     return UpdateResult::Failed;
   const bool fixed_night_brightness = previous_night_brightness != settings.brightness_night;
-  // The device-tools form sends a full snapshot. Classify the actual changes
+  // Playback clients can send a full snapshot. Classify the actual changes
   // after validation, including an explicitly pinned night brightness.
   bool restart = !was_configured || !settings.has_immich();
   bool changed = connection_changed || fixed_night_brightness ||

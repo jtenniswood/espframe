@@ -53,10 +53,6 @@ export function nativeFirmwarePanel(): HTMLElement {
   versions.setAttribute("aria-label", "Previous versions");
   history.append(versions, installed);
   panel.append(history, status);
-  const localFile = el("a");
-  localFile.href = "/settings#firmware";
-  localFile.textContent = "Install firmware from a file";
-  panel.append(localFile);
 
   let latest = "";
   let posting = false;

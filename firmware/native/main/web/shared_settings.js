@@ -290,62 +290,60 @@
   }
 
   // docs/webserver/src/native_firmware.ts
-  var S = "/api/firmware/releases";
-  var _ = /^v\d+\.\d+\.\d+-preview\.\d+$/;
-  var P = {
+  var T = "/api/firmware/releases";
+  var S = /^v\d+\.\d+\.\d+-preview\.\d+$/;
+  var A = {
     checking: "Checking for updates\u2026",
     unavailable: "Could not check for Native Preview releases.",
     installing: "Downloading and installing firmware\u2026",
     restarting: "Waiting for the frame to restart\u2026",
     failed: "The frame could not install that release."
   };
-  function j(i, c2) {
-    if (!_.test(c2)) return false;
-    const b = (e) => e.match(/\d+/g).map(Number), m = b(c2);
-    for (const [e, a] of b(i).entries())
-      if (a !== m[e]) return a > m[e];
+  function j(s2, c2) {
+    if (!S.test(c2)) return false;
+    const b = (e) => e.match(/\d+/g).map(Number), v = b(c2);
+    for (const [e, a] of b(s2).entries())
+      if (a !== v[e]) return a > v[e];
     return false;
   }
   function nativeFirmwarePanel() {
-    const i = el("div", "native-firmware"), c2 = (t) => {
-      const n = el("div", "fw-row"), s2 = el("span", "fw-label");
-      return s2.textContent = "\u2014", n.append(t, s2), i.append(n), s2;
-    }, b = c2("Current"), m = c2("Available"), e = el("p", "fw-status");
+    const s2 = el("div", "native-firmware"), c2 = (t) => {
+      const n = el("div", "fw-row"), i = el("span", "fw-label");
+      return i.textContent = "\u2014", n.append(t, i), s2.append(n), i;
+    }, b = c2("Current"), v = c2("Available"), e = el("p", "fw-status");
     e.setAttribute("role", "status");
-    const a = button("Check for Update", "btn btn-secondary btn-sm"), d = button("Install Update", "btn btn-primary btn-sm"), h = button("Install version", "btn btn-secondary btn-sm"), T = el("div", "fw-actions");
-    T.append(a, d), i.append(T);
-    const v = field("Previous versions"), u2 = el("select", "select");
-    u2.setAttribute("aria-label", "Previous versions"), v.append(u2, h), i.append(v, e);
-    const C = el("a");
-    C.href = "/settings#firmware", C.textContent = "Install firmware from a file", i.append(C);
-    let o = "", f2 = false, w, p2 = "";
-    function k() {
-      a.disabled = true, d.hidden = true, v.hidden = true;
+    const a = button("Check for Update", "btn btn-secondary btn-sm"), d = button("Install Update", "btn btn-primary btn-sm"), h = button("Install version", "btn btn-secondary btn-sm"), P = el("div", "fw-actions");
+    P.append(a, d), s2.append(P);
+    const w = field("Previous versions"), u2 = el("select", "select");
+    u2.setAttribute("aria-label", "Previous versions"), w.append(u2, h), s2.append(w, e);
+    let r = "", f2 = false, m, p2 = "";
+    function C() {
+      a.disabled = true, d.hidden = true, w.hidden = true;
     }
-    function R(t) {
-      b.textContent = t.current || "Unknown", o = t.versions[0] || "", m.textContent = o || "\u2014";
-      const n = ["checking", "installing", "restarting"].includes(t.status), s2 = o && j(o, t.current);
-      a.disabled = !t.available || n || f2, d.hidden = !s2, d.disabled = a.disabled;
-      const x = t.versions.filter((l) => l !== t.current && !(s2 && l === o)), q = Array.from(u2.options, (l) => l.value);
-      x.join("|") !== q.join("|") && u2.replaceChildren(...x.map((l) => new Option(l))), v.hidden = !x.length, h.disabled = a.disabled, p2 && p2 === t.current ? (e.textContent = "Firmware updated.", p2 = "") : e.textContent = P[t.status] || (t.available ? "" : "Release updates require a versioned Native Preview.");
+    function _(t) {
+      b.textContent = t.current || "Unknown", r = t.versions[0] || "", v.textContent = r || "\u2014";
+      const n = ["checking", "installing", "restarting"].includes(t.status), i = r && j(r, t.current);
+      a.disabled = !t.available || n || f2, d.hidden = !i, d.disabled = a.disabled;
+      const y = t.versions.filter((o) => o !== t.current && !(i && o === r)), R = Array.from(u2.options, (o) => o.value);
+      y.join("|") !== R.join("|") && u2.replaceChildren(...y.map((o) => new Option(o))), w.hidden = !y.length, h.disabled = a.disabled, p2 && p2 === t.current ? (e.textContent = "Firmware updated.", p2 = "") : e.textContent = A[t.status] || (t.available ? "" : "Release updates require a versioned Native Preview.");
     }
     async function g() {
       try {
-        const t = await fetch(S, { cache: "no-store", signal: AbortSignal.timeout(2500) });
+        const t = await fetch(T, { cache: "no-store", signal: AbortSignal.timeout(2500) });
         if (!t.ok) throw new Error("release_status_unavailable");
         const n = await t.json();
-        n.versions = Array.isArray(n.versions) ? n.versions.filter((s2) => _.test(s2)) : [], R(n);
+        n.versions = Array.isArray(n.versions) ? n.versions.filter((i) => S.test(i)) : [], _(n);
       } catch (t) {
-        k(), e.textContent = p2 ? "Waiting for the frame to come back\u2026" : "Firmware release information is unavailable.";
+        C(), e.textContent = p2 ? "Waiting for the frame to come back\u2026" : "Firmware release information is unavailable.";
       } finally {
-        window.clearTimeout(w), i.isConnected && (w = window.setTimeout(g, 3e3));
+        window.clearTimeout(m), s2.isConnected && (m = window.setTimeout(g, 3e3));
       }
     }
-    async function y(t) {
+    async function k(t) {
       if (!f2) {
-        f2 = true, window.clearTimeout(w), k(), e.textContent = t ? P.installing : P.checking;
+        f2 = true, window.clearTimeout(m), C(), e.textContent = t ? A.installing : A.checking;
         try {
-          if (!(await fetch(S, {
+          if (!(await fetch(T, {
             method: "POST",
             headers: { "Content-Type": "text/plain" },
             body: t,
@@ -353,17 +351,17 @@
           })).ok) throw new Error("release_request_failed");
           p2 = t, f2 = false, await g();
         } catch (n) {
-          f2 = false, e.textContent = "Could not start the request. Check the frame connection and try again.", w = window.setTimeout(g, 3e3);
+          f2 = false, e.textContent = "Could not start the request. Check the frame connection and try again.", m = window.setTimeout(g, 3e3);
         }
       }
     }
     return a.onclick = () => {
-      y("");
+      k("");
     }, d.onclick = () => {
-      y(o);
+      k(r);
     }, h.onclick = () => {
-      y(u2.value);
-    }, k(), g(), i;
+      k(u2.value);
+    }, C(), g(), s2;
   }
 
   // docs/webserver/src/app.ts
@@ -478,7 +476,7 @@
           return;
         }
         render(status);
-      } catch (_2) {
+      } catch (_) {
         values.hidden = true;
         setNotice("The frame is unavailable. Waiting to reconnect.");
       } finally {
@@ -720,7 +718,7 @@
       if (!restartRequired) {
         try {
           form.replaceWith(nativeSettingsForm(await apiClient.getConfigurationSnapshot(), "Settings saved."));
-        } catch (_2) {
+        } catch (_) {
           setStatus(status, "Settings saved. Reload this page to see the current values.");
           setSaving(false);
         }
@@ -740,7 +738,7 @@
         try {
           form.replaceWith(nativeSettingsForm(await apiClient.getConfigurationSnapshot()));
           return;
-        } catch (_2) {
+        } catch (_) {
           await delayMs(1500);
         }
       }
@@ -758,7 +756,7 @@
     content.replaceChildren(status);
     try {
       content.replaceChildren(nativeSettingsForm(await apiClient.getConfigurationSnapshot()));
-    } catch (_2) {
+    } catch (_) {
       status.textContent = "The frame settings could not be loaded.";
       content.appendChild(button("Try again", "btn btn-secondary", initNativeSettings));
     }

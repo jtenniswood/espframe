@@ -398,7 +398,6 @@ jobs:
           node firmware/native/tests/compare_migration_backups_test.mjs
           node firmware/native/tests/wifi_recovery_browser_test.mjs
           node firmware/native/tests/shared_admin_browser_test.mjs
-          node firmware/native/tests/photo_source_browser_test.mjs
           node firmware/native/tests/shared_settings_browser_test.mjs
           node firmware/native/tests/native_firmware_browser_test.mjs
           python3 scripts/tests_native_preview_releases.py

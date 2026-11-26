@@ -215,8 +215,8 @@ const browserTest = String.raw`
     if (tab('Device').getAttribute('aria-selected') !== 'true' ||
         !document.querySelector('#sp-settings.active') || !card('Rotation') || !card('Screen Brightness'))
       throw new Error('Device tab did not use the shared shell')
-    const tools = document.querySelector('#sp-settings a[href="/settings"]')
-    if (!tools || tools.textContent !== 'Photo sources & device tools') throw new Error('Device tools are unreachable')
+    if (document.querySelector('a[href="/settings"]') || document.body.textContent.includes('Photo sources & device tools'))
+      throw new Error('Obsolete device-tools link is still visible')
     const brightness = openCard('Screen Brightness').querySelector('input[type="range"]')
     if (brightness.value !== '90') throw new Error('Brightness preference was not loaded')
     if (document.querySelector('#sun-info').style.display !== 'none') throw new Error('Solar times appeared before clock sync')
