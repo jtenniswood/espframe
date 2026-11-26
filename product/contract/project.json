@@ -210,6 +210,7 @@
     ],
     "frequency": [
       "interval",
+      "slideshow_progress_ring_enabled",
       "conn_timeout"
     ],
     "firmware_updates": [
@@ -291,6 +292,7 @@
     },
     "frequency": {
       "interval": "interval",
+      "slideshow_progress_ring_enabled": "slideshow_progress_ring_enabled",
       "conn_timeout": "conn_timeout"
     },
     "firmware_updates": {
@@ -347,6 +349,7 @@
       "tests/fixtures/compat/espframe-config-v1-developer-options.json",
       "tests/fixtures/compat/espframe-config-v1-future-unknown-fields.json",
       "tests/fixtures/compat/espframe-config-v3-device-language.json",
+      "tests/fixtures/compat/espframe-config-v3-slideshow-progress-ring.json",
       "tests/fixtures/compat/espframe-config-v1-malformed-noncritical-values.json"
     ],
     "rejected_fields": [
@@ -646,7 +649,8 @@
       "tab": "immich",
       "function": "makeFrequencyCard",
       "settings": [
-        "interval"
+        "interval",
+        "slideshow_progress_ring_enabled"
       ]
     },
     {
@@ -933,6 +937,7 @@
     "backup-import-unsupported-version"
   ],
   "web_live_render_state_keys": [
+    "slideshow_progress_ring_enabled",
     "screen_rotation",
     "portrait_pairing",
     "developer_features_enabled",
@@ -1358,6 +1363,7 @@
       "frequency": {
         "settings": [
           "interval",
+          "slideshow_progress_ring_enabled",
           "conn_timeout"
         ]
       }
@@ -1772,6 +1778,7 @@
     "transition": {},
     "transition_speed": {},
     "interval": {},
+    "slideshow_progress_ring_enabled": {},
     "conn_timeout": {},
     "screen_rotation": {
       "options": [

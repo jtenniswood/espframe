@@ -698,6 +698,18 @@ globals:
 # USER-CONFIGURABLE SETTINGS
 # =============================================================================
 
+switch:
+  - platform: template
+    name: "Photos: Slideshow Progress Ring"
+    id: slideshow_progress_ring_enabled
+    optimistic: true
+    # ESPFRAME:SETTING_FIELDS slideshow_progress_ring_enabled START
+    restore_mode: RESTORE_DEFAULT_OFF
+    # ESPFRAME:SETTING_FIELDS slideshow_progress_ring_enabled END
+    icon: "mdi:progress-clock"
+    web_server:
+      sorting_group_id: sg_photos
+
 select:
   - platform: template
     name: "Photos: Slideshow Interval"
@@ -772,7 +784,8 @@ interval:
       - lambda: |-
           const auto &state = id(espframe_core).slideshow().state();
           auto *ring = id(slideshow_progress_ring);
-          const bool visible = state.active_slot_displayed && id(immich_fetch_started) &&
+          const bool visible = id(slideshow_progress_ring_enabled).state && state.active_slot_displayed &&
+                               id(immich_fetch_started) &&
                                !id(backlight_paused) && !id(photo_source_menu_open) &&
                                lv_scr_act() == id(slideshow_page)->obj;
           if (visible) {

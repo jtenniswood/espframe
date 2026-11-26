@@ -22,6 +22,7 @@
 #include "slide_dwell.h"
 #include "slide_prefetch.h"
 #include "slideshow_interval.h"
+#include "slideshow_progress_ring.h"
 #include "slideshow_transition.h"
 #include "swipe.h"
 #include "swipe_input.h"
@@ -652,6 +653,7 @@ void run(void *) {
   uint8_t last_text_opacity = PhotoControls::opaque;
   ScreenSchedule schedule{loader.schedule()};
   SlideDwell dwell;
+  int last_ring_progress = -1;
   SlidePrefetch prefetch{swipe.settled(), cache_slots, viewport.width};
   AutoplayFade fade;
   auto previous_transition = SlideTransition::NONE;
@@ -741,8 +743,9 @@ void run(void *) {
     return true;
   };
   const auto submit_autoplay_frame = [&](uint16_t *output, uint8_t progress) {
-    // A transition can be pinned and dragged later, so keep its pixels caption-free.
+    // A transition can be pinned and dragged later, so keep it clear of these overlays.
     last_caption = {};
+    last_ring_progress = -1;
     clock.draw(output, true);
     clock_dirty = false;
     if constexpr (capture_motion)
@@ -1308,6 +1311,7 @@ void run(void *) {
         snapshot = nullptr;
       }
     }
+    int ring_progress = -1;
     if (live) {
       const bool first_photo = swipe.settled() == 0;
       const bool source_changed = source_anchor == swipe.settled();
@@ -1316,9 +1320,12 @@ void run(void *) {
                             text_opacity == PhotoControls::opaque;
       // Keep the settled photo available for inspection during the touch replay.
       constexpr bool hold_photo = SWIPE_TRIAL_REPLAY_HISTORY || SWIPE_TRIAL_WIFI_OUTAGE || trial_replay_touch;
-      if ((!hold_photo || first_photo) &&
-          dwell.elapsed(now, dwelling, first_photo || source_changed ? 0 : loader.slide_interval_us()) &&
-          zoom_cache.release_before_transition()) {
+      const auto duration = first_photo || source_changed ? 0 : loader.slide_interval_us();
+      const bool advance_due = (!hold_photo || first_photo) && dwell.elapsed(now, dwelling, duration);
+      if (dwelling && duration > 0 && !hold_photo &&
+          active_slideshow_progress_ring.load(std::memory_order_relaxed))
+        ring_progress = dwell.progress_degrees(now, duration);
+      if (advance_due && zoom_cache.release_before_transition()) {
         const auto anchor = swipe.settled();
         if (first_photo) {
           swipe.advance(now, Swipe::Transition::Quick);
@@ -1333,6 +1340,7 @@ void run(void *) {
               swipe.show(anchor + 1);
               position = swipe.position();
               dwell.reset();
+              ring_progress = -1;
             }
           } else if (previous_transition == SlideTransition::SLIDE_LEFT) {
             // The automatic move follows the same slide order as a swipe.
@@ -1385,6 +1393,7 @@ void run(void *) {
           if (opacity == AutoplayFade::opaque) {
             blitter.slides(output, {target, nullptr, 0});
             last_caption = {};
+            last_ring_progress = -1;
             clock.draw(output);
             clock_dirty = false;
             swipe.show(fade.target());
@@ -1443,6 +1452,8 @@ void run(void *) {
                                source_notice != PhotoSourceStatus::None;
     const auto notice_language = paints_notice ? active_device_language.load(std::memory_order_relaxed) : uint8_t{0};
     const bool sliding = swipe.dragging() || swipe.settling();
+    if (sliding || paints_notice)
+      ring_progress = -1;
     const bool zoom_source_valid = !sliding && !use_edge && position == center * viewport.width && !fade.held();
     // This worker has lower priority than photo preparation. Start on the
     // visible slide while downloads proceed, and yield to urgent edge refill.
@@ -1473,7 +1484,8 @@ void run(void *) {
          (control_progress == 0 &&
           (show_recovery != recovery_painted || source_notice != painted_source_status ||
            connection_notice != painted_connection_notice || notice_language != painted_notice_language ||
-           (display.borrowing() && !sliding) || clock_changed || caption_sample != last_caption)))) {
+           (display.borrowing() && !sliding) || clock_changed || caption_sample != last_caption ||
+           ring_progress != last_ring_progress)))) {
       const auto index = inside / viewport.width;
       const int offset = inside % viewport.width;
       const auto slide_pixels = [&](SlideIndex slide) {
@@ -1514,6 +1526,7 @@ void run(void *) {
             display.wait_for_frame_or_tick();
             continue;
           }
+          last_ring_progress = -1;
           finish_render(started_submit);
           prepared_zoom = {};
           display.wait_for_frame_or_tick();
@@ -1554,7 +1567,7 @@ void run(void *) {
                              position == swipe.settle_destination() * viewport.width &&
                              (swipe.settling() || (swipe.idle() && display.borrowing()));
         if (linked_scanout_ok && !viewport.portrait && input.awake() && snapshot == nullptr && !fade.held() && !paints_notice &&
-            ((sliding && (use_edge || offset != 0)) || landing)) {
+            ring_progress < 0 && ((sliding && (use_edge || offset != 0)) || landing)) {
           segment_started = esp_timer_get_time();
           const auto copy_rows = [&](auto *to, const auto *from, int rows) { blitter.copy_panel_rows(to, from, rows); };
           const bool paint_clock = show_clock && clock.visible() && text_opacity != 0;
@@ -1601,8 +1614,12 @@ void run(void *) {
           }
         }
 #endif
-        if (!submitted)
+        if (!submitted) {
+          if (ring_progress >= 0)
+            paint_slideshow_progress_ring(output, viewport, ring_progress);
           submit_frame(position, position != last_submitted, use_edge);
+        }
+        last_ring_progress = ring_progress;
         last_caption = caption_sample;
         finish_render(started_submit);
       }
