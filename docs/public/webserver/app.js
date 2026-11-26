@@ -2049,7 +2049,7 @@
         S2.wireguard_tunnel_enabled = state.running;
         S2.wireguard_handshake_age = state.handshake_age;
         updateWireguardStatus(tunnelStatus, tunnelBadge);
-      });
+      }, makeCollapsibleCard);
     }
     return card;
   }

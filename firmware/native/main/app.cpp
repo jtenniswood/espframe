@@ -20,6 +20,7 @@
 #include "slide_cache.h"
 #include "slide_dwell.h"
 #include "slide_prefetch.h"
+#include "memory_trace.h"
 #include "slideshow_interval.h"
 #include "slideshow_transition.h"
 #include "swipe.h"
@@ -632,6 +633,7 @@ void run(void *) {
   PhotoCaptionSample last_caption;
   const auto cache_slots = static_cast<unsigned>(cache.size());
   ESP_LOGI(tag, "Decoded photo cache: %u slides", cache_slots);
+  trace_memory("display-ready");
   if constexpr (trial_immich)
     record_live_trial_cache(cache_slots, 0);
   TouchReader touch;

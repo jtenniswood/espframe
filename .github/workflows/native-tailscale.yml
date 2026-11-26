@@ -1,0 +1,63 @@
+name: Native Tailscale test builds
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/native-tailscale.yml'
+      - 'firmware/native/CMakeLists.txt'
+      - 'firmware/native/sdkconfig.tailscale'
+      - 'firmware/native/main/*tailscale*'
+      - 'firmware/native/main/memory_trace*'
+      - 'firmware/native/tools/*wireguard*.cmake'
+      - 'firmware/native/tools/microlink_port.cmake'
+      - 'firmware/native/tools/report_native_memory.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guition:
+    name: Guition ${{ matrix.board }} memory comparison
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        board: [v1, v2, v3]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Test tailnet URL matching
+        run: |
+          c++ -std=c++20 -Wall -Wextra -Werror -Ifirmware/native/main \
+            firmware/native/tests/tailscale_url_test.cpp -o "$RUNNER_TEMP/tailscale-url-test"
+          "$RUNNER_TEMP/tailscale-url-test"
+      - name: Compile baseline and Tailscale images
+        env:
+          BOARD: ${{ matrix.board }}
+        run: |
+          docker run --rm -v "$PWD:/workspace" -w /workspace -e BOARD \
+            espressif/idf:v6.1.1 bash -ec '
+              set -o pipefail
+              for mode in baseline tailscale; do
+                enabled=OFF
+                build=firmware/native/build/memory-$mode-$BOARD
+                if [[ "$mode" == tailscale ]]; then enabled=ON; fi
+                idf.py -C firmware/native -B "$build" -D "SWIPE_BOARD=$BOARD" \
+                  -D NATIVE_MEMORY_TRACE=ON -D "NATIVE_TAILSCALE=$enabled" build merge-bin
+                idf.py -C firmware/native -B "$build" size | tee "$build/size.txt"
+              done
+              microlink="$build/_deps/microlink-src"
+              cp "$microlink/LICENSE" "$build/MicroLink-LICENSE.txt"
+              cp "$microlink/components/microlink/components/wireguard_lwip/LICENSE" "$build/MicroLink-WireGuard-LICENSE.txt"
+            '
+      - uses: actions/upload-artifact@v7
+        with:
+          name: native-memory-comparison-${{ matrix.board }}
+          path: |
+            firmware/native/build/memory-*-${{ matrix.board }}/espframe_native_${{ matrix.board }}.bin
+            firmware/native/build/memory-*-${{ matrix.board }}/merged-binary.bin
+            firmware/native/build/memory-*-${{ matrix.board }}/size.txt
+            firmware/native/build/memory-tailscale-${{ matrix.board }}/*-LICENSE.txt
+            firmware/native/tools/report_native_memory.py
+          if-no-files-found: error

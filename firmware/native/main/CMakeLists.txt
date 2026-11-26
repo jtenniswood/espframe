@@ -22,10 +22,14 @@ if(SWIPE_TRIAL_IMMICH)
     list(APPEND platform_source live_trial.cpp stock_frame_identity.cpp)
 endif()
 
+if(NATIVE_TAILSCALE)
+    list(APPEND platform_source native_tailscale.cpp)
+endif()
+
 idf_component_register(
     SRCS app.cpp clock_overlay.cpp clock_settings.cpp daylight.cpp display.cpp frame_blend.cpp frame_blitter.cpp immich.cpp immich_http.cpp
          immich_memories.cpp immich_selection.cpp improv_serial.cpp native_configuration.cpp native_network.cpp native_release_index.cpp native_release_updates.cpp p4_jpeg_decoder.cpp
-         playback_trace.cpp preview_decoder.cpp preview_prefetch.cpp
+         playback_trace.cpp memory_trace.cpp preview_decoder.cpp preview_prefetch.cpp
          photo_caption.cpp photo_controls.cpp recovery_card.cpp screen_tone.cpp settings.cpp touch.cpp
          firmware_update.cpp usb_setup.cpp web_settings.cpp
          ${platform_source}
@@ -52,6 +56,9 @@ idf_component_register(
 idf_component_get_property(wireguard_lib esphome__wireguard COMPONENT_LIB)
 # Four configured networks and the library's entry for the frame address.
 target_compile_definitions(${wireguard_lib} PRIVATE CONFIG_WIREGUARD_MAX_SRC_IPS=5)
+if(NATIVE_TAILSCALE)
+    include(../tools/namespace_wireguard.cmake)
+endif()
 
 # Emit native RGB565 words directly, avoiding a second pass through PSRAM.
 idf_component_get_property(webp_lib libwebp-esp32 COMPONENT_LIB)
@@ -77,6 +84,8 @@ else()
     target_compile_definitions(${COMPONENT_LIB} PRIVATE SWIPE_EARLY_P4=1)
 endif()
 target_compile_definitions(${COMPONENT_LIB} PRIVATE NATIVE_BOARD="${SWIPE_BOARD}" SWIPE_TRACE=$<BOOL:${SWIPE_TRACE}>
+                                                   NATIVE_MEMORY_TRACE=$<BOOL:${NATIVE_MEMORY_TRACE}>
+                                                   NATIVE_TAILSCALE=$<BOOL:${NATIVE_TAILSCALE}>
                                                    SWIPE_LINKED_SCANOUT=$<BOOL:${SWIPE_LINKED_SCANOUT}>
                                                    NATIVE_HOSTNAME="${default_hostname}" NATIVE_FRIENDLY_NAME="${default_friendly_name}"
                                                    SWIPE_ESPHOME_TRIAL=$<BOOL:${SWIPE_ESPHOME_TRIAL}>

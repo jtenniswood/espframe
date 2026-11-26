@@ -10,6 +10,7 @@
 #include "screen_control.h"
 #include "web_logs.h"
 #include "native_wireguard.h"
+#include "native_tailscale.h"
 
 #include "cJSON.h"
 #include "esp_http_server.h"
@@ -396,6 +397,64 @@ esp_err_t wireguard_state(httpd_req_t *request) {
     return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Unable to read WireGuard status.");
   return send_configuration(request, body.get());
 }
+
+#if NATIVE_TAILSCALE
+esp_err_t tailscale_configuration(httpd_req_t *request) {
+  // HTTP handlers run on the same server task. Tie the bearer login URL to
+  // the browser tab that started enrollment, even on a passwordless LAN.
+  static std::string login_viewer;
+  if (!authorize(request))
+    return ESP_OK;
+  const bool wireguard_active = wireguard_status().running;
+  if (request->method == HTTP_GET) {
+    const auto status = tailscale_status();
+    if (std::string_view(status.state) == "connected")
+      login_viewer.clear();
+    const bool show_login = !login_viewer.empty() && header_is(request, "X-Espframe-Enrollment", login_viewer);
+    const auto &net = network(request);
+    const auto photos = frame_status.read();
+    const char *immich = !photos.configured || !net.photo_uses_tailscale() ? "needs_url" :
+        net.photo_connection() == 0 || photos.contact == ImmichResponse::Pending ? "checking" :
+        photos.contact == ImmichResponse::Responding ? "reachable" :
+        photos.contact == ImmichResponse::Rejected ? "rejected" : "unreachable";
+    const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> body(cJSON_CreateObject(), cJSON_Delete);
+    if (!body || !cJSON_AddStringToObject(body.get(), "state", wireguard_active ? "wireguard" : status.state) ||
+        !cJSON_AddStringToObject(body.get(), "immich", immich) ||
+        (!status.address.empty() && !cJSON_AddStringToObject(body.get(), "address", status.address.c_str())) ||
+        (show_login && !status.login_url.empty() &&
+         !cJSON_AddStringToObject(body.get(), "login_url", status.login_url.c_str())))
+      return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Unable to read Tailscale status.");
+    return send_configuration(request, body.get());
+  }
+  if (!same_origin(request))
+    return httpd_resp_send_err(request, HTTPD_403_FORBIDDEN, "Open settings on the frame to make changes.");
+  std::array<char, 10> data{};
+  if (!header_is(request, "Content-Type", "text/plain") || !request->content_len || request->content_len > data.size())
+    return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Choose connect or disconnect.");
+  size_t offset = 0;
+  while (offset < request->content_len) {
+    const int bytes = httpd_req_recv(request, data.data() + offset, request->content_len - offset);
+    if (bytes <= 0)
+      return ESP_FAIL;
+    offset += bytes;
+  }
+  const std::string_view action(data.data(), offset);
+  if (action != "connect" && action != "disconnect")
+    return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Choose connect or disconnect.");
+  std::array<char, 33> viewer{};
+  if (httpd_req_get_hdr_value_str(request, "X-Espframe-Enrollment", viewer.data(), viewer.size()) != ESP_OK ||
+      std::strlen(viewer.data()) != viewer.size() - 1 ||
+      std::string_view(viewer.data()).find_first_not_of("0123456789abcdef") != std::string_view::npos)
+    return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "Reload the page and try again.");
+  if (wireguard_active || !request_tailscale(action == "connect" ? TailscaleAction::Connect : TailscaleAction::Disconnect)) {
+    httpd_resp_set_status(request, "409 Conflict");
+    return httpd_resp_sendstr(request, wireguard_active ? "Turn off WireGuard to use Tailscale." : "Tailscale is busy.");
+  }
+  httpd_resp_set_status(request, "202 Accepted");
+  login_viewer = action == "connect" ? viewer.data() : "";
+  return httpd_resp_sendstr(request, "Tailscale request accepted.");
+}
+#endif
 
 esp_err_t wifi_firmware(httpd_req_t *request) {
   if (!authorize(request))
@@ -853,6 +912,10 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
       {.uri = frame_status_path, .method = HTTP_GET, .handler = status, .user_ctx = &network},
       {.uri = "/espframe/api/v1/logs", .method = HTTP_GET, .handler = logs, .user_ctx = &network},
       {.uri = "/espframe/api/v1/wireguard", .method = HTTP_GET, .handler = wireguard_state, .user_ctx = &network},
+#if NATIVE_TAILSCALE
+      {.uri = "/espframe/api/v1/tailscale", .method = HTTP_GET, .handler = tailscale_configuration, .user_ctx = &network},
+      {.uri = "/espframe/api/v1/tailscale", .method = HTTP_POST, .handler = tailscale_configuration, .user_ctx = &network},
+#endif
       {.uri = "/api/firmware/wifi", .method = HTTP_GET, .handler = wifi_firmware, .user_ctx = &network},
       {.uri = "/api/firmware/wifi", .method = HTTP_POST, .handler = wifi_firmware, .user_ctx = &network},
       {.uri = "/espframe/api/v1/reboot", .method = HTTP_POST, .handler = reboot_device, .user_ctx = &network},

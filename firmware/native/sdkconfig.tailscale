@@ -1,0 +1,8 @@
+# The P4 host has no Wi-Fi supplicant to select these PSA primitives.
+CONFIG_MBEDTLS_CHACHA20_C=y
+CONFIG_MBEDTLS_CHACHAPOLY_C=y
+CONFIG_ML_CTRL_TLS=y
+CONFIG_ML_LOG_LEVEL_WARN=y
+# Espframe already owns its UI, Wi-Fi and OTA lifecycle.
+# CONFIG_ML_ENABLE_CONFIG_HTTPD is not set
+# CONFIG_ML_OTA_ROLLBACK is not set

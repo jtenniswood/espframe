@@ -456,7 +456,7 @@
         S.wireguard_tunnel_enabled = state.running;
         S.wireguard_handshake_age = state.handshake_age;
         updateWireguardStatus(tunnelStatus, tunnelBadge);
-      });
+      }, makeCollapsibleCard);
     }
     return card;
   }
