@@ -34,7 +34,8 @@ def status_lines():
     keys = [re.fullmatch(r"ESPFRAME_STATUS_LABEL\(([a-z0-9_]+)\)", line)[1]
             for line in labels.read_text().splitlines()]
     recovery_header = ROOT / "firmware/native/main/wifi_recovery.h"
-    url = re.search(r'recovery_url\[\] = "([^"]+)"', recovery_header.read_text())[1]
+    recovery = recovery_header.read_text()
+    url = re.search(r'recovery_url\[\] = "([^"]+)"', recovery)[1]
     lines = []
     for language, words in load_catalogues().items():
         installer, hotspot, browser = words["wifi_instructions"].splitlines()
@@ -50,6 +51,9 @@ def status_lines():
     icons = ROOT / "devices/guition-esp32-p4-jc8012p4a1/assets/icons.yaml"
     wifi_icon = chr(int(re.search(r'icon_wifi: "\\U([0-9A-Fa-f]{8})"', icons.read_text())[1], 16))
     lines.append(("", wifi_icon, 64, 64, True))
+    ssid_characters = re.search(r'recovery_ssid_characters\[\] = "([^"]+)"', recovery)[1]
+    size, height = SETUP_SIZES["wifi_setup_hotspot"]
+    lines.extend(("ssid", char, size, height, True) for char in ssid_characters)
     assert all(text and "\n" not in text for _, text, _, _, _ in lines)
     return lines
 
@@ -84,6 +88,13 @@ def encoded_mask(line, language, fonts, icon, size, height, compact):
     left, top, right, bottom = image.getbbox()
     if left == 0 or right == width or top == 0 or bottom == height:
         raise ValueError(f"Clipped status mask for {line!r}")
+    if language == "ssid":
+        # Keep the normal character advance and two pixels on either side
+        # for glyph bearings. The firmware lets adjacent glyphs overlap.
+        start, end = padding - 2, int(x) + 2
+        if left < start or right > end:
+            raise ValueError(f"SSID glyph exceeds its bearings for {line!r}")
+        left, right = start, end
     pixels = image.crop((left, 0, right, height)).tobytes()
     # Setup has several long sentences per language. Give these masks longer
     # runs at two bits of opacity so they fit the OTA partition.

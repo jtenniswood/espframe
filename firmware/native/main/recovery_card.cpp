@@ -38,11 +38,15 @@ bool rtl(StatusText text) {
 
 constexpr size_t label_count = static_cast<size_t>(StatusLabel::Count);
 constexpr size_t icon_index = label_count * espframe_i18n_catalogue::LANGUAGE_COUNT;
+constexpr size_t ssid_glyph_start = icon_index + 1;
+constexpr std::string_view ssid_characters = recovery_ssid_characters;
+constexpr int ssid_glyph_padding = 2;
 
 Line line_at(StatusText text, size_t index) {
   constexpr size_t fingerprint_bytes = 32;
-  constexpr size_t table_size = fingerprint_bytes + 4 * (icon_index + 2);
-  if (text.masks.size() < table_size)
+  constexpr size_t line_count = ssid_glyph_start + ssid_characters.size();
+  constexpr size_t table_size = fingerprint_bytes + 4 * (line_count + 1);
+  if (text.masks.size() < table_size || index >= line_count)
     return {};
   const auto offset = [&](size_t index) -> size_t {
     const auto *bytes = text.masks.data() + fingerprint_bytes + index * 4;
@@ -126,6 +130,23 @@ void localized_text(uint16_t *frame, Line line, ScreenRotation rotation, int x, 
   }
 }
 
+void centered_setup_ssid(uint16_t *frame, StatusText text, ScreenRotation rotation,
+                         std::string_view ssid, int y) {
+  const auto glyph = [&](char character) {
+    const auto index = ssid_characters.find(character);
+    return index == std::string_view::npos ? Line{} : line_at(text, ssid_glyph_start + index);
+  };
+  int width = 0;
+  for (const char character : ssid)
+    width += std::max(0, glyph(character).width - 2 * ssid_glyph_padding);
+  int x = (Viewport{rotation}.width - width) / 2;
+  for (const char character : ssid) {
+    const auto mask = glyph(character);
+    localized_text(frame, mask, rotation, x - ssid_glyph_padding, y, setup_muted, setup_background);
+    x += std::max(0, mask.width - 2 * ssid_glyph_padding);
+  }
+}
+
 void card(uint16_t *frame, ScreenRotation rotation, int left, int top, int width, int height) {
   const Viewport viewport{rotation};
   if (viewport.portrait) {
@@ -181,7 +202,7 @@ void draw_wifi_setup(uint16_t *frame, const uint8_t *atlas, StatusText text, con
   const auto hotspot = line(text, StatusLabel::wifi_setup_hotspot);
   const auto browser = line(text, StatusLabel::wifi_setup_browser);
   constexpr int gap = 20;
-  const int body_height = installer.height + hotspot.height + browser.height + glyph_height;
+  const int body_height = 2 * installer.height + hotspot.height + browser.height;
   const int top = center - (icon.height + title.height + body_height + 2 * gap) / 2;
   centered(icon, top, white);
   const int title_y = top + icon.height + gap;
@@ -190,8 +211,8 @@ void draw_wifi_setup(uint16_t *frame, const uint8_t *atlas, StatusText text, con
   centered(installer, body_y, setup_muted);
   centered(hotspot, body_y + installer.height, setup_muted);
   const int ssid_y = body_y + installer.height + hotspot.height;
-  value(network.ssid.data(), ssid_y, setup_muted);
-  centered(browser, ssid_y + glyph_height, setup_muted);
+  centered_setup_ssid(frame, text, rotation, network.ssid.data(), ssid_y);
+  centered(browser, ssid_y + installer.height, setup_muted);
 }
 
 void draw_recovery_card(uint16_t *frame, const uint8_t *atlas, StatusText text, const RecoveryNetwork &network,

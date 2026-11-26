@@ -8,6 +8,7 @@ namespace espframe::native {
 
 inline constexpr char recovery_host[] = "192.168.4.1";
 inline constexpr char recovery_url[] = "http://192.168.4.1";
+inline constexpr char recovery_ssid_characters[] = "espfram_0123456789ABCDEF";
 
 struct RecoveryNetwork {
   std::array<char, 16> ssid{};

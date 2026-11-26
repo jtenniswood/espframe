@@ -128,6 +128,17 @@ int main(int argc, char **argv) {
           for (int col = x - 32; col < x + 32; ++col)
             icon_pixels += normal[viewport.offset(col, row)] == 0xffff;
         assert(icon_pixels > 300);
+
+        int left = viewport.width;
+        int right = 0;
+        // Four 42px instruction lines share the same baseline spacing.
+        for (int row = y + 82; row < y + 124; ++row)
+          for (int col = 0; col < viewport.width; ++col)
+            if (normal[viewport.offset(col, row)] != 0) {
+              left = std::min(left, col);
+              right = std::max(right, col);
+            }
+        assert(right - left > 245 && right - left < 300);
       }
       for (const auto rotation : {ScreenRotation::Clockwise, ScreenRotation::Counterclockwise}) {
         draw_wifi_setup(normal.data(), atlas.data(), localized, access_point, address, rotation);
