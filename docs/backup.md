@@ -21,7 +21,7 @@ Backups do not contain the Immich API key. Restoring a backup keeps the destinat
 |----------|----------|
 | **Connection** | Immich server URL |
 | **Photos** | Smart-filter groups and matching, favorites, rating, location, inclusions and exclusions, dates, orientation, portrait pairing, display mode, and transitions |
-| **Frequency** | Slideshow interval, connection timeout |
+| **Frequency** | Slideshow interval, slideshow progress ring, connection timeout |
 | **Firmware Updates** | Display auto update, update frequency, WiFi firmware auto update |
 | **Clock** | Show clock, format, timezone |
 | **Screen Brightness** | Daytime brightness, nighttime brightness |

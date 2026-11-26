@@ -4,9 +4,9 @@
     "app_bytes_max": 280500,
     "style_bytes_max": 27000,
     "combined_bytes_max": 307500,
-    "app_gzip_bytes_max": 62300,
+    "app_gzip_bytes_max": 62500,
     "style_gzip_bytes_max": 6000,
-    "combined_gzip_bytes_max": 68200
+    "combined_gzip_bytes_max": 68400
   },
   "firmware": {
     "factory": {

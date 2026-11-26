@@ -448,9 +448,17 @@
         nativeIntervalSeconds, String, 2, 86400, function (seconds) {
           saveSetting("interval", nativeIntervalLabel(seconds));
         }));
-      return makeCollapsibleCard("Frequency", dispBody, true);
     }
-    dispBody.appendChild(productSelectSettingField("Slideshow Interval", "interval"));
+    if (!nativeAdmin) dispBody.appendChild(productSelectSettingField("Slideshow Interval", "interval"));
+    if (hasWritableSetting("slideshow_progress_ring_enabled")) {
+      dispBody.appendChild(toggleSettingRow({
+        label: "Slideshow Progress Ring",
+        value: S.slideshow_progress_ring_enabled,
+        getValue: function () { return S.slideshow_progress_ring_enabled; },
+        setValue: function (value) { S.slideshow_progress_ring_enabled = value; },
+        onChange: function (value) { saveSetting("slideshow_progress_ring_enabled", value); }
+      }).field);
+    }
     return makeCollapsibleCard("Frequency", dispBody, true);
 
   }

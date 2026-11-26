@@ -15,6 +15,7 @@ inline constexpr std::array<uint32_t, 18> stock_slideshow_intervals{
 };
 
 inline std::atomic<uint32_t> active_slideshow_interval{15};
+inline std::atomic<bool> active_slideshow_progress_ring{};
 inline constexpr std::array<uint32_t, 10> connection_timeouts{30, 45, 60, 120, 180, 300, 600, 900, 1200, 1800};
 inline constexpr uint32_t default_connection_timeout = 600;
 inline std::atomic<uint32_t> active_connection_timeout{default_connection_timeout};
