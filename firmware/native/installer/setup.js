@@ -38,6 +38,22 @@ for (const language of deviceLanguages)
 const refreshSource = bindPhotoSource(form)
 const refreshPairing = bindPortraitPairing(form)
 const percentageFields = ['brightness_day', 'brightness_night', 'base_tone', 'warm_tone_intensity']
+// Let firmware apply fresh defaults or keep saved choices until the user
+// changes or imports a setup preference.
+const setupPreferences = new Set([
+  'portrait_pairing', 'portrait_pairs_only', 'portrait_pairing_range', 'portrait_pair_framing',
+  'portrait_pair_divider', 'photo_orientation', 'display_mode', 'transition', 'transition_speed',
+  'photo_metadata_date_enabled', 'photo_metadata_location_enabled', 'show_clock', 'clock_format', 'timezone',
+  'brightness_day', 'brightness_night', 'base_tone_enabled', 'base_tone', 'warm_tones_enabled',
+  'warm_tone_intensity', 'warm_tone_override',
+])
+const specifiedSetupPreferences = new Set()
+function rememberSetupPreference(event) {
+  const name = event.target.name
+  if (setupPreferences.has(name)) specifiedSetupPreferences.add(name)
+}
+form.addEventListener('input', rememberSetupPreference)
+form.addEventListener('change', rememberSetupPreference)
 const refreshWifi = () => {
   const useSavedWifi = reuseWifi.checked || keepStockWifi.checked
   wifiFields.hidden = useSavedWifi
@@ -129,6 +145,7 @@ backup.addEventListener('change', async () => {
     form.elements.device_language.value = ''
     form.elements.warm_tone_override.value = ''
     for (const [name, value] of Object.entries({ ...photoFilterDefaults, ...fields })) {
+      if (setupPreferences.has(name)) specifiedSetupPreferences.add(name)
       if (name === 'warm_tone_override') form.elements[name].value = String(value)
       else if (typeof value === 'boolean') form.elements[name].checked = value
       else form.elements[name].value = value
@@ -360,6 +377,9 @@ if ('serial' in navigator) {
     data.schedule_on_hour = Number(data.schedule_on_hour)
     data.schedule_off_hour = Number(data.schedule_off_hour)
     data.schedule_wake_timeout = Number(data.schedule_wake_timeout)
+    for (const name of setupPreferences) {
+      if (!specifiedSetupPreferences.has(name)) delete data[name]
+    }
     setSerialBusy(true)
     networkStatus.textContent = ''
     try {
@@ -367,6 +387,7 @@ if ('serial' in navigator) {
       status.textContent = 'Saving settings on the frame…'
       await configure(port, data, { keepPairing, keepWifi, keepImmich })
       form.reset()
+      specifiedSetupPreferences.clear()
       frameNameSpecified = false
       ntpServersSpecified = false
       importedPreset = null

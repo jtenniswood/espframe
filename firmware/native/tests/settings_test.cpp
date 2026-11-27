@@ -160,7 +160,20 @@ void nvs_close(nvs_handle_t handle) {
   staged_blobs.clear();
 }
 
-void verify_setup_framing() {
+void assert_new_setup_preferences(const espframe::native::Settings &settings) {
+  using namespace espframe::native;
+  assert(settings.portrait_pairing && settings.portrait_pairs_only && settings.portrait_pairing_days() == 2);
+  assert(settings.pair_framing == PairFraming::FollowPhotos && settings.pair_divider == PairDivider::Black);
+  assert(settings.photo_orientation == PhotoOrientation::Any && settings.display_mode == DisplayMode::Fill);
+  assert(settings.transition == "Cross Fade" && settings.transition_speed == "Fast");
+  assert(!settings.metadata.show_location && !settings.metadata.show_date && !settings.clock.show);
+  assert(settings.clock.format == "24 Hour" && settings.clock.timezone == "Europe/London (GMT+0)");
+  assert(settings.brightness_day == 100 && settings.brightness_night == 70);
+  assert(settings.tone.base_enabled && settings.tone.base_amount == 23);
+  assert(settings.tone.night_enabled && settings.tone.night_amount == 64 && settings.tone.night_override);
+}
+
+void verify_setup_preferences() {
   using namespace espframe::native;
   constexpr char first_setup[] = R"({"ssid":"Photo Lab","password":"","immich_url":"http://photos.test",
                                     "immich_key":"first-key"})";
@@ -169,26 +182,35 @@ void verify_setup_framing() {
   stored_blobs.clear();
   Settings settings;
   assert(Settings::save(first_setup));
-  assert(settings.read() && settings.display_mode == DisplayMode::Fill && settings.pair_display_mode() == DisplayMode::Fill);
+  assert(settings.read());
+  assert_new_setup_preferences(settings);
 
-  assert(Settings::save(R"({"immich_url":"http://photos.test","immich_key":"next-key",
-                            "display_mode":"Fit","portrait_pair_framing":"Fill"})"));
+  assert(Settings::save(R"({"immich_url":"http://photos.test","immich_key":"next-key","display_mode":"Fit",
+      "portrait_pair_framing":"Fill","portrait_pairs_only":false,"portrait_pairing_range":"Same Day",
+      "brightness_day":80,"show_clock":true,"photo_metadata_date_enabled":true,"warm_tone_override":false})"));
   assert(Settings::save(reuse_wifi));
   assert(settings.read() && settings.display_mode == DisplayMode::Fit && settings.pair_display_mode() == DisplayMode::Fill);
+  assert(!settings.portrait_pairs_only && settings.portrait_pairing_days() == 0);
+  assert(settings.brightness_day == 80 && settings.brightness_night == 70);
+  assert(settings.clock.show && settings.metadata.show_date && !settings.tone.night_override);
 
   stored_blobs.clear();
   stored = {{"settings_v1", R"({"ssid":"Photo Lab","password":"","immich_url":"http://photos.test",
                                 "immich_key":"legacy-key"})"}};
   assert(Settings::save(reuse_wifi));
   assert(settings.read() && settings.display_mode == DisplayMode::Fit);
+  assert(!settings.portrait_pairs_only && !settings.brightness_night && settings.brightness_day == 64);
+  assert(settings.metadata.show_date && !settings.tone.night_enabled);
 
   stored.clear();
   stored_blobs.clear();
   const auto wifi = WifiCredentials::from("Photo Lab", "");
   assert(wifi && Settings::save_wifi(*wifi, 0));
-  assert(settings.read() && !settings.has_immich() && settings.display_mode == DisplayMode::Fill);
+  assert(settings.read() && !settings.has_immich());
+  assert_new_setup_preferences(settings);
   assert(Settings::save(reuse_wifi));
-  assert(settings.read() && settings.display_mode == DisplayMode::Fill);
+  assert(settings.read() && settings.has_immich());
+  assert_new_setup_preferences(settings);
 
   stored_blobs.clear();
   stored = {{"settings_v1", R"({"ssid":"Photo Lab","password":"","immich_url":"","immich_key":"",
@@ -752,7 +774,8 @@ int main() {
   assert(stored.size() == 1 && stored.contains("settings_v1"));
   assert(current.read() && current.ssid.empty() && current.password.empty() && current.web_password.empty());
   assert(!current.has_immich() && !current.has_prepared_slides() && current.reset_epoch == 2);
-  assert(current.screen_rotation == ScreenRotation::Normal && current.brightness_day == 64);
+  assert(current.screen_rotation == ScreenRotation::Normal);
+  assert_new_setup_preferences(current);
   assert(!Settings::save_playback(R"({"immich_url":"http://old.test","immich_key":"old-key"})"));
   assert(!Settings::save(R"({"immich_url":"http://photos.test","immich_key":"fresh-key"})"));
   const auto after_factory_reset = stored;
@@ -1496,7 +1519,7 @@ int main() {
 
   verify_stock_pairing_migration();
   verify_stock_connection_migration();
-  verify_setup_framing();
+  verify_setup_preferences();
 
   assert(Settings::save(R"({"immich_url":"http://photos.test","immich_key":"wifi-key","web_password":"wifi-settings",
       "firmware_updates":{"auto_update":false,"update_frequency":"Weekly","wifi_auto_update":false}})"));

@@ -31,7 +31,31 @@ constexpr const char *partition = "native_config";
 constexpr const char *store_namespace = "player";
 constexpr const char *settings_key = "settings_v1";
 constexpr size_t legacy_max_json_size = 3072;
-constexpr auto new_setup_framing = DisplayMode::Fill;
+// Apply only during setup. Missing fields in older saved records still use
+// the fallback values declared by Settings.
+constexpr char new_setup_preferences[] = R"json({
+  "portrait_pairing": true,
+  "portrait_pairs_only": true,
+  "portrait_pairing_range": "Within 2 Days",
+  "portrait_pair_framing": "Follow photo framing",
+  "portrait_pair_divider": "Black",
+  "photo_orientation": "Any",
+  "display_mode": "Fill",
+  "transition": "Cross Fade",
+  "transition_speed": "Fast",
+  "photo_metadata_date_enabled": false,
+  "photo_metadata_location_enabled": false,
+  "show_clock": false,
+  "clock_format": "24 Hour",
+  "timezone": "Europe/London (GMT+0)",
+  "brightness_day": 100,
+  "brightness_night": 70,
+  "base_tone_enabled": true,
+  "base_tone": 23,
+  "warm_tones_enabled": true,
+  "warm_tone_intensity": 64,
+  "warm_tone_override": true
+})json";
 constexpr std::array ntp_fields{"ntp_server_1", "ntp_server_2", "ntp_server_3"};
 std::mutex storage_mutex;
 std::atomic<uint32_t> revision{};
@@ -701,6 +725,25 @@ bool put_wifi(cJSON *document, const char *ssid, const char *password) {
   return cJSON_AddStringToObject(document, "ssid", ssid) && cJSON_AddStringToObject(document, "password", password);
 }
 
+bool fill_setup_preferences(cJSON *document, const cJSON *previous = nullptr) {
+  const auto defaults = parse(new_setup_preferences);
+  if (!defaults)
+    return false;
+  const cJSON *preference;
+  cJSON_ArrayForEach(preference, defaults.get()) {
+    if (cJSON_HasObjectItem(document, preference->string))
+      continue;
+    const auto *value = previous ? cJSON_GetObjectItemCaseSensitive(previous, preference->string) : preference;
+    if (!value)
+      continue;
+    Json copy(cJSON_Duplicate(value, true), cJSON_Delete);
+    if (!copy || !cJSON_AddItemToObject(document, preference->string, copy.get()))
+      return false;
+    copy.release();
+  }
+  return true;
+}
+
 bool put_epoch(cJSON *document, uint32_t epoch) {
   while (cJSON_GetObjectItemCaseSensitive(document, "reset_epoch"))
     cJSON_DeleteItemFromObjectCaseSensitive(document, "reset_epoch");
@@ -894,7 +937,7 @@ Settings::UsbSaveResult Settings::save_usb(const char *json, std::optional<uint3
   const std::lock_guard lock(storage_mutex);
   Settings saved;
   bool may_create = false;
-  const auto previous = load_document(request.any() ? &may_create : nullptr);
+  const auto previous = load_document(&may_create);
   const bool configured = parse_all(previous.get(), saved);
   const auto epoch = configured ? saved.reset_epoch : 0;
   if (expected_epoch && *expected_epoch != epoch)
@@ -945,24 +988,17 @@ Settings::UsbSaveResult Settings::save_usb(const char *json, std::optional<uint3
   if (!new_key && saved.home_assistant_key_set &&
       !cJSON_AddStringToObject(document.get(), "home_assistant_key", saved.home_assistant_key.c_str()))
     return Result::Rejected;
+  if ((configured || may_create) && !fill_setup_preferences(document.get(), configured ? previous.get() : nullptr))
+    return Result::Rejected;
   if (!provided("display_mode")) {
     // Established libraries without an explicit choice used the old Fit default.
     const bool keep_framing = configured && (saved.has_immich() || cJSON_HasObjectItem(previous.get(), "display_mode"));
-    const auto framing = keep_framing ? saved.display_mode : new_setup_framing;
+    const auto framing = keep_framing ? saved.display_mode : DisplayMode::Fill;
     if (!cJSON_AddStringToObject(document.get(), "display_mode", display_mode_name(framing)))
       return Result::Rejected;
   }
-  if (!provided("portrait_pair_framing") && saved.pair_framing != PairFraming::FollowPhotos &&
-      !cJSON_AddStringToObject(document.get(), "portrait_pair_framing", pair_framing_name(saved.pair_framing)))
-    return Result::Rejected;
-  if (!provided("portrait_pair_divider") && saved.pair_divider != PairDivider::Black &&
-      !cJSON_AddStringToObject(document.get(), "portrait_pair_divider", pair_divider_name(saved.pair_divider)))
-    return Result::Rejected;
   if (configured && !provided("conn_timeout") && saved.connection_timeout_seconds != default_connection_timeout &&
       !cJSON_AddStringToObject(document.get(), "conn_timeout", interval_label(saved.connection_timeout_seconds).c_str()))
-    return Result::Rejected;
-  if (configured && !provided("warm_tone_override") && saved.tone.night_override &&
-      !cJSON_AddTrueToObject(document.get(), "warm_tone_override"))
     return Result::Rejected;
   if (configured && !provided("device_language") && saved.metadata.language != 0 &&
       !cJSON_AddStringToObject(document.get(), "device_language", espframe_i18n_catalogue::LANGUAGES[saved.metadata.language]))
@@ -1011,7 +1047,7 @@ bool Settings::save_wifi(const WifiCredentials &wifi, uint32_t expected_epoch) {
     document.reset(cJSON_CreateObject());
     if (!document || !cJSON_AddStringToObject(document.get(), "immich_url", "") ||
         !cJSON_AddStringToObject(document.get(), "immich_key", "") ||
-        !cJSON_AddStringToObject(document.get(), "display_mode", display_mode_name(new_setup_framing)))
+        !fill_setup_preferences(document.get()))
       return false;
   }
   Settings candidate;
@@ -1372,6 +1408,10 @@ bool Settings::reset(ResetMode mode) {
     reset.home_assistant_key = std::move(saved.home_assistant_key);
     reset.home_assistant_key_set = saved.home_assistant_key_set;
     reset.stock_update_preferences = std::move(saved.stock_update_preferences);
+  } else {
+    const auto defaults = parse(new_setup_preferences);
+    if (!defaults || !read_playback(defaults.get(), reset))
+      return false;
   }
   reset.reset_epoch = saved.reset_epoch == std::numeric_limits<uint32_t>::max() ? 1 : saved.reset_epoch + 1;
   return store_settings(reset, mode == ResetMode::Factory) == UpdateResult::Saved;
