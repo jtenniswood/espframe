@@ -11,17 +11,15 @@ inline constexpr char migration_namespace[] = "espframe_move";
 inline constexpr char migration_key[] = "v1_settings";
 inline constexpr size_t migration_max_bytes = 4096;
 
-// A committed snapshot also records that this bridge has attempted migration.
-// Keeping it on rollback prevents the bridge from retrying a rejected app.
+// Refresh the snapshot on transport retries. After a reboot the bridge must
+// independently prove a new rollback-capable ESPHome boot before starting.
 inline bool stage_migration_snapshot(std::string_view snapshot) {
   if (snapshot.empty() || snapshot.size() > migration_max_bytes)
     return false;
   nvs_handle_t storage;
   if (nvs_open(migration_namespace, NVS_READWRITE, &storage) != ESP_OK)
     return false;
-  size_t previous_size{};
-  const bool saved = nvs_get_blob(storage, migration_key, nullptr, &previous_size) == ESP_ERR_NVS_NOT_FOUND &&
-                     nvs_set_blob(storage, migration_key, snapshot.data(), snapshot.size()) == ESP_OK &&
+  const bool saved = nvs_set_blob(storage, migration_key, snapshot.data(), snapshot.size()) == ESP_OK &&
                      nvs_commit(storage) == ESP_OK;
   nvs_close(storage);
   return saved;

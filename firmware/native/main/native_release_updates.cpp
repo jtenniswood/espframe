@@ -123,7 +123,11 @@ bool install(const NativeRelease &release) {
 void run(void *context) {
   auto &network = *static_cast<NativeNetwork *>(context);
   const auto installed = *parse_preview_version(esp_app_get_description()->version);
+#if NATIVE_LEGACY_REHEARSAL
+  NativeReleaseSchedule schedule{10 * second, 5 * second, 12 * second};
+#else
   NativeReleaseSchedule schedule;
+#endif
   uint32_t preferences_revision = Settings::storage_revision();
   int64_t refresh_preferences = 0;
   while (true) {
@@ -146,7 +150,11 @@ void run(void *context) {
       ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1000));
       continue;
     }
-    if (!network.station_lease() || !clock_time_is_valid(std::time(nullptr))) {
+    if (!network.station_lease() || !clock_time_is_valid(std::time(nullptr))
+#if NATIVE_LEGACY_MIGRATION
+        || !firmware_boot_status().boot_verified
+#endif
+    ) {
       network.request_time_sync();
       ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1000));
       continue;
@@ -201,7 +209,11 @@ void run(void *context) {
       status = result;
     }
     if (automatic && !request)
-      schedule.checked(esp_timer_get_time(), std::string_view(result) != "unavailable");
+      schedule.checked(esp_timer_get_time(), std::string_view(result) != "unavailable"
+#if NATIVE_LEGACY_MIGRATION
+                       && std::string_view(result) != "failed"
+#endif
+      );
   }
 }
 

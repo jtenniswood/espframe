@@ -26,7 +26,7 @@ inline const esp_partition_t *other_esphome_slot(const esp_partition_t *running)
   return running->address == slot0->address ? slot1 : slot0;
 }
 
-inline bool is_esphome_app(const esp_partition_t *partition, const char *project) {
+inline bool partition_has_project(const esp_partition_t *partition, const char *project) {
   esp_app_desc_t app{};
   return partition && esp_ota_get_partition_description(partition, &app) == ESP_OK &&
          std::strncmp(app.project_name, project, sizeof(app.project_name)) == 0;
@@ -51,7 +51,7 @@ inline Readiness esphome_migration_readiness(const char *project, bool rollback_
   const auto *other = other_esphome_slot(running);
   if (!other || esp_ota_get_next_update_partition(nullptr) != other)
     return Readiness::UnsupportedLayout;
-  if (!is_esphome_app(running, project))
+  if (!partition_has_project(running, project))
     return Readiness::UnexpectedApp;
   if (!rollback_observed)
     return Readiness::UnverifiedRollback;
@@ -80,7 +80,7 @@ inline const esp_partition_t *other_esphome_v1_slot(const esp_partition_t *runni
 }
 
 inline bool is_v1_esphome_app(const esp_partition_t *partition) {
-  return is_esphome_app(partition, "immich-frame-10inch");
+  return partition_has_project(partition, "immich-frame-10inch");
 }
 
 inline const char *esphome_v1_trial_readiness(bool rollback_observed) {

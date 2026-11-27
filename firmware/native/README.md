@@ -643,10 +643,26 @@ it snapshots the current stock settings and fetches the pinned candidate.
 The snapshot stays on the device. The native build reads the retained Wi-Fi,
 Immich, and Home Assistant records and stores its settings in a separate NVS
 namespace. It confirms the boot after displaying an Immich photo and receiving
-a valid touch-controller report. A failed handoff leaves the one-time snapshot
-in place so the bridge cannot keep retrying on rollback. Frames with configured
-WireGuard stay on ESPHome. The public firmware feeds are separate from this
-test build.
+a valid touch-controller report. The bridge can retry transport failures on
+the same confirmed ESPHome boot. A rollback starts a new boot and the bridge
+requires a fresh rollback-capable ESPHome boot before it can migrate again.
+Frames with configured WireGuard stay on ESPHome.
+
+For the full private rehearsal, build
+`builds/guition-esp32-p4-jc8012p4a1.native-migration-rehearsal.yaml` with
+`firmware_manifest_url` pointing at a LAN ESPHome release manifest whose OTA
+entry is the bridge. Give the bridge a greater stable version and point its
+manifest at the same LAN URL. Load the stock-equivalent rehearsal factory
+image on the V1 and let its ordinary auto-update component install the bridge.
+
+Build the native candidates with distinct `NATIVE_PREVIEW_VERSION` values
+and the same `NATIVE_LEGACY_REHEARSAL_FEED` ending in `/`. The private feed
+uses the native preview index shape and SHA-256 verified app downloads.
+Expose the next candidate only after the previous boot is confirmed. The
+private build checks on a short cadence and allows a startup failure fixture
+with `NATIVE_LEGACY_REHEARSAL_FAIL=ON`. Keep the failure fixture on the test
+feed and verify that the previous app returns without repeatedly staging
+the rejected image. Public firmware feeds remain separate from the rehearsal.
 
 #### Test live Immich over Wi-Fi
 

@@ -1,0 +1,18 @@
+# V1 stock-equivalent starting point for a private automatic-update rehearsal.
+packages:
+  espframe: !include guition-esp32-p4-jc8012p4a1.yaml
+
+substitutions:
+  firmware_version: "v1.17.3"
+  firmware_manifest_url: "http://127.0.0.1/espframe-rehearsal.json"
+
+interval:
+  - interval: 15s
+    then:
+      - if:
+          condition:
+            and:
+              - wifi.connected:
+              - switch.is_on: auto_update_switch
+          then:
+            - update.check: firmware_update

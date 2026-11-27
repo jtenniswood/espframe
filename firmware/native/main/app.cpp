@@ -586,9 +586,8 @@ void run(void *) {
       vTaskDelete(nullptr);
       return;
     }
-#else
-    start_native_release_updates(network);
 #endif
+    start_native_release_updates(network);
   }
   static SlideLoader loader;
   if (!loader.start()) {

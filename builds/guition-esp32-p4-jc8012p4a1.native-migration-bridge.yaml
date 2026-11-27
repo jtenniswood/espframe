@@ -12,6 +12,20 @@ esphome:
   includes:
     - ../firmware/native/main/legacy_migration_storage.h
 
+globals:
+  - id: native_migration_attempts
+    type: unsigned
+    initial_value: '0'
+  - id: native_migration_in_progress
+    type: bool
+    initial_value: 'false'
+
+ota:
+  - id: !extend firmware_http_ota
+    on_error:
+      then:
+        - lambda: id(native_migration_in_progress) = false;
+
 interval:
   - interval: 15s
     then:
@@ -29,10 +43,9 @@ interval:
                         esphome_migration_readiness("${native_migration_project}",
                             id(native_migration_rollback_observed)) != Readiness::Ready)
                       return false;
-                    static bool attempted = false;
-                    if (attempted)
+                    if (id(native_migration_in_progress) || id(native_migration_attempts) >= 3)
                       return false;
-                    attempted = true;
+                    ++id(native_migration_attempts);
                     json::JsonBuilder builder;
                     JsonObject values = builder.root();
                     size_t field_count = 0;
@@ -61,10 +74,11 @@ interval:
                     }
                     const auto snapshot = builder.serialize();
                     if (!stage_migration_snapshot(snapshot.c_str())) {
-                      ESP_LOGW("native-migration", "Snapshot unavailable or migration already attempted");
+                      ESP_LOGW("native-migration", "Settings snapshot could not be saved");
                       return false;
                     }
-                    ESP_LOGI("native-migration", "Staged settings for automatic V1 handoff");
+                    id(native_migration_in_progress) = true;
+                    ESP_LOGI("native-migration", "Starting automatic V1 handoff attempt %u", id(native_migration_attempts));
                     return true;
                 then:
                   - ota.http_request.flash:

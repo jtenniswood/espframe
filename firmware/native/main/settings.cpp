@@ -911,14 +911,15 @@ bool Settings::import_esphome_migration() {
   if (!previous)
     return false;
   const bool first_boot = is_app_in_ota_state(running, ESP_OTA_IMG_PENDING_VERIFY);
-  if (first_boot && (!is_v1_esphome_app(previous) || !is_app_in_ota_state(previous, ESP_OTA_IMG_VALID) ||
-                     !esp_ota_check_rollback_is_possible()))
+  const bool migrating = first_boot && is_v1_esphome_app(previous);
+  if (first_boot && ((!migrating && !partition_has_project(previous, "espframe_legacy_v1")) ||
+                     !is_app_in_ota_state(previous, ESP_OTA_IMG_VALID) || !esp_ota_check_rollback_is_possible()))
     return false;
 
   const std::lock_guard lock(storage_mutex);
   Settings candidate;
   bool may_create = false;
-  if (!first_boot)
+  if (!migrating)
     return load(candidate);
   // Rebuild from the fresh bridge snapshot for each pending installation.
   // A previously failed trial may have written an older native document.

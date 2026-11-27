@@ -258,7 +258,7 @@ void start_firmware_boot_check() {
 }
 
 void confirm_firmware_boot() {
-#if !SWIPE_NATIVE_OTA_TEST_FAIL
+#if !SWIPE_NATIVE_OTA_TEST_FAIL && !NATIVE_LEGACY_REHEARSAL_FAIL
   if (!checking_boot.load() || !checking_boot.exchange(false))
     return;
   esp_timer_stop(boot_timer);

@@ -57,4 +57,13 @@ int main() {
   assert(disabled.due(hour));
   disabled.checked(hour, true);
   assert(!disabled.due(2 * hour - 1) && disabled.due(2 * hour));
+
+  NativeReleaseSchedule rehearsal{10, 5, 12};
+  rehearsal.configure(0, true, "Daily");
+  assert(!rehearsal.due(9) && rehearsal.due(10));
+  rehearsal.checked(10, false);
+  assert(!rehearsal.due(14) && rehearsal.due(15));
+  rehearsal.checked(15, true);
+  rehearsal.configure(16, true, "Weekly");
+  assert(!rehearsal.due(26) && rehearsal.due(27));
 }
