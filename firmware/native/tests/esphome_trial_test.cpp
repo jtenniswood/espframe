@@ -10,7 +10,9 @@
 #include <cstring>
 
 using espframe::native::start_esphome_trial;
+using espframe_native_ota::esphome_migration_readiness;
 using espframe_native_ota::esphome_v1_trial_readiness;
+using espframe_native_ota::Readiness;
 
 namespace {
 
@@ -159,4 +161,18 @@ int main() {
   assert(std::strcmp(esphome_v1_trial_readiness(true), "Unsupported V1 partition layout") == 0);
   fixture = {.running_project = "immich-frame-10inch-v2"};
   assert(std::strcmp(esphome_v1_trial_readiness(true), "Unexpected ESPHome app") == 0);
+
+  for (const auto *project : {"immich-frame-10inch", "immich-frame-10inch-v2", "immich-frame-10inch-v3"}) {
+    for (const unsigned running : {0u, 1u}) {
+      fixture = {.running = running, .running_project = project};
+      assert(esphome_migration_readiness(project, true) == Readiness::UnconfirmedApp);
+      fixture.running_state = ESP_OTA_IMG_VALID;
+      assert(esphome_migration_readiness(project, true) == Readiness::Ready);
+      assert(esphome_migration_readiness(project, false) == Readiness::UnverifiedRollback);
+      fixture.selected = &apps.at(1 - running);
+      assert(esphome_migration_readiness(project, true) == Readiness::StagedBoot);
+    }
+  }
+  fixture = {.running_project = "immich-frame-10inch-v3"};
+  assert(esphome_migration_readiness("immich-frame-10inch-v2", true) == Readiness::UnexpectedApp);
 }

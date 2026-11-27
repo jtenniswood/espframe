@@ -610,6 +610,18 @@ and the other OTA target. Read the result before any other reboot or
 update, since a normal reboot of a confirmed app cannot prove rollback.
 Keep the working ESPHome OTA binary and USB recovery available.
 
+#### Check boot readiness for automatic migration
+
+The optional `builds/guition-esp32-p4-jc8012p4a1[-v2|-v3].native-migration-readiness.yaml`
+builds exercise the same check on all three board revisions. Build the file
+matching the frame and use the same ESP-Hosted version as the installed
+ESPHome build. On a dedicated ESPHome test frame, upload just the diagnostic
+app over OTA and read **Native migration boot readiness** before rebooting
+again. **Ready** means the board's ESPHome app, flash layout and alternate OTA
+slot match, and this boot demonstrated rollback support and confirmed the app.
+The diagnostic build keeps running ESPHome. Settings compatibility and
+successful native startup still need separate checks before migration.
+
 #### Test live Immich over Wi-Fi
 
 For a V1 configured through the stock ESPHome installer, build the

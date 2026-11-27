@@ -1,0 +1,8 @@
+# Optional developer build. Upload only its app binary to the matching ESPHome display.
+packages:
+  espframe: !include guition-esp32-p4-jc8012p4a1-v2.yaml
+  native_migration_readiness: !include ../common/addon/native_migration_readiness.yaml
+
+substitutions:
+  firmware_version: "native-migration-readiness"
+  native_migration_project: "immich-frame-10inch-v2"
