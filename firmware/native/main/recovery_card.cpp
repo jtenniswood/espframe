@@ -10,9 +10,13 @@ namespace {
 constexpr int glyph_width = 32;
 constexpr int glyph_height = 36;
 constexpr int glyph_bytes = 1 + glyph_width * glyph_height / 2;
+constexpr uint16_t compact_mask = 0x8000;
+constexpr uint16_t glyph_sequence = 0x4000;
 constexpr uint16_t background = 0x1105;
 constexpr uint16_t muted = 0xaeb5;
 constexpr uint16_t white = 0xffff;
+constexpr uint16_t setup_background = 0x0000;
+constexpr uint16_t setup_muted = 0x8c51;
 
 enum class StatusLabel {
 #define ESPFRAME_STATUS_LABEL(name) name,
@@ -23,7 +27,10 @@ enum class StatusLabel {
 
 struct Line {
   int width{};
+  int height{};
   std::span<const uint8_t> runs;
+  bool compact{};
+  bool glyphs{};
 };
 
 bool rtl(StatusText text) {
@@ -31,32 +38,51 @@ bool rtl(StatusText text) {
          std::string_view{espframe_i18n_catalogue::LANGUAGES[text.language]} == "he";
 }
 
-Line line(StatusText text, StatusLabel label) {
+constexpr size_t label_count = static_cast<size_t>(StatusLabel::Count);
+constexpr size_t icon_index = label_count * espframe_i18n_catalogue::LANGUAGE_COUNT;
+constexpr size_t cog_icon_index = icon_index + 1;
+constexpr size_t address_glyph_start = cog_icon_index + 1;
+constexpr std::string_view address_characters = setup_address_characters;
+constexpr size_t setup_glyph_start = address_glyph_start + address_characters.size();
+constexpr std::string_view ssid_characters = recovery_ssid_characters;
+constexpr int setup_glyph_bearing = 4;
+
+Line line_at(StatusText text, size_t index) {
   constexpr size_t fingerprint_bytes = 32;
-  constexpr size_t label_count = static_cast<size_t>(StatusLabel::Count);
-  constexpr size_t table_size = fingerprint_bytes + 4 * (label_count * espframe_i18n_catalogue::LANGUAGE_COUNT + 1);
-  if (text.masks.size() < table_size || label == StatusLabel::Count)
+  constexpr size_t minimum_table_size = fingerprint_bytes + 4 * (setup_glyph_start + ssid_characters.size() + 1);
+  if (text.masks.size() < minimum_table_size)
     return {};
-  const size_t language = text.language < espframe_i18n_catalogue::LANGUAGE_COUNT ? text.language : 0;
   const auto offset = [&](size_t index) -> size_t {
     const auto *bytes = text.masks.data() + fingerprint_bytes + index * 4;
     return uint32_t{bytes[0]} | (uint32_t{bytes[1]} << 8) | (uint32_t{bytes[2]} << 16) | (uint32_t{bytes[3]} << 24);
   };
-  const size_t index = language * label_count + static_cast<size_t>(label);
+  const auto table_size = offset(0);
+  if (table_size < minimum_table_size || table_size > text.masks.size() ||
+      index + 1 >= (table_size - fingerprint_bytes) / 4)
+    return {};
   const size_t begin = offset(index);
   const size_t end = offset(index + 1);
-  if (begin < table_size || end <= begin || end - begin <= 2 || end > text.masks.size())
+  if (begin < table_size || end <= begin || end - begin <= 3 || end > text.masks.size())
     return {};
-  const int width = text.masks[begin] | (text.masks[begin + 1] << 8);
-  if (width <= 0 || width > 668)
+  const auto header = text.masks[begin] | (text.masks[begin + 1] << 8);
+  const int width = header & ~(compact_mask | glyph_sequence);
+  const int height = text.masks[begin + 2];
+  const int max_width = height == glyph_height ? 668 : 700;
+  if (width <= 0 || width > max_width || height <= 0 || height > 64)
     return {};
-  return {width, text.masks.subspan(begin + 2, end - begin - 2)};
+  return {width, height, text.masks.subspan(begin + 3, end - begin - 3), bool(header & compact_mask),
+          bool(header & glyph_sequence)};
 }
 
-uint16_t masked(uint16_t color, unsigned opacity) {
+Line line(StatusText text, StatusLabel label) {
+  const size_t language = text.language < espframe_i18n_catalogue::LANGUAGE_COUNT ? text.language : 0;
+  return line_at(text, language * label_count + static_cast<size_t>(label));
+}
+
+uint16_t masked(uint16_t color, unsigned opacity, uint16_t backdrop) {
   const auto channel = [opacity](unsigned from, unsigned to) { return (from * (15 - opacity) + to * opacity + 7) / 15; };
-  return static_cast<uint16_t>((channel(background >> 11, color >> 11) << 11) |
-      (channel((background >> 5) & 63, (color >> 5) & 63) << 5) | channel(background & 31, color & 31));
+  return static_cast<uint16_t>((channel(backdrop >> 11, color >> 11) << 11) |
+      (channel((backdrop >> 5) & 63, (color >> 5) & 63) << 5) | channel(backdrop & 31, color & 31));
 }
 
 const uint8_t *ascii_glyph(const uint8_t *atlas, unsigned char character) {
@@ -82,33 +108,70 @@ void ascii_text(uint16_t *frame, const uint8_t *atlas, ScreenRotation rotation, 
         const auto mask = glyph[row * (glyph_width / 2) + column / 2];
         const unsigned opacity = column % 2 ? mask & 15 : mask >> 4;
         if (opacity)
-          pixels[row * viewport.y_stride] = masked(white, opacity);
+          pixels[row * viewport.y_stride] = masked(white, opacity, background);
       }
     }
     x += advance;
   }
 }
 
-void localized_text(uint16_t *frame, Line line, ScreenRotation rotation, int x, int y, uint16_t color) {
+void localized_text(uint16_t *frame, Line line, ScreenRotation rotation, int x, int y, uint16_t color,
+                    uint16_t backdrop = background) {
   const Viewport viewport{rotation};
-  if (line.width <= 0 || x < 0 || x + line.width > viewport.width || y < 0 || y + glyph_height > viewport.height)
+  if (line.width <= 0 || x < 0 || x + line.width > viewport.width || y < 0 || y + line.height > viewport.height)
     return;
   size_t pixel = 0;
-  const size_t pixel_count = line.width * glyph_height;
+  const size_t pixel_count = line.width * line.height;
   for (const uint8_t run : line.runs) {
-    const unsigned opacity = run >> 4;
-    const size_t end = std::min(pixel + (run & 15) + 1, pixel_count);
+    const unsigned opacity = line.compact ? (run >> 6) * 5 : run >> 4;
+    const size_t end = std::min(pixel + (run & (line.compact ? 63 : 15)) + 1, pixel_count);
     if (opacity == 0) {
       pixel = end;
       continue;
     }
-    const uint16_t value = masked(color, opacity);
+    const uint16_t value = masked(color, opacity, backdrop);
     for (; pixel < end; ++pixel) {
       const int column = pixel % line.width;
       const int row = pixel / line.width;
       frame[viewport.offset(x + column, y + row)] = value;
     }
   }
+}
+
+int setup_advance(Line mask) { return std::max(0, mask.width - 2 * setup_glyph_bearing); }
+
+void draw_setup_glyphs(uint16_t *frame, StatusText text, ScreenRotation rotation, int x, int y, uint16_t color,
+                       std::span<const uint8_t> indices, size_t glyph_start) {
+  for (const auto index : indices) {
+    const auto glyph = line_at(text, glyph_start + index);
+    localized_text(frame, glyph, rotation, x - setup_glyph_bearing, y, color, setup_background);
+    x += setup_advance(glyph);
+  }
+}
+
+void centered_setup_value(uint16_t *frame, StatusText text, ScreenRotation rotation, std::string_view value,
+                          int y, uint16_t color, std::string_view characters, size_t glyph_start) {
+  std::array<uint8_t, sizeof("http://255.255.255.255")> indices;
+  size_t count = 0;
+  int width = 0;
+  for (const char character : value) {
+    const auto index = characters.find(character);
+    if (index != std::string_view::npos && count < indices.size()) {
+      indices[count++] = static_cast<uint8_t>(index);
+      width += setup_advance(line_at(text, glyph_start + index));
+    }
+  }
+  draw_setup_glyphs(frame, text, rotation, (Viewport{rotation}.width - width) / 2, y, color,
+                    {indices.data(), count}, glyph_start);
+}
+
+void centered_setup_line(uint16_t *frame, StatusText text, ScreenRotation rotation, Line message, int y,
+                         uint16_t color) {
+  const int x = (Viewport{rotation}.width - message.width) / 2;
+  if (message.glyphs)
+    draw_setup_glyphs(frame, text, rotation, x, y, color, message.runs, setup_glyph_start);
+  else
+    localized_text(frame, message, rotation, x, y, color, setup_background);
 }
 
 void card(uint16_t *frame, ScreenRotation rotation, int left, int top, int width, int height) {
@@ -140,6 +203,57 @@ void source_notice(uint16_t *frame, StatusText text, StatusLabel key, ScreenRota
 }
 
 }  // namespace
+
+void draw_wifi_setup(uint16_t *frame, StatusText text, const RecoveryNetwork &network, ScreenRotation rotation) {
+  const int center = Viewport{rotation}.height / 2;
+  std::fill_n(frame, pixel_count, setup_background);
+
+  // Match the original LVGL stack: 64px Wi-Fi icon, 46px title, 30px body,
+  // with a 20px gap between each of the three widgets.
+  const auto icon = line_at(text, icon_index);
+  const auto title = line(text, StatusLabel::wifi_setup_title);
+  const auto installer = line(text, StatusLabel::wifi_setup_installer);
+  const auto hotspot = line(text, StatusLabel::wifi_setup_hotspot);
+  const auto browser = line(text, StatusLabel::wifi_setup_browser);
+  constexpr int gap = 20;
+  const int body_height = 2 * installer.height + hotspot.height + browser.height;
+  const int top = center - (icon.height + title.height + body_height + 2 * gap) / 2;
+  centered_setup_line(frame, text, rotation, icon, top, white);
+  const int title_y = top + icon.height + gap;
+  centered_setup_line(frame, text, rotation, title, title_y, white);
+  const int body_y = title_y + title.height + gap;
+  centered_setup_line(frame, text, rotation, installer, body_y, setup_muted);
+  centered_setup_line(frame, text, rotation, hotspot, body_y + installer.height, setup_muted);
+  const int ssid_y = body_y + installer.height + hotspot.height;
+  centered_setup_value(frame, text, rotation, network.ssid.data(), ssid_y, setup_muted, ssid_characters,
+                       setup_glyph_start);
+  centered_setup_line(frame, text, rotation, browser, ssid_y + installer.height, setup_muted);
+}
+
+void draw_immich_setup(uint16_t *frame, StatusText text, std::string_view address, ScreenRotation rotation) {
+  const int center = Viewport{rotation}.height / 2;
+  std::fill_n(frame, pixel_count, setup_background);
+
+  const auto icon = line_at(text, cog_icon_index);
+  const auto title = line(text, StatusLabel::immich_setup);
+  const auto browser = line(text, StatusLabel::open_browser);
+  const auto first = line(text, StatusLabel::configure_immich_first);
+  const auto second = line(text, StatusLabel::configure_immich_second);
+  const int address_height = line_at(text, address_glyph_start).height;
+  constexpr int gap = 20;
+  const int height = icon.height + title.height + browser.height + address_height + first.height + second.height;
+  const int top = center - (height + 4 * gap) / 2;
+  centered_setup_line(frame, text, rotation, icon, top, white);
+  const int title_y = top + icon.height + gap;
+  centered_setup_line(frame, text, rotation, title, title_y, white);
+  const int browser_y = title_y + title.height + gap;
+  centered_setup_line(frame, text, rotation, browser, browser_y, setup_muted);
+  const int address_y = browser_y + browser.height + gap;
+  centered_setup_value(frame, text, rotation, address, address_y, white, address_characters, address_glyph_start);
+  const int instructions_y = address_y + address_height + gap;
+  centered_setup_line(frame, text, rotation, first, instructions_y, setup_muted);
+  centered_setup_line(frame, text, rotation, second, instructions_y + first.height, setup_muted);
+}
 
 void draw_recovery_card(uint16_t *frame, const uint8_t *atlas, StatusText text, const RecoveryNetwork &network,
                         ScreenRotation rotation) {

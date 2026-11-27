@@ -1,0 +1,54 @@
+:root { color-scheme: dark; }
+#sp-app { max-width: 640px; }
+.sp-brand-label { color: var(--text); }
+.sp-device-name { font-size: .875rem; }
+.sp-settings-wrap { padding: 24px 16px; }
+#networks { margin-bottom: 22px; }
+.network { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--border); }
+.network:last-child { border-bottom: 0; }
+.network-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+  padding: 12px 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: .875rem;
+  text-align: start;
+  cursor: pointer;
+}
+.network-left:hover { color: var(--accent-hover); }
+.network-left:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.network svg { flex-shrink: 0; fill: currentColor; color: var(--text2); }
+.network-ssid { overflow-wrap: anywhere; min-width: 0; }
+.setup-status { padding: 14px; margin-bottom: 20px; border: 1px solid var(--success); border-radius: 10px; background: var(--success-soft); font-size: .875rem; }
+.setup-status:empty { display: none; }
+.btn-block { min-height: 44px; }
+.saved-icon { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; margin-bottom: 20px; border-radius: 50%; background: var(--success-soft); color: var(--success); }
+.saved-icon svg { width: 24px; height: 24px; }
+#saved-heading { font-size: 1.25rem; margin-bottom: 24px; }
+.setup-steps { list-style: none; display: grid; gap: 18px; counter-reset: setup-step; }
+.setup-steps li { display: flex; align-items: flex-start; gap: 12px; font-size: .875rem; line-height: 1.6; }
+.setup-steps li::before {
+  counter-increment: setup-step;
+  content: counter(setup-step);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  font-size: .75rem;
+  font-weight: 600;
+}
+@media (max-width: 480px) {
+  .card { padding: 20px; }
+  .sp-settings-wrap { padding: 20px 12px; }
+}
