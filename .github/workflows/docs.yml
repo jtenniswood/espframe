@@ -60,6 +60,12 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: python3 scripts/native_preview_releases.py docs/.vitepress/dist/native-preview
 
+      - name: Stage stable native update feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python3 scripts/native_stable_releases.py stage docs/.vitepress/dist/native-stable
+
       - name: Upload docs artifact
         uses: actions/upload-artifact@v7
         with:

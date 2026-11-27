@@ -1,0 +1,143 @@
+substitutions:
+  native_migration_elf: ""
+
+esphome:
+  includes:
+    - ../firmware/native/main/legacy_migration_storage.h
+    - ../firmware/native/main/migration_bridge_state.h
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: |-
+            if (std::string_view("${native_migration_elf}").empty() ||
+                !id(native_migration_rollback_observed))
+              return;
+            if (!espframe_native_ota::save_bridge_rollback_proof())
+              ESP_LOGW("native-migration", "Could not record the pending bridge boot");
+
+globals:
+  - id: native_migration_attempts
+    type: unsigned
+    initial_value: '0'
+  - id: native_migration_last_attempt_ms
+    type: uint32_t
+    initial_value: '0'
+  - id: native_migration_in_progress
+    type: bool
+    initial_value: 'false'
+  - id: native_migration_status
+    type: const char *
+    initial_value: '"Waiting for Wi-Fi"'
+
+text_sensor:
+  - platform: template
+    name: "Native migration handoff"
+    entity_category: diagnostic
+    update_interval: 2s
+    lambda: return std::string(id(native_migration_status));
+
+ota:
+  - id: !extend firmware_http_ota
+    on_error:
+      then:
+        - lambda: |-
+            if (id(native_migration_in_progress)) {
+              id(native_migration_in_progress) = false;
+              id(native_migration_status) = "Native download failed";
+            }
+
+interval:
+  - interval: 15s
+    then:
+      - if:
+          condition:
+            wifi.connected:
+          then:
+            - if:
+                condition:
+                  lambda: |-
+                    using namespace espframe_native_ota;
+                    if (id(native_migration_in_progress))
+                      return false;
+                    constexpr std::string_view candidate_elf = "${native_migration_elf}";
+                    if (id(native_migration_attempts) >= 3) {
+                      constexpr uint32_t retry_delay_ms = 15U * 60 * 1000;
+                      if (candidate_elf.empty() || millis() - id(native_migration_last_attempt_ms) < retry_delay_ms)
+                        return false;
+                      id(native_migration_attempts) = 0;
+                    }
+                    if (!${native_migration_enabled} || !id(auto_update_switch).state) {
+                      id(native_migration_status) = "Automatic migration disabled";
+                      return false;
+                    }
+                    const auto *running = esp_ota_get_running_partition();
+                    const bool observed = id(native_migration_rollback_observed);
+                    const bool saved_proof = !candidate_elf.empty() && read_bridge_rollback_proof();
+                    if (esphome_migration_readiness("${native_migration_project}", observed || saved_proof) != Readiness::Ready) {
+                      id(native_migration_status) = "Waiting for boot readiness";
+                      return false;
+                    }
+                    if (!candidate_elf.empty()) {
+                      if (rejected_migration(other_esphome_slot(running), candidate_elf)) {
+                        id(native_migration_status) = "Native candidate rolled back";
+                        return false;
+                      }
+                      if (!saved_proof && !save_bridge_rollback_proof()) {
+                        id(native_migration_status) = "Could not save boot readiness";
+                        return false;
+                      }
+                      id(native_migration_rollback_observed) = true;
+                    }
+                    if (id(backlight_manual_off) || id(screen_schedule_asleep)) {
+                      id(native_migration_status) = "Waiting for the display to wake";
+                      return false;
+                    }
+                    if (!id(espframe_core).slideshow().state().active_slot_displayed) {
+                      id(native_migration_status) = "Waiting for an Immich photo";
+                      return false;
+                    }
+                    ++id(native_migration_attempts);
+                    id(native_migration_last_attempt_ms) = millis();
+                    json::JsonBuilder builder;
+                    JsonObject values = builder.root();
+                    size_t field_count = 0;
+                    for (const auto &field : esphome::espframe::contract::CONFIGURATION_FIELDS) {
+                      if (field.secret)
+                        continue;
+                      if (!esphome::espframe::ConfigurationApiHandler::write_public_field(values, field)) {
+                        id(native_migration_status) = "Could not read saved settings";
+                        ESP_LOGW("native-migration", "Settings snapshot missing %s", field.key);
+                        return false;
+                      }
+                      ++field_count;
+                    }
+                    // Keep tunnel-based connections on ESPHome until their
+                    // private configuration can be transferred and verified.
+                    if (values["wireguard_enabled"].as<bool>() || !id(wireguard_private_key_value).empty() ||
+                        !id(wireguard_endpoint).state.empty() || !id(wireguard_address).state.empty() ||
+                        !id(wireguard_peer_public_key).state.empty() || !id(wireguard_allowed_ips).state.empty() ||
+                        id(wireguard_netmask).state != "255.255.255.255" ||
+                        id(wireguard_port).state != 51820) {
+                      id(native_migration_status) = "Configured WireGuard stays on ESPHome";
+                      ESP_LOGW("native-migration", "Configured WireGuard stays on ESPHome");
+                      return false;
+                    }
+                    if (values.size() != field_count || !global_preferences->sync()) {
+                      id(native_migration_status) = "Could not synchronize saved settings";
+                      ESP_LOGW("native-migration", "Settings snapshot could not be synchronized");
+                      return false;
+                    }
+                    const auto snapshot = builder.serialize();
+                    if (!stage_migration_snapshot(snapshot.c_str())) {
+                      id(native_migration_status) = "Could not save the migration snapshot";
+                      ESP_LOGW("native-migration", "Settings snapshot could not be saved");
+                      return false;
+                    }
+                    id(native_migration_in_progress) = true;
+                    id(native_migration_status) = "Downloading native firmware";
+                    ESP_LOGI("native-migration", "Starting automatic native handoff attempt %u", id(native_migration_attempts));
+                    return true;
+                then:
+                  - ota.http_request.flash:
+                      url: "${native_migration_url}"
+                      md5: "${native_migration_md5}"

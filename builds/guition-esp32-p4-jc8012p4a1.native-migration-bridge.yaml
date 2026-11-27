@@ -1,0 +1,10 @@
+# Private V1 migration test. The default build keeps the handoff disabled.
+packages:
+  espframe: !include guition-esp32-p4-jc8012p4a1.native-migration-readiness.yaml
+  native_migration_bridge: !include ../common/addon/native_migration_bridge.yaml
+
+substitutions:
+  firmware_version: "native-migration-bridge"
+  native_migration_enabled: "false"
+  native_migration_url: "http://127.0.0.1/espframe_legacy_v1.bin"
+  native_migration_md5: "00000000000000000000000000000000"

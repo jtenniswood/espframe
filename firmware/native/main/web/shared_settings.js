@@ -290,49 +290,49 @@
   }
 
   // docs/webserver/src/native_firmware.ts
-  var T = "/api/firmware/releases";
-  var S = /^v\d+\.\d+\.\d+-preview\.\d+$/;
+  var P = "/api/firmware/releases";
+  var S = /^v\d+\.\d+\.\d+(?:-preview\.\d+)?$/;
   var A = {
     checking: "Checking for updates\u2026",
-    unavailable: "Could not check for Native Preview releases.",
+    unavailable: "Could not check for native firmware releases.",
     installing: "Downloading and installing firmware\u2026",
     restarting: "Waiting for the frame to restart\u2026",
     failed: "The frame could not install that release."
   };
-  function j(s2, c2) {
-    if (!S.test(c2)) return false;
-    const b = (e) => e.match(/\d+/g).map(Number), v = b(c2);
-    for (const [e, a] of b(s2).entries())
-      if (a !== v[e]) return a > v[e];
+  function j(s2, r) {
+    if (!S.test(r) || s2.includes("-preview.") !== r.includes("-preview.")) return false;
+    const b = (e) => e.match(/\d+/g).map(Number), v = b(r);
+    for (const [e, i] of b(s2).entries())
+      if (i !== v[e]) return i > v[e];
     return false;
   }
   function nativeFirmwarePanel() {
-    const s2 = el("div", "native-firmware"), c2 = (t) => {
-      const n = el("div", "fw-row"), i = el("span", "fw-label");
-      return i.textContent = "\u2014", n.append(t, i), s2.append(n), i;
-    }, b = c2("Current"), v = c2("Available"), e = el("p", "fw-status");
+    const s2 = el("div", "native-firmware"), r = (t) => {
+      const n = el("div", "fw-row"), a = el("span", "fw-label");
+      return a.textContent = "\u2014", n.append(t, a), s2.append(n), a;
+    }, b = r("Current"), v = r("Available"), e = el("p", "fw-status");
     e.setAttribute("role", "status");
-    const a = button("Check for Update", "btn btn-secondary btn-sm"), d = button("Install Update", "btn btn-primary btn-sm"), h = button("Install version", "btn btn-secondary btn-sm"), P = el("div", "fw-actions");
-    P.append(a, d), s2.append(P);
+    const i = button("Check for Update", "btn btn-secondary btn-sm"), d = button("Install Update", "btn btn-primary btn-sm"), h = button("Install version", "btn btn-secondary btn-sm"), T = el("div", "fw-actions");
+    T.append(i, d), s2.append(T);
     const w = field("Previous versions"), u2 = el("select", "select");
     u2.setAttribute("aria-label", "Previous versions"), w.append(u2, h), s2.append(w, e);
-    let r = "", f2 = false, m, p2 = "";
+    let o = "", f2 = false, m, p2 = "";
     function C() {
-      a.disabled = true, d.hidden = true, w.hidden = true;
+      i.disabled = true, d.hidden = true, w.hidden = true;
     }
     function _(t) {
-      b.textContent = t.current || "Unknown", r = t.versions[0] || "", v.textContent = r || "\u2014";
-      const n = ["checking", "installing", "restarting"].includes(t.status), i = r && j(r, t.current);
-      a.disabled = !t.available || n || f2, d.hidden = !i, d.disabled = a.disabled;
-      const y = t.versions.filter((o) => o !== t.current && !(i && o === r)), R = Array.from(u2.options, (o) => o.value);
-      y.join("|") !== R.join("|") && u2.replaceChildren(...y.map((o) => new Option(o))), w.hidden = !y.length, h.disabled = a.disabled, p2 && p2 === t.current ? (e.textContent = "Firmware updated.", p2 = "") : e.textContent = A[t.status] || (t.available ? "" : "Release updates require a versioned Native Preview.");
+      b.textContent = t.current || "Unknown", o = t.versions[0] || "", v.textContent = o || "\u2014";
+      const n = ["checking", "installing", "restarting"].includes(t.status), a = o && j(o, t.current);
+      i.disabled = !t.available || n || f2, d.hidden = !a, d.disabled = i.disabled;
+      const y = t.versions.filter((l) => l !== t.current && !(a && l === o)), R = Array.from(u2.options, (l) => l.value);
+      y.join("|") !== R.join("|") && u2.replaceChildren(...y.map((l) => new Option(l))), w.hidden = !y.length, h.disabled = i.disabled, p2 && p2 === t.current ? (e.textContent = "Firmware updated.", p2 = "") : e.textContent = A[t.status] || (t.available ? "" : "Release updates require a versioned native build.");
     }
     async function g() {
       try {
-        const t = await fetch(T, { cache: "no-store", signal: AbortSignal.timeout(2500) });
+        const t = await fetch(P, { cache: "no-store", signal: AbortSignal.timeout(2500) });
         if (!t.ok) throw new Error("release_status_unavailable");
         const n = await t.json();
-        n.versions = Array.isArray(n.versions) ? n.versions.filter((i) => S.test(i)) : [], _(n);
+        n.versions = Array.isArray(n.versions) ? n.versions.filter((a) => S.test(a)) : [], _(n);
       } catch (t) {
         C(), e.textContent = p2 ? "Waiting for the frame to come back\u2026" : "Firmware release information is unavailable.";
       } finally {
@@ -343,7 +343,7 @@
       if (!f2) {
         f2 = true, window.clearTimeout(m), C(), e.textContent = t ? A.installing : A.checking;
         try {
-          if (!(await fetch(T, {
+          if (!(await fetch(P, {
             method: "POST",
             headers: { "Content-Type": "text/plain" },
             body: t,
@@ -355,10 +355,10 @@
         }
       }
     }
-    return a.onclick = () => {
+    return i.onclick = () => {
       k("");
     }, d.onclick = () => {
-      k(r);
+      k(o);
     }, h.onclick = () => {
       k(u2.value);
     }, C(), g(), s2;

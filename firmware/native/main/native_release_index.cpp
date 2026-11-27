@@ -27,13 +27,12 @@ std::optional<FirmwareDigest> read_digest(const cJSON *field) {
   return digest;
 }
 
-}  // namespace
-
-std::optional<PreviewVersion> parse_preview_version(std::string_view version) {
+template <size_t Count>
+std::optional<PreviewVersion> parse_release_version(std::string_view version,
+                                                    const std::array<std::string_view, Count> &separators) {
   if (!version.starts_with('v') || version.size() > 31)
     return {};
   version.remove_prefix(1);
-  constexpr std::array<std::string_view, 4> separators{".", ".", "-preview.", ""};
   PreviewVersion numbers{};
   for (size_t i = 0; i < separators.size(); ++i) {
     const auto separator = separators[i];
@@ -48,7 +47,17 @@ std::optional<PreviewVersion> parse_preview_version(std::string_view version) {
   return numbers;
 }
 
-std::optional<std::vector<NativeRelease>> read_release_index(std::string_view json, std::string_view board) {
+}  // namespace
+
+std::optional<PreviewVersion> parse_preview_version(std::string_view version) {
+  return parse_release_version(version, std::array<std::string_view, 4>{".", ".", "-preview.", ""});
+}
+
+std::optional<PreviewVersion> parse_stable_version(std::string_view version) {
+  return parse_release_version(version, std::array<std::string_view, 3>{".", ".", ""});
+}
+
+std::optional<std::vector<NativeRelease>> read_release_index(std::string_view json, std::string_view board, bool stable) {
   if (json.empty() || json.size() > max_release_index_bytes || json.find('\0') != std::string_view::npos ||
       json.find("\\u0000") != std::string_view::npos)
     return {};
@@ -66,10 +75,11 @@ std::optional<std::vector<NativeRelease>> read_release_index(std::string_view js
     return {};
   std::vector<NativeRelease> releases;
   std::optional<PreviewVersion> previous;
+  const auto parse = stable ? parse_stable_version : parse_preview_version;
   const cJSON *entry;
   cJSON_ArrayForEach(entry, versions) {
     const auto *version = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(entry, "version"));
-    const auto parsed = version ? parse_preview_version(version) : std::nullopt;
+    const auto parsed = version ? parse(version) : std::nullopt;
     const auto *size = cJSON_GetObjectItemCaseSensitive(entry, "size");
     const auto sha256 = read_digest(cJSON_GetObjectItemCaseSensitive(entry, "sha256"));
     const auto elf_sha256 = read_digest(cJSON_GetObjectItemCaseSensitive(entry, "elf_sha256"));

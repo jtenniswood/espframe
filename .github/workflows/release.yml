@@ -118,6 +118,48 @@ jobs:
           restore-keys: |
             ${{ needs.release-metadata.outputs.release_esphome_cache_key_prefix }}-${{ matrix.slug }}-
 
+      - name: Build legacy-layout native firmware
+        env:
+          NATIVE_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('v0.{0}.{1}', github.run_number, github.run_attempt) }}
+          DEVICE_SLUG: ${{ matrix.slug }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$NATIVE_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            exit 0
+          fi
+          case "$DEVICE_SLUG" in
+            immich-frame) board=v1 ;;
+            immich-frame-v2) board=v2 ;;
+            immich-frame-v3) board=v3 ;;
+            *) exit 1 ;;
+          esac
+          mkdir -p output
+          native_volume="espframe-native-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$board"
+          native_container=""
+          cleanup_native_build() {
+            if [ -n "$native_container" ]; then
+              docker rm -f "$native_container" >/dev/null 2>&1 || true
+            fi
+            docker volume rm "$native_volume" >/dev/null 2>&1 || true
+          }
+          trap cleanup_native_build EXIT
+          docker volume create "$native_volume" >/dev/null
+          native_container=$(docker create \
+            --mount "type=volume,source=$native_volume,target=/workspace" -w /workspace espressif/idf:v6.1.1 \
+            idf.py -C firmware/native -B /workspace/native-build -D "SWIPE_BOARD=$board" \
+            -D NATIVE_LEGACY_MIGRATION=ON -D "NATIVE_STABLE_VERSION=$NATIVE_VERSION" build)
+          git archive "$GITHUB_SHA" | docker cp - "$native_container:/workspace"
+          docker start -a "$native_container"
+          asset="$board-legacy-native.bin"
+          docker cp "$native_container:/workspace/native-build/espframe_legacy_$board.bin" "output/$asset"
+          pins=$(python3 scripts/native_stable_releases.py pins "output/$asset" "$board" "$NATIVE_VERSION")
+          read -r checksum fingerprint <<< "$pins"
+          {
+            echo "MIGRATION_URL=https://github.com/$GITHUB_REPOSITORY/releases/download/$NATIVE_VERSION/$asset"
+            echo "MIGRATION_MD5=$checksum"
+            echo "MIGRATION_ELF=$fingerprint"
+          } >> "$GITHUB_ENV"
+
       - name: Compile firmware
         env:
           VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('v0.0.0-candidate.{0}.{1}', github.run_id, github.run_attempt) }}
@@ -158,6 +200,12 @@ jobs:
             local binary_name="$3"
             local log_file="output/${{ matrix.slug }}.${profile}.log"
             local output_binary="output/${{ matrix.slug }}.${profile}.bin"
+            local -a migration=()
+            if [ "$profile" = ota ] && [ -n "${MIGRATION_URL:-}" ]; then
+              config_file="${config_file%.yaml}.native-migration-bridge.yaml"
+              migration=(-s native_migration_enabled true -s native_migration_url "$MIGRATION_URL"
+                -s native_migration_md5 "$MIGRATION_MD5" -s native_migration_elf "$MIGRATION_ELF")
+            fi
             local container
             container=$(docker create \
               --user "$(id -u):$(id -g)" \
@@ -167,7 +215,7 @@ jobs:
               "${image}" \
               -s firmware_version "${VERSION}" \
               -s espframe_component_url "file://${ESPHOME_CONFIG_MOUNT}" \
-              -s espframe_component_ref HEAD \
+              -s espframe_component_ref HEAD "${migration[@]}" \
               compile "${ESPHOME_CONFIG_MOUNT}/builds/${config_file}")
 
             cleanup_container() {
@@ -294,29 +342,48 @@ jobs:
       - name: Collect release assets
         shell: bash
         run: |
-          mkdir firmware
-          cp board-builds/*.manifest.json board-builds/*.factory.bin board-builds/*.ota.bin firmware/
+          mkdir -p release-candidate/firmware
+          cp board-builds/*.manifest.json board-builds/*.factory.bin board-builds/*.ota.bin release-candidate/firmware/
 
       - name: Verify assembled release assets
+        working-directory: release-candidate
         env:
           VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('v0.0.0-candidate.{0}.{1}', github.run_id, github.run_attempt) }}
           DEVICE_SLUGS: ${{ needs.release-metadata.outputs.device_slugs }}
         run: >-
-          python3 scripts/firmware_release.py verify-directory
+          python3 ../scripts/firmware_release.py verify-directory
           --version "${VERSION}"
           --dir firmware
           --exact
           --source-commit "$GITHUB_SHA"
           --slugs $DEVICE_SLUGS
 
+      - name: Verify legacy native candidates
+        env:
+          NATIVE_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('v0.{0}.{1}', github.run_number, github.run_attempt) }}
+        run: |
+          if [[ "$NATIVE_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            mkdir native
+            cp board-builds/*-legacy-native.bin native/
+            python3 scripts/native_stable_releases.py verify-bridges release-candidate/firmware native "$GITHUB_REPOSITORY" "$NATIVE_VERSION"
+          fi
+
       - name: Upload verified firmware candidate
         uses: actions/upload-artifact@v7
         with:
           name: verified-firmware-candidate
           path: |
-            firmware/*.manifest.json
-            firmware/*.factory.bin
-            firmware/*.ota.bin
+            release-candidate/firmware/*.manifest.json
+            release-candidate/firmware/*.factory.bin
+            release-candidate/firmware/*.ota.bin
+          if-no-files-found: error
+
+      - name: Upload verified stable native candidate
+        if: ${{ github.ref_type != 'tag' || !contains(github.ref_name, '-') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: verified-stable-native-candidate
+          path: native/*-legacy-native.bin
           if-no-files-found: error
 
   publish:
@@ -343,6 +410,13 @@ jobs:
           name: verified-firmware-candidate
           path: firmware
 
+      - name: Download verified stable native candidate
+        if: ${{ !contains(github.ref_name, '-') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: verified-stable-native-candidate
+          path: native
+
       - name: Verify assembled release assets
         env:
           VERSION: ${{ github.ref_name }}
@@ -368,6 +442,18 @@ jobs:
           VERSION: ${{ github.ref_name }}
         run: gh release upload "$VERSION" firmware/* --clobber
 
+      - name: Upload native firmware to release
+        if: ${{ !contains(github.ref_name, '-') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          git show HEAD:scripts/native_stable_releases.py > "$RUNNER_TEMP/native_stable_releases.py"
+          python3 "$RUNNER_TEMP/native_stable_releases.py" verify native "$VERSION"
+          gh release upload "$VERSION" native/*-legacy-native.bin --clobber
+
       - name: Verify uploaded release assets
         env:
           GH_TOKEN: ${{ github.token }}
@@ -390,6 +476,14 @@ jobs:
           for asset in firmware/*; do
             cmp "$asset" "published/${asset##*/}"
           done
+          if [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            mkdir published-native
+            gh release download "$VERSION" --pattern "v[123]-legacy-native.bin" --dir published-native
+            python3 "$RUNNER_TEMP/native_stable_releases.py" verify published-native "$VERSION"
+            for asset in native/*-legacy-native.bin; do
+              cmp "$asset" "published-native/${asset##*/}"
+            done
+          fi
 
       - name: Publish verified draft
         env:

@@ -28,10 +28,16 @@ constexpr size_t header_bytes = sizeof(esp_image_header_t) + sizeof(esp_image_se
 constexpr size_t prelude_bytes = header_bytes + sizeof(esp_app_desc_t);
 constexpr size_t buffer_size = 4096;
 constexpr int64_t upload_time_us = 90'000'000;
+#if NATIVE_LEGACY_MIGRATION
+constexpr int64_t trial_time_us = 90'000'000;
+#else
 constexpr int64_t trial_time_us = 15'000'000;
+#endif
 static_assert(prelude_bytes <= buffer_size);
 
-#if SWIPE_NATIVE_OTA_TEST
+#if NATIVE_LEGACY_MIGRATION
+constexpr std::string_view expected_project = "espframe_legacy_" NATIVE_BOARD;
+#elif SWIPE_NATIVE_OTA_TEST
 constexpr std::string_view expected_project = "espframe_ota_test_" NATIVE_BOARD;
 #else
 constexpr std::string_view expected_project = "espframe_native_" NATIVE_BOARD;
@@ -179,6 +185,11 @@ FirmwareUpdateResult stage_firmware(size_t length, FirmwareRead read, void *cont
   return Result::Staged;
 }
 
+void reject_pending_firmware_boot() {
+  if (checking_boot.exchange(false))
+    reject_boot();
+}
+
 FirmwareBootStatus firmware_boot_status() {
   const auto *running = esp_ota_get_running_partition();
   const auto *inactive = esp_ota_get_next_update_partition(running);
@@ -247,7 +258,7 @@ void start_firmware_boot_check() {
 }
 
 void confirm_firmware_boot() {
-#if !SWIPE_NATIVE_OTA_TEST_FAIL
+#if !SWIPE_NATIVE_OTA_TEST_FAIL && !NATIVE_LEGACY_REHEARSAL_FAIL
   if (!checking_boot.load() || !checking_boot.exchange(false))
     return;
   esp_timer_stop(boot_timer);

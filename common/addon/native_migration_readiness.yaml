@@ -1,0 +1,27 @@
+# Diagnostic only. A normal reboot cannot prove that the bootloader supports OTA rollback.
+esphome:
+  includes:
+    - ../firmware/native/main/esphome_v1_layout.h
+  on_boot:
+    - priority: 1100
+      then:
+        - lambda: |-
+            id(native_migration_rollback_observed) = espframe_native_ota::is_app_in_ota_state(
+                esp_ota_get_running_partition(), ESP_OTA_IMG_PENDING_VERIFY);
+
+globals:
+  - id: native_migration_rollback_observed
+    type: bool
+    initial_value: 'false'
+    restore_value: false
+
+text_sensor:
+  - platform: template
+    name: "Native migration boot readiness"
+    entity_category: diagnostic
+    update_interval: 2s
+    lambda: |-
+      const auto readiness = espframe_native_ota::esphome_migration_readiness(
+          "${native_migration_project}", id(native_migration_rollback_observed));
+      return std::string(espframe_native_ota::esphome_readiness_message(
+          readiness, "Unsupported ESPHome partition layout"));

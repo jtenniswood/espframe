@@ -1,7 +1,7 @@
 import { button, el, field } from "./shared_controls";
 
 const releasesPath = "/api/firmware/releases";
-const versionPattern = /^v\d+\.\d+\.\d+-preview\.\d+$/;
+const versionPattern = /^v\d+\.\d+\.\d+(?:-preview\.\d+)?$/;
 interface ReleaseStatus {
   current: string;
   versions: string[];
@@ -11,14 +11,14 @@ interface ReleaseStatus {
 
 const messages: Record<string, string> = {
   checking: "Checking for updates…",
-  unavailable: "Could not check for Native Preview releases.",
+  unavailable: "Could not check for native firmware releases.",
   installing: "Downloading and installing firmware…",
   restarting: "Waiting for the frame to restart…",
   failed: "The frame could not install that release.",
 };
 
 function newer(candidate: string, current: string): boolean {
-  if (!versionPattern.test(current)) return false;
+  if (!versionPattern.test(current) || candidate.includes("-preview.") !== current.includes("-preview.")) return false;
   const parts = (version: string) => version.match(/\d+/g)!.map(Number);
   const installed = parts(current);
   for (const [index, number] of parts(candidate).entries()) {
@@ -84,7 +84,7 @@ export function nativeFirmwarePanel(): HTMLElement {
       status.textContent = "Firmware updated.";
       target = "";
     } else {
-      status.textContent = messages[release.status] || (release.available ? "" : "Release updates require a versioned Native Preview.");
+      status.textContent = messages[release.status] || (release.available ? "" : "Release updates require a versioned native build.");
     }
   }
 

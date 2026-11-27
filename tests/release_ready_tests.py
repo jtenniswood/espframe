@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import sys
 import subprocess
@@ -16,6 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import check_release_ready  # noqa: E402
+import native_stable_releases  # noqa: E402
 from script_test_discovery import run_discovered_tests  # noqa: E402
 
 
@@ -170,6 +172,55 @@ def test_failed_compile_skips_budget_checks_for_stale_binaries() -> None:
     with patch.object(check_release_ready, "run", fail_compile):
         assert not check_release_ready.compile_firmware()
     assert len(commands) == 2 * len(check_release_ready.release_matrix_devices())
+
+
+def test_stable_native_feed_requires_matching_board_images() -> None:
+    with tempfile.TemporaryDirectory() as temp:
+        root = Path(temp)
+        source = root / "source"
+        source.mkdir()
+        version = "v1.18.0"
+        for board, filename in native_stable_releases.ASSETS.items():
+            image = bytearray(288)
+            image[0] = 0xE9
+            image[12] = 0x12
+            image[23] = 1
+            image[32:36] = bytes.fromhex("3254cdab")
+            image[48:48 + len(version)] = version.encode()
+            project = f"espframe_legacy_{board}".encode()
+            image[80:80 + len(project)] = project
+            image[176] = 1
+            (source / filename).write_bytes(image)
+        bridges = root / "bridges"
+        bridges.mkdir()
+        repository = "test-owner/espframe"
+        for board, filename in native_stable_releases.ASSETS.items():
+            image = (source / filename).read_bytes()
+            pins = (f"https://github.com/{repository}/releases/download/{version}/{filename}",
+                    hashlib.md5(image).hexdigest(), image[176:208].hex())
+            bridge = bridges / f"{native_stable_releases.ESP_HOME_SLUGS[board]}.ota.bin"
+            bridge.write_bytes(b"\0".join(pin.encode() for pin in pins) + b"\0")
+        native_stable_releases.verify_bridges(bridges, source, repository, version)
+        bridge.write_bytes(b"legacy ESPHome image")
+        try:
+            native_stable_releases.verify_bridges(bridges, source, repository, version)
+        except ValueError as exc:
+            assert "does not pin" in str(exc)
+        else:
+            raise AssertionError("A stock ESPHome build was accepted as a migration bridge")
+        indexes = {board: [] for board in native_stable_releases.BOARDS}
+        output = root / "feed"
+        native_stable_releases.stage_release(source, output, version, indexes)
+        assert all(entries[0]["version"] == version for entries in indexes.values())
+        assert (output / version / "v2-ota.bin").read_bytes() == (source / "v2-legacy-native.bin").read_bytes()
+        (source / "v2-legacy-native.bin").write_bytes((source / "v1-legacy-native.bin").read_bytes())
+        try:
+            native_stable_releases.stage_release(source, root / "invalid", version, indexes)
+        except ValueError as exc:
+            assert "v2 OTA image" in str(exc)
+        else:
+            raise AssertionError("A V1 image under the V2 asset name was accepted")
+        assert not (root / "invalid").exists()
 
 
 def main() -> int:

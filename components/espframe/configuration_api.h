@@ -70,6 +70,10 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
     this->send_configuration_(request);
   }
 
+  static bool write_public_field(JsonObject values, const contract::ConfigurationField &field) {
+    return !field.secret && write_field_value_(values, field);
+  }
+
  protected:
   enum class PendingDomain : uint8_t { SELECT, NUMBER, SWITCH, TEXT };
 
@@ -164,7 +168,7 @@ class ConfigurationApiHandler final : public AsyncWebHandler {
     return nullptr;
   }
 
-  bool write_field_value_(JsonObject values, const contract::ConfigurationField &field) const {
+  static bool write_field_value_(JsonObject values, const contract::ConfigurationField &field) {
     // Secret fields remain writable through the versioned API but are never
     // serialized into its response.
     if (field.secret) {

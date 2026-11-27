@@ -60,7 +60,16 @@ set(project_contract "${repo_root}/product/contract/project.json")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${project_contract}")
 file(READ "${project_contract}" project_metadata)
 string(JSON public_base_url GET "${project_metadata}" public_base_url)
-target_compile_definitions(${COMPONENT_LIB} PRIVATE NATIVE_RELEASE_FEED="${public_base_url}/native-preview/")
+set(native_release_feed "${public_base_url}/native-preview/")
+if(NATIVE_LEGACY_REHEARSAL_FEED)
+    set(native_release_feed "${NATIVE_LEGACY_REHEARSAL_FEED}")
+elseif(NATIVE_STABLE_VERSION)
+    set(native_release_feed "${public_base_url}/native-stable/")
+endif()
+target_compile_definitions(${COMPONENT_LIB} PRIVATE NATIVE_RELEASE_FEED="${native_release_feed}"
+  NATIVE_STABLE_RELEASE=$<BOOL:${NATIVE_STABLE_VERSION}>
+  NATIVE_LEGACY_REHEARSAL=$<BOOL:${NATIVE_LEGACY_REHEARSAL_FEED}>
+  NATIVE_LEGACY_REHEARSAL_FAIL=$<BOOL:${NATIVE_LEGACY_REHEARSAL_FAIL}>)
 
 set(device_catalog "${repo_root}/product/contract/devices.json")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${device_catalog}")
@@ -76,6 +85,7 @@ else()
     target_compile_definitions(${COMPONENT_LIB} PRIVATE SWIPE_EARLY_P4=1)
 endif()
 target_compile_definitions(${COMPONENT_LIB} PRIVATE NATIVE_BOARD="${SWIPE_BOARD}" SWIPE_TRACE=$<BOOL:${SWIPE_TRACE}>
+                                                   NATIVE_LEGACY_MIGRATION=$<BOOL:${NATIVE_LEGACY_MIGRATION}>
                                                    SWIPE_LINKED_SCANOUT=$<BOOL:${SWIPE_LINKED_SCANOUT}>
                                                    NATIVE_HOSTNAME="${default_hostname}" NATIVE_FRIENDLY_NAME="${default_friendly_name}"
                                                    SWIPE_ESPHOME_TRIAL=$<BOOL:${SWIPE_ESPHOME_TRIAL}>

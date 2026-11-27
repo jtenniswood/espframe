@@ -612,6 +612,60 @@ and the other OTA target. Read the result before any other reboot or
 update, since a normal reboot of a confirmed app cannot prove rollback.
 Keep the working ESPHome OTA binary and USB recovery available.
 
+#### Check boot readiness for automatic migration
+
+The optional `builds/guition-esp32-p4-jc8012p4a1[-v2|-v3].native-migration-readiness.yaml`
+builds exercise the same check on all three board revisions. Build the file
+matching the frame and use the same ESP-Hosted version as the installed
+ESPHome build. On a dedicated ESPHome test frame, upload just the diagnostic
+app over OTA and read **Native migration boot readiness** before rebooting
+again. **Ready** means the board's ESPHome app, flash layout and alternate OTA
+slot match, and this boot demonstrated rollback support and confirmed the app.
+The diagnostic build keeps running ESPHome. Settings compatibility and
+successful native startup still need separate checks before migration.
+
+#### Test the automatic V1 handoff locally
+
+Build an app for the legacy ESPHome slots with ESP-IDF:
+
+```sh
+idf.py -C firmware/native -B firmware/native/build/legacy-v1 \
+  -D SWIPE_BOARD=v1 -D NATIVE_LEGACY_MIGRATION=ON build
+```
+
+Serve `espframe_legacy_v1.bin` from a test host on the frame's network. Build
+`builds/guition-esp32-p4-jc8012p4a1.native-migration-bridge.yaml` with
+`native_migration_enabled=true`, the local `native_migration_url`, and the
+candidate's `native_migration_md5`. Use an OTA app upload for the bridge on the
+dedicated V1 running stock ESPHome. Keep the original firmware and USB
+recovery available.
+
+The bridge checks Auto Update, active playback, and rollback readiness before
+it snapshots the current stock settings and fetches the pinned candidate.
+The snapshot stays on the device. The native build reads the retained Wi-Fi,
+Immich, and Home Assistant records and stores its settings in a separate NVS
+namespace. It confirms the boot after displaying an Immich photo and receiving
+a valid touch-controller report. The bridge can retry transport failures on
+the same confirmed ESPHome boot. A rollback starts a new boot and the bridge
+requires a fresh rollback-capable ESPHome boot before it can migrate again.
+Frames with configured WireGuard stay on ESPHome.
+
+For the full private rehearsal, build
+`builds/guition-esp32-p4-jc8012p4a1.native-migration-rehearsal.yaml` with
+`firmware_manifest_url` pointing at a LAN ESPHome release manifest whose OTA
+entry is the bridge. Give the bridge a greater stable version and point its
+manifest at the same LAN URL. Load the stock-equivalent rehearsal factory
+image on the V1 and let its ordinary auto-update component install the bridge.
+
+Build the native candidates with distinct `NATIVE_PREVIEW_VERSION` values
+and the same `NATIVE_LEGACY_REHEARSAL_FEED` ending in `/`. The private feed
+uses the native preview index shape and SHA-256 verified app downloads.
+Expose the next candidate only after the previous boot is confirmed. The
+private build checks on a short cadence and allows a startup failure fixture
+with `NATIVE_LEGACY_REHEARSAL_FAIL=ON`. Keep the failure fixture on the test
+feed and verify that the previous app returns without repeatedly staging
+the rejected image. Public firmware feeds remain separate from the rehearsal.
+
 #### Test live Immich over Wi-Fi
 
 For a V1 configured through the stock ESPHome installer, build the
