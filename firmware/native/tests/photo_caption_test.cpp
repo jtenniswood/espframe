@@ -163,4 +163,16 @@ int main(int argc, char **argv) {
   assert(fade.update(900'000, 2).opacity == 0);
   assert(fade.update(1'149'999, 2).opacity == 0);
   assert((fade.update(1'290'000, 2) == PhotoCaptionSample{2, PhotoCaptionFade::opaque}));
+
+  // Contact clears a visible caption before the first swipe frame.
+  fade.interrupt();
+  assert(fade.update(1'300'000, std::nullopt).opacity == 0);
+  assert(fade.update(1'400'000, 3).opacity == 0);
+  assert(fade.update(1'649'999, 3).opacity == 0);
+  assert((fade.update(1'790'000, 3) == PhotoCaptionSample{3, PhotoCaptionFade::opaque}));
+
+  // Touch also interrupts an outgoing caption already fading over a photo.
+  assert(fade.update(1'800'000, std::nullopt).opacity != 0);
+  fade.interrupt();
+  assert(fade.update(1'810'000, std::nullopt).opacity == 0);
 }
