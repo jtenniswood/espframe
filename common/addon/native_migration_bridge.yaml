@@ -1,10 +1,26 @@
+substitutions:
+  native_migration_elf: ""
+
 esphome:
   includes:
     - ../firmware/native/main/legacy_migration_storage.h
+    - ../firmware/native/main/migration_bridge_state.h
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: |-
+            if (std::string_view("${native_migration_elf}").empty() ||
+                !id(native_migration_rollback_observed))
+              return;
+            if (!espframe_native_ota::save_bridge_rollback_proof())
+              ESP_LOGW("native-migration", "Could not record the pending bridge boot");
 
 globals:
   - id: native_migration_attempts
     type: unsigned
+    initial_value: '0'
+  - id: native_migration_last_attempt_ms
+    type: uint32_t
     initial_value: '0'
   - id: native_migration_in_progress
     type: bool
@@ -41,16 +57,36 @@ interval:
                 condition:
                   lambda: |-
                     using namespace espframe_native_ota;
-                    if (id(native_migration_in_progress) || id(native_migration_attempts) >= 3)
+                    if (id(native_migration_in_progress))
                       return false;
+                    constexpr std::string_view candidate_elf = "${native_migration_elf}";
+                    if (id(native_migration_attempts) >= 3) {
+                      constexpr uint32_t retry_delay_ms = 15U * 60 * 1000;
+                      if (candidate_elf.empty() || millis() - id(native_migration_last_attempt_ms) < retry_delay_ms)
+                        return false;
+                      id(native_migration_attempts) = 0;
+                    }
                     if (!${native_migration_enabled} || !id(auto_update_switch).state) {
                       id(native_migration_status) = "Automatic migration disabled";
                       return false;
                     }
-                    if (esphome_migration_readiness("${native_migration_project}",
-                            id(native_migration_rollback_observed)) != Readiness::Ready) {
+                    const auto *running = esp_ota_get_running_partition();
+                    const bool observed = id(native_migration_rollback_observed);
+                    const bool saved_proof = !candidate_elf.empty() && read_bridge_rollback_proof();
+                    if (esphome_migration_readiness("${native_migration_project}", observed || saved_proof) != Readiness::Ready) {
                       id(native_migration_status) = "Waiting for boot readiness";
                       return false;
+                    }
+                    if (!candidate_elf.empty()) {
+                      if (rejected_migration(other_esphome_slot(running), candidate_elf)) {
+                        id(native_migration_status) = "Native candidate rolled back";
+                        return false;
+                      }
+                      if (!saved_proof && !save_bridge_rollback_proof()) {
+                        id(native_migration_status) = "Could not save boot readiness";
+                        return false;
+                      }
+                      id(native_migration_rollback_observed) = true;
                     }
                     if (id(backlight_manual_off) || id(screen_schedule_asleep)) {
                       id(native_migration_status) = "Waiting for the display to wake";
@@ -61,6 +97,7 @@ interval:
                       return false;
                     }
                     ++id(native_migration_attempts);
+                    id(native_migration_last_attempt_ms) = millis();
                     json::JsonBuilder builder;
                     JsonObject values = builder.root();
                     size_t field_count = 0;

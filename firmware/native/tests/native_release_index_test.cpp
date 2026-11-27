@@ -21,6 +21,14 @@ int main() {
   const auto index = [](const std::string &entries) {
     return std::string(R"({"schema":1,"board":"v1","versions":[)") + entries + "]}\n";
   };
+  assert(parse_stable_version("v1.18.10") > parse_stable_version("v1.18.9"));
+  assert(!parse_stable_version("v1.18.0-preview.1"));
+  assert(!parse_stable_version("v1.18.00"));
+  assert(!parse_stable_version("v1.18.4294967296"));
+  assert(read_release_index(index(entry("v1.18.0", 3'500'000, 'a')), "v1", true));
+  assert(!read_release_index(index(entry("v1.18.0", 3'500'000, 'a')), "v1"));
+  assert(!read_release_index(index(entry("v1.18.0-preview.1", 3'500'000, 'a')), "v1", true));
+
   const auto latest = entry("v0.1.0-preview.10", 4'000'000, 'a');
   const auto previous = entry("v0.1.0-preview.9", 3'500'000, 'b');
   const auto parsed = read_release_index(index(latest + "," + previous), "v1");

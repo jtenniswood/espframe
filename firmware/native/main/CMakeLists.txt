@@ -63,8 +63,11 @@ string(JSON public_base_url GET "${project_metadata}" public_base_url)
 set(native_release_feed "${public_base_url}/native-preview/")
 if(NATIVE_LEGACY_REHEARSAL_FEED)
     set(native_release_feed "${NATIVE_LEGACY_REHEARSAL_FEED}")
+elseif(NATIVE_STABLE_VERSION)
+    set(native_release_feed "${public_base_url}/native-stable/")
 endif()
 target_compile_definitions(${COMPONENT_LIB} PRIVATE NATIVE_RELEASE_FEED="${native_release_feed}"
+  NATIVE_STABLE_RELEASE=$<BOOL:${NATIVE_STABLE_VERSION}>
   NATIVE_LEGACY_REHEARSAL=$<BOOL:${NATIVE_LEGACY_REHEARSAL_FEED}>
   NATIVE_LEGACY_REHEARSAL_FAIL=$<BOOL:${NATIVE_LEGACY_REHEARSAL_FAIL}>)
 

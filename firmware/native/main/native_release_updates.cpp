@@ -27,6 +27,8 @@ namespace {
 
 constexpr char tag[] = "native-release";
 constexpr std::string_view feed = NATIVE_RELEASE_FEED;
+constexpr bool stable = NATIVE_STABLE_RELEASE;
+constexpr auto parse_version = stable ? parse_stable_version : parse_preview_version;
 constexpr int64_t second = 1'000'000;
 
 std::mutex mutex;
@@ -107,7 +109,7 @@ std::optional<std::vector<NativeRelease>> fetch_releases() {
       return {};
     offset += read;
   }
-  return read_release_index(json, NATIVE_BOARD);
+  return read_release_index(json, NATIVE_BOARD, stable);
 }
 
 bool install(const NativeRelease &release) {
@@ -122,7 +124,7 @@ bool install(const NativeRelease &release) {
 
 void run(void *context) {
   auto &network = *static_cast<NativeNetwork *>(context);
-  const auto installed = *parse_preview_version(esp_app_get_description()->version);
+  const auto installed = *parse_version(esp_app_get_description()->version);
 #if NATIVE_LEGACY_REHEARSAL
   NativeReleaseSchedule schedule{10 * second, 5 * second, 12 * second};
 #else
@@ -174,10 +176,10 @@ void run(void *context) {
     if (manual_install) {
       const std::lock_guard lock(mutex);
       const auto match = std::ranges::find(releases, *request, &NativeRelease::version);
-      if (match != releases.end() && parse_preview_version(match->version) != installed)
+      if (match != releases.end() && parse_version(match->version) != installed)
         image = *match;
     } else if (auto index = fetch_releases()) {
-      if (!request && !index->empty() && parse_preview_version(index->front().version) > installed)
+      if (!request && !index->empty() && parse_version(index->front().version) > installed)
         image = index->front();
       const std::lock_guard lock(mutex);
       releases = std::move(*index);
@@ -220,7 +222,7 @@ void run(void *context) {
 }  // namespace
 
 void start_native_release_updates(NativeNetwork &network) {
-  if (!parse_preview_version(esp_app_get_description()->version) || !can_update_firmware())
+  if (!parse_version(esp_app_get_description()->version) || !can_update_firmware())
     return;
   const std::lock_guard lock(mutex);
   if (xTaskCreate(run, "native-release", 12288, &network, 1, &worker) != pdPASS)
