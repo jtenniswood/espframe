@@ -3318,6 +3318,17 @@
       refreshC6FirmwareUi();
     });
   }
+  function monitorNativeMigration(notice, action) {
+    safeGet(eid("text_sensor", "Native migration handoff")).then(function(data) {
+      var status = String((data == null ? void 0 : data.state) || "");
+      if (!notice.isConnected || !status.startsWith("Updating from ESPHome ")) return;
+      action.hidden = true;
+      notice.textContent = status;
+      window.setTimeout(function() {
+        monitorNativeMigration(notice, action);
+      }, 4e3);
+    });
+  }
   function handleFirmwareReconnect() {
     if (!S2.firmware_restart_pending) return;
     S2.firmware_restart_pending = false;
@@ -3325,7 +3336,7 @@
     S2.firmware_uploading = false;
     S2.firmware_install_error = "";
     fetchDeviceSettingsState().then(function() {
-      showBanner("Firmware update complete.", "success");
+      showBanner("Firmware installed.", "success");
       if (!isEditingSetting()) renderSettings();
     }).catch(function() {
       refreshFirmwareUi();
@@ -3504,6 +3515,10 @@
     } else {
       refreshC6FirmwareUi();
       fetchPublicFirmwareVersions();
+      var migrationNotice = el("p", "fw-status");
+      migrationNotice.setAttribute("role", "status");
+      firmwareCard.appendChild(migrationNotice);
+      monitorNativeMigration(migrationNotice, updateButton);
     }
     refreshFirmwareUi();
     return firmwareCard;
