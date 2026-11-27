@@ -36,7 +36,7 @@ constexpr int64_t trial_time_us = 15'000'000;
 static_assert(prelude_bytes <= buffer_size);
 
 #if NATIVE_LEGACY_MIGRATION
-constexpr std::string_view expected_project = "espframe_legacy_v1";
+constexpr std::string_view expected_project = "espframe_legacy_" NATIVE_BOARD;
 #elif SWIPE_NATIVE_OTA_TEST
 constexpr std::string_view expected_project = "espframe_ota_test_" NATIVE_BOARD;
 #else

@@ -907,12 +907,12 @@ bool Settings::read_esphome_trial() {
 bool Settings::import_esphome_migration() {
   using namespace espframe_native_ota;
   const auto *running = esp_ota_get_running_partition();
-  const auto *previous = other_esphome_v1_slot(running);
+  const auto *previous = other_esphome_slot(running);
   if (!previous)
     return false;
   const bool first_boot = is_app_in_ota_state(running, ESP_OTA_IMG_PENDING_VERIFY);
-  const bool migrating = first_boot && is_v1_esphome_app(previous);
-  if (first_boot && ((!migrating && !partition_has_project(previous, "espframe_legacy_v1")) ||
+  const bool migrating = first_boot && partition_has_project(previous, NATIVE_HOSTNAME);
+  if (first_boot && ((!migrating && !partition_has_project(previous, "espframe_legacy_" NATIVE_BOARD)) ||
                      !is_app_in_ota_state(previous, ESP_OTA_IMG_VALID) || !esp_ota_check_rollback_is_possible()))
     return false;
 

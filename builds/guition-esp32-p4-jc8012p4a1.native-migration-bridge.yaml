@@ -1,86 +1,10 @@
 # Private V1 migration test. The default build keeps the handoff disabled.
 packages:
   espframe: !include guition-esp32-p4-jc8012p4a1.native-migration-readiness.yaml
+  native_migration_bridge: !include ../common/addon/native_migration_bridge.yaml
 
 substitutions:
   firmware_version: "native-migration-bridge"
   native_migration_enabled: "false"
   native_migration_url: "http://127.0.0.1/espframe_legacy_v1.bin"
   native_migration_md5: "00000000000000000000000000000000"
-
-esphome:
-  includes:
-    - ../firmware/native/main/legacy_migration_storage.h
-
-globals:
-  - id: native_migration_attempts
-    type: unsigned
-    initial_value: '0'
-  - id: native_migration_in_progress
-    type: bool
-    initial_value: 'false'
-
-ota:
-  - id: !extend firmware_http_ota
-    on_error:
-      then:
-        - lambda: id(native_migration_in_progress) = false;
-
-interval:
-  - interval: 15s
-    then:
-      - if:
-          condition:
-            wifi.connected:
-          then:
-            - if:
-                condition:
-                  lambda: |-
-                    using namespace espframe_native_ota;
-                    if (!${native_migration_enabled} || !id(auto_update_switch).state ||
-                        id(backlight_manual_off) || id(screen_schedule_asleep) ||
-                        !id(espframe_core).slideshow().state().active_slot_displayed ||
-                        esphome_migration_readiness("${native_migration_project}",
-                            id(native_migration_rollback_observed)) != Readiness::Ready)
-                      return false;
-                    if (id(native_migration_in_progress) || id(native_migration_attempts) >= 3)
-                      return false;
-                    ++id(native_migration_attempts);
-                    json::JsonBuilder builder;
-                    JsonObject values = builder.root();
-                    size_t field_count = 0;
-                    for (const auto &field : esphome::espframe::contract::CONFIGURATION_FIELDS) {
-                      if (field.secret)
-                        continue;
-                      if (!esphome::espframe::ConfigurationApiHandler::write_public_field(values, field)) {
-                        ESP_LOGW("native-migration", "Settings snapshot missing %s", field.key);
-                        return false;
-                      }
-                      ++field_count;
-                    }
-                    // Keep tunnel-based connections on ESPHome until their
-                    // private configuration can be transferred and verified.
-                    if (values["wireguard_enabled"].as<bool>() || !id(wireguard_private_key_value).empty() ||
-                        !id(wireguard_endpoint).state.empty() || !id(wireguard_address).state.empty() ||
-                        !id(wireguard_peer_public_key).state.empty() || !id(wireguard_allowed_ips).state.empty() ||
-                        id(wireguard_netmask).state != "255.255.255.255" ||
-                        id(wireguard_port).state != 51820) {
-                      ESP_LOGW("native-migration", "Configured WireGuard stays on ESPHome");
-                      return false;
-                    }
-                    if (values.size() != field_count || !global_preferences->sync()) {
-                      ESP_LOGW("native-migration", "Settings snapshot could not be synchronized");
-                      return false;
-                    }
-                    const auto snapshot = builder.serialize();
-                    if (!stage_migration_snapshot(snapshot.c_str())) {
-                      ESP_LOGW("native-migration", "Settings snapshot could not be saved");
-                      return false;
-                    }
-                    id(native_migration_in_progress) = true;
-                    ESP_LOGI("native-migration", "Starting automatic V1 handoff attempt %u", id(native_migration_attempts));
-                    return true;
-                then:
-                  - ota.http_request.flash:
-                      url: "${native_migration_url}"
-                      md5: "${native_migration_md5}"
