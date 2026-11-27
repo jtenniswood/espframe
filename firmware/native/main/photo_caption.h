@@ -50,6 +50,8 @@ class PhotoCaptionFade {
   static constexpr int64_t fade_in_us = 140'000;
   static constexpr int64_t fade_out_us = 70'000;
 
+  void interrupt() { *this = {}; }
+
   PhotoCaptionSample update(int64_t now, std::optional<SlideIndex> settled) {
     if (settled != settled_) {
       if (settled_) {

@@ -1155,6 +1155,10 @@ void run(void *) {
       if (!backlight_ready || awaiting_rotation_frame)
         continue;
       if (report.valid) {
+        // Give the first frame of a gesture to the photo, including when a
+        // caption was already fading over it.
+        if (report.contacts != 0 && !input.engaged())
+          caption_fade.interrupt();
         if constexpr (!esphome_trial) {
 #if NATIVE_LEGACY_MIGRATION
           if (showed_photo)
@@ -1442,10 +1446,9 @@ void run(void *) {
     if constexpr (trial_immich)
       drag_demand.observe(esp_timer_get_time(), motion_epoch.phase() == MotionPhase::Drag, position, last_submitted);
 
-    // A tap on the displayed photo is still rest. An active drag, a pending
-    // neighbour, or a photo grabbed midway through a transition is not.
+    // Restart the caption once the finger is up and the photo has settled.
     std::optional<SlideIndex> settled_caption;
-    if (photo_at_rest && !swipe.dragging() && !swipe.settling() &&
+    if (photo_at_rest && !input.engaged() && swipe.idle() &&
         !fade.running() && !fade.held() && swipe.settled() > 0 &&
         position == swipe.settled() * viewport.width && position == display.presented_position())
       settled_caption = swipe.settled();

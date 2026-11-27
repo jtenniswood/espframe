@@ -20,6 +20,9 @@ namespace {
 constexpr gpio_num_t reset_pin = GPIO_NUM_22;
 constexpr int transfer_timeout_ms = 12;
 constexpr TickType_t touch_period = pdMS_TO_TICKS(5);
+// Caption rendering and scanout can keep the display task busy for more than
+// eight 5 ms samples. Keep about 160 ms of input before discarding reports.
+constexpr UBaseType_t touch_queue_depth = 32;
 constexpr int touch_core = 1;
 constexpr UBaseType_t touch_priority = 5;
 
@@ -144,7 +147,7 @@ esp_err_t Touch::read(TouchReport &sample) const {
 }  // namespace
 
 void TouchReader::start() {
-  this->reports_ = xQueueCreate(8, sizeof(TouchReport));
+  this->reports_ = xQueueCreate(touch_queue_depth, sizeof(TouchReport));
   ESP_ERROR_CHECK(this->reports_ != nullptr ? ESP_OK : ESP_ERR_NO_MEM);
   const auto result = xTaskCreatePinnedToCore(run_, "touch-reader", 3072, this, touch_priority, nullptr, touch_core);
   ESP_ERROR_CHECK(result == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
