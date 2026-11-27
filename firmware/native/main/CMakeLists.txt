@@ -41,7 +41,7 @@ idf_component_register(
                   esphome__libsodium
     EMBED_TXTFILES web/native_settings.html web/native_settings.css web/shared_settings.js
                    web/admin_preview.html web/admin_cards.js web/admin/app.js
-                   web/recovery.html web/recovery.js
+                   web/recovery.html web/recovery.css web/recovery.js
                    "${repo_root}/docs/public/webserver/style.css"
                    "../installer/setup.css"
     EMBED_FILES "../assets/clock_glyphs.bin" "../assets/recovery_glyphs.bin" "../assets/caption_glyphs.bin"

@@ -1,23 +1,61 @@
 <!doctype html>
 <html lang="en">
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Espframe Wi-Fi setup</title>
-<link rel="stylesheet" href="/settings.css">
-<main>
-  <h1>Connect Espframe to Wi-Fi</h1>
-  <section>
-    <form id="recovery" hidden>
-      <label for="ssid">Network name</label>
-      <input id="ssid" name="ssid" required maxlength="32" autocapitalize="off" spellcheck="false">
-      <label for="password">Wi-Fi password</label>
-      <input id="password" name="password" type="password" maxlength="64" autocomplete="off">
-      <small>Leave the password blank for an open network.</small>
-      <button type="submit">Connect</button>
-    </form>
-    <p id="status" role="status">Checking the frame’s connection…</p>
-    <noscript>This page needs JavaScript to connect the frame.</noscript>
-  </section>
-</main>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EspFrame WiFi setup</title>
+  <link rel="stylesheet" href="/espframe/style.css">
+  <link rel="stylesheet" href="/recovery.css">
+</head>
+<body>
+<div id="sp-app">
+  <header class="sp-header">
+    <div class="sp-brand"><span class="sp-brand-label">EspFrame</span><span class="sp-device-name">WiFi setup</span></div>
+  </header>
+  <main class="sp-settings-wrap">
+    <div id="status" class="setup-status" role="status">Checking the frame’s connection…</div>
+    <section id="setup" class="card" aria-label="WiFi setup">
+      <div id="nearby" hidden>
+        <h3 id="available-networks-heading">Available Networks</h3>
+        <div id="networks" role="group" aria-labelledby="available-networks-heading"></div>
+      </div>
+      <form id="recovery" hidden>
+        <div class="field">
+          <label for="ssid">Network name (SSID)</label>
+          <input id="ssid" name="ssid" type="text" required maxlength="32" placeholder="SSID" autocapitalize="none" autocorrect="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" maxlength="64" placeholder="Password" autocomplete="current-password">
+        </div>
+        <button class="btn btn-primary btn-block" type="submit">Save</button>
+      </form>
+      <noscript>This page needs JavaScript to connect the frame.</noscript>
+    </section>
+    <section id="saved" class="card" aria-labelledby="saved-heading" hidden>
+      <div class="saved-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg></div>
+      <h1 id="saved-heading">WiFi details saved</h1>
+      <ol class="setup-steps">
+        <li>Reconnect your phone or computer to your home WiFi.</li>
+        <li id="continue-setup">Follow the instructions on your frame’s screen to continue setup.</li>
+      </ol>
+    </section>
+  </main>
+</div>
+<template id="network-row">
+  <div class="network">
+    <button class="network-left" type="button">
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+        <path d="M12 19.25L.7 4.25c7-5 14-5 22.5 0z" fill="none" stroke="currentColor"/>
+        <path class="network-signal" d="M12 19.25L.7 4.25c7-5 14-5 22.5 0z" transform-origin="12 18"/>
+      </svg>
+      <span class="network-ssid"></span>
+    </button>
+    <svg class="network-lock" viewBox="0 0 24 24" width="24" height="24" role="img" aria-label="Protected network">
+      <path d="M18 8h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2Zm-6 9a2 2 0 1 1 0-4 2 2 0 0 1 0 4ZM9 8V6a3 3 0 0 1 6 0v2Z"/>
+    </svg>
+  </div>
+</template>
 <script type="module" src="/recovery.js"></script>
+</body>
 </html>

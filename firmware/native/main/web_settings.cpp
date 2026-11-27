@@ -64,6 +64,8 @@ extern const char style_start[] asm("_binary_setup_css_start");
 extern const char style_end[] asm("_binary_setup_css_end");
 extern const char recovery_start[] asm("_binary_recovery_html_start");
 extern const char recovery_end[] asm("_binary_recovery_html_end");
+extern const char recovery_style_start[] asm("_binary_recovery_css_start");
+extern const char recovery_style_end[] asm("_binary_recovery_css_end");
 extern const char recovery_script_start[] asm("_binary_recovery_js_start");
 extern const char recovery_script_end[] asm("_binary_recovery_js_end");
 
@@ -210,9 +212,26 @@ esp_err_t admin_cards(httpd_req_t *request) {
   return serve(request, "text/javascript", admin_cards_start, admin_cards_end);
 }
 
+esp_err_t redirect_to_wifi_setup(httpd_req_t *request) {
+  set_response_headers(request);
+  httpd_resp_set_status(request, "302 Found");
+  httpd_resp_set_hdr(request, "Location", recovery_url);
+  return httpd_resp_send(request, nullptr, 0);
+}
+
+esp_err_t captive_not_found(httpd_req_t *request, httpd_err_code_t error) {
+  auto &wifi = *static_cast<NativeNetwork *>(httpd_get_global_user_ctx(request->handle));
+  if (wifi.first_run_recovery() && local_address(request) == inet_addr(recovery_host))
+    return redirect_to_wifi_setup(request);
+  return httpd_resp_send_err(request, error, nullptr);
+}
+
 esp_err_t home_page(httpd_req_t *request) {
-  if (hotspot_socket(request))
+  if (hotspot_socket(request)) {
+    if (network(request).first_run_recovery() && !header_is(request, "Host", recovery_host))
+      return redirect_to_wifi_setup(request);
     return recovery_asset(request, "text/html; charset=utf-8", recovery_start, recovery_end);
+  }
   return admin_page(request);
 }
 
@@ -232,12 +251,19 @@ esp_err_t redirect_to_admin(httpd_req_t *request) {
   return httpd_resp_send(request, nullptr, 0);
 }
 esp_err_t shared_app(httpd_req_t *request) { return serve(request, "text/javascript", shared_app_start, shared_app_end); }
-esp_err_t shared_style(httpd_req_t *request) { return serve(request, "text/css", shared_style_start, shared_style_end); }
+esp_err_t shared_style(httpd_req_t *request) {
+  if (hotspot_socket(request))
+    return recovery_asset(request, "text/css", shared_style_start, shared_style_end);
+  return serve(request, "text/css", shared_style_start, shared_style_end);
+}
 esp_err_t native_style(httpd_req_t *request) { return serve(request, "text/css", native_style_start, native_style_end); }
 esp_err_t style(httpd_req_t *request) {
   if (hotspot_socket(request))
     return recovery_asset(request, "text/css", style_start, style_end);
   return serve(request, "text/css", style_start, style_end);
+}
+esp_err_t recovery_style(httpd_req_t *request) {
+  return recovery_asset(request, "text/css", recovery_style_start, recovery_style_end);
 }
 esp_err_t recovery_script(httpd_req_t *request) {
   return recovery_asset(request, "text/javascript", recovery_script_start, recovery_script_end);
@@ -267,6 +293,51 @@ esp_err_t recovery_status(httpd_req_t *request) {
   if (status == Status::Failed)
     return httpd_resp_sendstr(request, "{\"status\":\"failed\"}");
   return httpd_resp_sendstr(request, "{\"status\":\"ready\"}");
+}
+
+esp_err_t recovery_networks(httpd_req_t *request) {
+  set_response_headers(request);
+  auto &wifi = network(request);
+  if (!wifi.first_run_recovery() || !hotspot_socket(request) || !header_is(request, "Host", recovery_host))
+    return httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "The Wi-Fi setup hotspot is unavailable.");
+
+  const auto *scan = wifi.setup_networks();
+  if (!scan) {
+    httpd_resp_set_status(request, "202 Accepted");
+    return httpd_resp_send(request, nullptr, 0);
+  }
+
+  char query[16]{};
+  const bool details = httpd_req_get_url_query_str(request, query, sizeof(query)) == ESP_OK &&
+                       std::string_view(query) == "details=1";
+  const std::unique_ptr<cJSON, decltype(&cJSON_Delete)> names(cJSON_CreateArray(), cJSON_Delete);
+  if (!names)
+    return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, nullptr);
+  for (uint8_t i = 0; i < scan->count; ++i) {
+    const auto &entry = scan->networks[i];
+    const auto *ssid = entry.ssid.data();
+    bool duplicate = false;
+    for (uint8_t j = 0; j < i; ++j)
+      duplicate |= std::strcmp(ssid, scan->networks[j].ssid.data()) == 0;
+    if (duplicate)
+      continue;
+    auto *name = details ? cJSON_CreateObject() : cJSON_CreateString(ssid);
+    if (details && name && (!cJSON_AddStringToObject(name, "ssid", ssid) ||
+                            !cJSON_AddNumberToObject(name, "rssi", entry.rssi) ||
+                            !cJSON_AddBoolToObject(name, "secured", entry.secured))) {
+      cJSON_Delete(name);
+      return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, nullptr);
+    }
+    if (!name || !cJSON_AddItemToArray(names.get(), name)) {
+      cJSON_Delete(name);
+      return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, nullptr);
+    }
+  }
+  const std::unique_ptr<char, decltype(&cJSON_free)> body(cJSON_PrintUnformatted(names.get()), cJSON_free);
+  if (!body)
+    return httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, nullptr);
+  httpd_resp_set_type(request, "application/json");
+  return httpd_resp_sendstr(request, body.get());
 }
 
 esp_err_t recover_wifi(httpd_req_t *request) {
@@ -834,6 +905,8 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
     return false;
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.lru_purge_enable = true;
+  config.global_user_ctx = &network;
+  config.global_user_ctx_free_fn = [](void *) {};
   // Configuration writes validate and persist a full settings record on this task.
   config.stack_size = 12288;
   config.max_open_sockets = 4;
@@ -870,7 +943,9 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
       {.uri = "/api/firmware", .method = HTTP_POST, .handler = update_firmware, .user_ctx = &network},
       {.uri = "/api/firmware/releases", .method = HTTP_GET, .handler = release_firmware, .user_ctx = &network},
       {.uri = "/api/firmware/releases", .method = HTTP_POST, .handler = release_firmware, .user_ctx = &network},
+      {.uri = "/recovery.css", .method = HTTP_GET, .handler = recovery_style, .user_ctx = &network},
       {.uri = "/recovery.js", .method = HTTP_GET, .handler = recovery_script, .user_ctx = &network},
+      {.uri = "/api/recovery/networks", .method = HTTP_GET, .handler = recovery_networks, .user_ctx = &network},
       {.uri = "/api/recovery", .method = HTTP_GET, .handler = recovery_status, .user_ctx = &network},
       {.uri = "/api/recovery", .method = HTTP_POST, .handler = recover_wifi, .user_ctx = &network},
   };
@@ -887,6 +962,9 @@ bool start_web_settings(const Settings &settings, NativeNetwork &network) {
       return false;
     }
   }
+
+  if (httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, captive_not_found) != ESP_OK)
+    ESP_LOGW(tag, "Could not register the captive portal redirect");
 
   esp_netif_ip_info_t ip{};
   if (esp_netif_get_ip_info(esp_netif_get_handle_from_ifkey("WIFI_STA_DEF"), &ip) == ESP_OK && ip.ip.addr)

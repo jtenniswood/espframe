@@ -6,12 +6,15 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const read = path => readFile(new URL(path, import.meta.url), 'utf8')
-const [html, script, css] = await Promise.all([
-  read('../main/web/recovery.html'), read('../main/web/recovery.js'), read('../installer/setup.css'),
+const [html, script, sharedCss, recoveryCss] = await Promise.all([
+  read('../main/web/recovery.html'), read('../main/web/recovery.js'),
+  read('../../../docs/public/webserver/style.css'), read('../main/web/recovery.css'),
 ])
 const fixture = html.replace('</html>', `<script>
   const form = document.querySelector('#recovery')
   const status = document.querySelector('#status')
+  const saved = document.querySelector('#saved')
+  const continueSetup = document.querySelector('#continue-setup')
   let attempts = 0
   const submit = (name, password) => {
     form.elements.ssid.value = name
@@ -33,11 +36,15 @@ const fixture = html.replace('</html>', `<script>
         if (form.elements.password.value) throw new Error('Tested password was retained in the form')
         attempts++
         submit('Salon été', '')
-      } else if (attempts === 2 && status.textContent.startsWith('Connected.')) {
-        if (!status.textContent.includes('Connected. Rejoin your usual Wi-Fi. The frame’s address is 192.168.6.17')) {
+      } else if (attempts === 2 && !saved.hidden) {
+        if (saved.querySelector('h1').textContent !== 'WiFi details saved' ||
+            !saved.textContent.includes('Reconnect your phone or computer to your home WiFi.')) {
+          throw new Error('The recovery page did not show the saved confirmation')
+        }
+        if (!continueSetup.textContent.includes('192.168.6.17')) {
           throw new Error('The recovery page did not report the frame address')
         }
-        if (!status.textContent.includes('To set up Immich or enable web settings, connect by USB')) {
+        if (!continueSetup.textContent.includes('To set up Immich or enable web settings, connect by USB')) {
           throw new Error('The recovery page did not explain how to open setup')
         }
         if (!form.hidden) throw new Error('The form stayed visible after connecting')
@@ -49,6 +56,7 @@ const fixture = html.replace('</html>', `<script>
   })
   observer.observe(status, { childList: true })
   observer.observe(form, { attributes: true, attributeFilter: ['hidden'] })
+  observer.observe(saved, { attributes: true, attributeFilter: ['hidden'] })
 </script></html>`)
 
 const requests = []
@@ -56,7 +64,8 @@ let pending = false
 const { promise: testResult, resolve: completeTest } = Promise.withResolvers()
 const server = createServer(async (request, response) => {
   const assets = {
-    '/': ['text/html', fixture], '/recovery.js': ['text/javascript', script], '/settings.css': ['text/css', css],
+    '/': ['text/html', fixture], '/recovery.js': ['text/javascript', script],
+    '/espframe/style.css': ['text/css', sharedCss], '/recovery.css': ['text/css', recoveryCss],
   }
   if (request.url === '/test-result' && request.method === 'POST') {
     request.setEncoding('utf8')

@@ -37,6 +37,7 @@
 #include "esp_cache.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_netif_ip_addr.h"
 #include "esp_random.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -50,6 +51,7 @@
 #include <cinttypes>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <limits>
 
 namespace espframe::native {
@@ -682,6 +684,9 @@ void run(void *) {
   bool clock_dirty = false;
   bool local_time_ready = false;
   bool recovery_painted = false;
+  std::optional<uint8_t> setup_language;
+  uint32_t setup_ipv4{};
+  int64_t setup_dim_at{};
   PhotoSourceStatus source_status = PhotoSourceStatus::None;
   PhotoSourceStatus painted_source_status = PhotoSourceStatus::None;
   InitialPhotoTimeout initial_photo_timeout;
@@ -781,6 +786,35 @@ void run(void *) {
   const auto drag_start_guard_us = 6 * refresh_period_us;
   const auto edge_drag_guard_us = 4 * refresh_period_us;
 
+  const auto update_backlight = [&](int64_t now, bool gesturing, bool dim_setup) {
+    if (backlight_ready) {
+      const bool commanded = !esphome_trial && screen_control.apply_pending(schedule, now, local_hour, manual_brightness);
+      const bool awake = schedule.update(local_hour, now, gesturing);
+      if (awake != input.awake()) {
+        if (awake) {
+          input.wake();
+        } else {
+          manual_brightness.reset();
+          input.sleep(swipe);
+          suspend_fade();
+        }
+      }
+      const auto scheduled = dim_setup ? std::min<uint8_t>(brightness, 50) : brightness;
+      const uint8_t target = awake ? manual_brightness.value_or(scheduled) : 0;
+      if (target != applied_brightness) {
+        display.set_backlight(target);
+        if constexpr (!esphome_trial) {
+          screen_control.publish_backlight(target);
+          if ((target == 0) != (applied_brightness == 0))
+            frame_status.set_screen(target != 0);
+        }
+        applied_brightness = target;
+      }
+      if (commanded)
+        screen_control.completed();
+    }
+  };
+
   while (true) {
     auto now = esp_timer_get_time();
     const auto requested_revision = esphome_trial ? 0 : photo_source_revision.load(std::memory_order_acquire);
@@ -876,6 +910,56 @@ void run(void *) {
       }
       if constexpr (trace_enabled)
         trace.frame(*scanout, submitted_stamp);
+    }
+
+    if constexpr (!esphome_trial) {
+      const bool first_run = network.first_run_recovery();
+      const auto address = first_run && network.busy() ? 0 : network.address().ipv4;
+      const auto page = setup_page(first_run, live, address);
+      if (page != SetupPage::None) {
+        constexpr int64_t dim_delay_us = 120'000'000;
+        if (!setup_language || setup_ipv4 != address)
+          setup_dim_at = now + dim_delay_us;
+        TouchReport report;
+        while (touch.poll(report, rotation)) {
+          if (report.valid) {
+            confirm_firmware_boot();
+            if (report.contacts) {
+              setup_dim_at = report.sampled_us + dim_delay_us;
+              if (!input.awake())
+                schedule.wake(report.sampled_us);
+              input.wait_for_new_contact();
+            }
+          }
+        }
+        update_backlight(now, false, now >= setup_dim_at);
+        const auto language = active_device_language.load(std::memory_order_relaxed);
+        if (setup_language != language || setup_ipv4 != address) {
+          if (auto *output = display.writable_buffer()) {
+            const StatusText text{{status_masks, static_cast<size_t>(status_masks_end - status_masks)}, language};
+            if (page == SetupPage::Immich) {
+              char url[sizeof("http://255.255.255.255")]{};
+              const esp_ip4_addr_t ip{address};
+              std::snprintf(url, sizeof(url), "http://" IPSTR, IP2STR(&ip));
+              draw_immich_setup(output, text, url, rotation);
+            } else {
+              draw_wifi_setup(output, text, network.recovery_network(), rotation);
+            }
+            if (submit_frame(swipe.settled() * viewport.width, false)) {
+              if (page == SetupPage::Immich && (!setup_language || setup_ipv4 != address))
+                ESP_LOGI(tag, "Immich browser setup instructions displayed");
+              setup_language = language;
+              setup_ipv4 = address;
+            }
+          }
+        }
+        display.wait_for_frame_or_tick();
+        continue;
+      }
+      if (setup_language) {
+        setup_language.reset();
+        last_submitted = -1;
+      }
     }
 
     const auto center = swipe.settled();
@@ -1135,31 +1219,7 @@ void run(void *) {
     }
 
     now = esp_timer_get_time();
-    if (backlight_ready) {
-      const bool commanded = !esphome_trial && screen_control.apply_pending(schedule, now, local_hour, manual_brightness);
-      const bool awake = schedule.update(local_hour, now, input.engaged() || !swipe.idle());
-      if (awake != input.awake()) {
-        if (awake) {
-          input.wake();
-        } else {
-          manual_brightness.reset();
-          input.sleep(swipe);
-          suspend_fade();
-        }
-      }
-      const uint8_t target = awake ? manual_brightness.value_or(brightness) : 0;
-      if (target != applied_brightness) {
-        display.set_backlight(target);
-        if constexpr (!esphome_trial) {
-          screen_control.publish_backlight(target);
-          if ((target == 0) != (applied_brightness == 0))
-            frame_status.set_screen(target != 0);
-        }
-        applied_brightness = target;
-      }
-      if (commanded)
-        screen_control.completed();
-    }
+    update_backlight(now, input.engaged() || !swipe.idle(), false);
     if ((controls.target_open() || last_control_progress != 0) &&
         (!input.awake() || network.recovery_status() != NativeNetwork::RecoveryStatus::Off))
       controls.reset();
