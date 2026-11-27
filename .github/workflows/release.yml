@@ -8,6 +8,14 @@ on:
         description: Publish the existing draft for the selected tag after verifying its firmware
         type: boolean
         default: false
+      bridge_version:
+        description: ESPHome bridge version when it differs from the native release tag
+        type: string
+        default: ''
+      native_candidate_version:
+        description: Native version to compile in an unpublished candidate build
+        type: string
+        default: ''
 
 concurrency:
   group: firmware-release-${{ github.ref }}
@@ -69,7 +77,18 @@ jobs:
       - name: Build detailed changelog
         env:
           VERSION: ${{ github.ref_name }}
-        run: python3 scripts/release_changelog.py "$VERSION" --output "$RUNNER_TEMP/release-notes.md"
+          BRIDGE_VERSION: ${{ github.ref_name == 'v2.0.0' && 'v1.18.1' || inputs.bridge_version || '' }}
+        run: |
+          notes="$RUNNER_TEMP/release-notes.md"
+          python3 scripts/release_changelog.py "$VERSION" --output "$RUNNER_TEMP/release-notes.md"
+          if [ -n "$BRIDGE_VERSION" ] && [ "$BRIDGE_VERSION" != "$VERSION" ]; then
+            {
+              printf '## Automatic migration to native %s\n\n' "$VERSION"
+              printf 'ESPHome frames first install bridge %s. Keep Auto Update enabled and let the frame display an Immich photo. The bridge then installs native %s automatically and restarts the frame. No second update check is needed.\n\n' "$BRIDGE_VERSION" "$VERSION"
+              cat "$notes"
+            } > "$notes.with-migration"
+            mv "$notes.with-migration" "$notes"
+          fi
 
       - name: Update GitHub release notes
         env:
@@ -120,7 +139,7 @@ jobs:
 
       - name: Build legacy-layout native firmware
         env:
-          NATIVE_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('v0.{0}.{1}', github.run_number, github.run_attempt) }}
+          NATIVE_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || inputs.native_candidate_version || format('v0.{0}.{1}', github.run_number, github.run_attempt) }}
           DEVICE_SLUG: ${{ matrix.slug }}
         run: |
           set -euo pipefail
@@ -156,6 +175,7 @@ jobs:
           read -r checksum fingerprint <<< "$pins"
           {
             echo "MIGRATION_URL=https://github.com/$GITHUB_REPOSITORY/releases/download/$NATIVE_VERSION/$asset"
+            echo "MIGRATION_TARGET_VERSION=$NATIVE_VERSION"
             echo "MIGRATION_MD5=$checksum"
             echo "MIGRATION_ELF=$fingerprint"
           } >> "$GITHUB_ENV"
@@ -163,7 +183,16 @@ jobs:
       - name: Compile firmware
         env:
           VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('v0.0.0-candidate.{0}.{1}', github.run_id, github.run_attempt) }}
+          BRIDGE_VERSION: ${{ github.ref_name == 'v2.0.0' && 'v1.18.1' || inputs.bridge_version || '' }}
         run: |
+          RELEASE_TAG="$VERSION"
+          if [ -n "$BRIDGE_VERSION" ]; then
+            if [[ ! "$BRIDGE_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::The ESPHome bridge needs a full stable firmware version"
+              exit 1
+            fi
+            VERSION="$BRIDGE_VERSION"
+          fi
           set -euo pipefail
           python3 scripts/firmware_release.py inject \
             --slug "${{ matrix.slug }}" \
@@ -204,7 +233,8 @@ jobs:
             if [ "$profile" = ota ] && [ -n "${MIGRATION_URL:-}" ]; then
               config_file="${config_file%.yaml}.native-migration-bridge.yaml"
               migration=(-s native_migration_enabled true -s native_migration_url "$MIGRATION_URL"
-                -s native_migration_md5 "$MIGRATION_MD5" -s native_migration_elf "$MIGRATION_ELF")
+                -s native_migration_md5 "$MIGRATION_MD5" -s native_migration_elf "$MIGRATION_ELF"
+                -s native_migration_target_version "$MIGRATION_TARGET_VERSION")
             fi
             local container
             container=$(docker create \
@@ -272,7 +302,16 @@ jobs:
       - name: Collect firmware files and generate manifest
         env:
           VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('v0.0.0-candidate.{0}.{1}', github.run_id, github.run_attempt) }}
+          BRIDGE_VERSION: ${{ github.ref_name == 'v2.0.0' && 'v1.18.1' || inputs.bridge_version || '' }}
         run: |
+          RELEASE_TAG="$VERSION"
+          if [ -n "$BRIDGE_VERSION" ]; then
+            if [[ ! "$BRIDGE_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::The ESPHome bridge needs a full stable firmware version"
+              exit 1
+            fi
+            VERSION="$BRIDGE_VERSION"
+          fi
           mkdir -p output
 
           if [ ! -f "output/${{ matrix.slug }}.ota.bin" ]; then
@@ -284,6 +323,7 @@ jobs:
             --slug "${{ matrix.slug }}" \
             --chip "${{ matrix.chip }}" \
             --version "${VERSION}" \
+            --release-tag "$RELEASE_TAG" \
             --factory "output/${{ matrix.slug }}.factory.bin" \
             --ota "output/${{ matrix.slug }}.ota.bin" \
             --source-commit "$GITHUB_SHA" \
@@ -353,6 +393,7 @@ jobs:
         run: >-
           python3 ../scripts/firmware_release.py verify-directory
           --version "${VERSION}"
+          --version-is-release-tag
           --dir firmware
           --exact
           --source-commit "$GITHUB_SHA"
@@ -360,7 +401,7 @@ jobs:
 
       - name: Verify legacy native candidates
         env:
-          NATIVE_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('v0.{0}.{1}', github.run_number, github.run_attempt) }}
+          NATIVE_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || inputs.native_candidate_version || format('v0.{0}.{1}', github.run_number, github.run_attempt) }}
         run: |
           if [[ "$NATIVE_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             mkdir native
@@ -424,6 +465,7 @@ jobs:
         run: >-
           python3 scripts/firmware_release.py verify-directory
           --version "${VERSION}"
+          --version-is-release-tag
           --dir firmware
           --exact
           --slugs $DEVICE_SLUGS
@@ -469,6 +511,7 @@ jobs:
             --dir published
           python3 scripts/firmware_release.py verify-directory \
             --version "${VERSION}" \
+            --version-is-release-tag \
             --dir published \
             --exact \
             --slugs $DEVICE_SLUGS

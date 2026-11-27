@@ -39,6 +39,10 @@ before the switch.
 The installer uses Web Serial; Safari and Firefox cannot flash the display. Having trouble? See [USB flashing help](/usb-flashing).
 :::
 
+### Automatic migration from ESPHome to native firmware
+
+An existing ESPHome frame with **Auto Update** enabled can install an ESPHome bridge, then install native firmware. The bridge shows the target native version and any condition it is waiting for in the frame's web settings under **Firmware**. Keep the frame powered on and let it display an Immich photo. The frame continues automatically and restarts again when it switches to native.
+
 ## 2. Connect to WiFi
 
 Keep the display connected to USB after flashing. The installer should offer a WiFi setup form in the same browser tab; enter your WiFi name and password there.

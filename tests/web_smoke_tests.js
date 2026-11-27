@@ -228,6 +228,8 @@ const scenarios = [
     name: "filter-compatibility-" + version.toLowerCase().replace(/\./g, "-"),
     configured: true, width: 1280, height: 900, filterCompatibilityVersion: version
   })),
+  { name: "firmware-native-migration", configured: true, width: 1280, height: 900,
+    installedFirmwareVersion: "v1.18.1", nativeMigrationTarget: "v2.0.0" },
   { name: "firmware-main-install", configured: true, width: 1280, height: 900 },
   { name: "firmware-main-install-from-development-build", configured: true, width: 1280, height: 900, installedFirmwareVersion: "dev" },
   { name: "firmware-c6-install", configured: true, width: 1280, height: 900 },
@@ -391,6 +393,9 @@ function browserScriptForScenario(scenario) {
       "Connection: API Key": apiKeyConfigured ? "fixture-api-key" : "",
       "Firmware: Version": ${JSON.stringify(installedFirmwareVersion)},
       "Firmware: Device": ${JSON.stringify(firmwareDeviceSlug)},
+      "Native migration handoff": ${JSON.stringify(scenario.nativeMigrationTarget
+        ? "Updating from ESPHome v1.18.1 to native v2.0.0. Waiting for an Immich photo. The frame will continue automatically when it is ready."
+        : "")},
       "Photos: Source": "All Photos",
       "Photos: Memories Window": "Within 2 Days",
       "Photos: Memories Fallback": true,
@@ -1941,6 +1946,13 @@ function smokeAssertionsForScenario(scenario) {
                 throw new Error("Mobile viewport has horizontal overflow");
               }
             }
+          }
+
+          if (${JSON.stringify(scenario.name)} === "firmware-native-migration") {
+            await waitFor(() => cardByTitle("Firmware").querySelector(":scope > [role=status]")?.textContent.includes(
+              "Updating from ESPHome v1.18.1 to native v2.0.0. Waiting for an Immich photo."), 8000, "native migration status");
+            if (!disclosureByTitle("Firmware updates").querySelector(".fw-actions button").hidden)
+              throw new Error("The bridge offered a second manual update action");
           }
 
           if (${JSON.stringify(scenario.name)} === "firmware-main-install" || ${JSON.stringify(scenario.name)} === "firmware-main-install-from-development-build") {

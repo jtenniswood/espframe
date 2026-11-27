@@ -189,6 +189,7 @@ jobs:
 
               MANIFEST_PATH="${RELEASE_DIR}/${MANIFEST_NAME}"
               VERSION=$(jq -r '.version // ""' "$MANIFEST_PATH")
+              MANIFEST_TAG=$(jq -r '.release_tag // .version // ""' "$MANIFEST_PATH")
               OTA_MD5=$(jq -r --arg path "${SLUG}.ota.bin" \
                 'first((.builds // [])[]?.ota | select((.path // "") == $path) | (.md5 // "")) // ""' \
                 "$MANIFEST_PATH")
@@ -197,7 +198,8 @@ jobs:
                 'first((.builds // [])[]?.ota | select((.path // "") == $path) | (.release_url // "")) // ""' \
                 "$MANIFEST_PATH")
               EXPECTED_RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${CANDIDATE_TAG}"
-              if [ "$VERSION" != "$CANDIDATE_TAG" ] || \
+              if [ "$MANIFEST_TAG" != "$CANDIDATE_TAG" ] || \
+                 [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || \
                  [[ ! "$OTA_MD5" =~ ^[0-9a-f]{32}$ ]] || \
                  [ "$OTA_MD5" != "$ACTUAL_OTA_MD5" ] || \
                  { [ -n "$RELEASE_URL" ] && [ "$RELEASE_URL" != "$EXPECTED_RELEASE_URL" ]; } || \
@@ -224,10 +226,12 @@ jobs:
 
               jq -n \
                 --arg version "$VERSION" \
+                --arg release_tag "$MANIFEST_TAG" \
                 --arg release_url "$RELEASE_URL" \
                 --arg ota_path "$OTA_INDEX_PATH" \
                 --arg ota_md5 "$OTA_MD5" \
-                '{version:$version,release_url:$release_url,ota:{path:$ota_path,md5:$ota_md5}}' \
+                '{version:$version,release_tag:$release_tag,release_url:$release_url,ota:{path:$ota_path,md5:$ota_md5}} |
+                 if .version == .release_tag then del(.release_tag) else . end' \
                 >> "$INDEX_ENTRIES"
               VALID_COUNT=$((VALID_COUNT + 1))
               if [ "$VALID_COUNT" -ge 5 ]; then break; fi
@@ -275,6 +279,7 @@ jobs:
         run: >-
           python3 scripts/firmware_release.py verify-directory
           --version "$RELEASE_TAG"
+          --version-is-release-tag
           --dir firmware
           --slugs $DEVICE_SLUGS
           --allow-missing-slugs immich-frame-v2 immich-frame-v3
@@ -336,6 +341,7 @@ jobs:
         run: >-
           python3 scripts/firmware_release.py verify-pages
           --version "${{ needs.download-firmware.outputs.release_tag }}"
+          --version-is-release-tag
           --base-url "$PUBLIC_BASE_URL"
           --slugs $DEVICE_SLUGS
           --retries 10

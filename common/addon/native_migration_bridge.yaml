@@ -1,5 +1,6 @@
 substitutions:
   native_migration_elf: ""
+  native_migration_target_version: ""
 
 esphome:
   includes:
@@ -34,7 +35,22 @@ text_sensor:
     name: "Native migration handoff"
     entity_category: diagnostic
     update_interval: 2s
-    lambda: return std::string(id(native_migration_status));
+    lambda: |-
+      const char *status = id(native_migration_status);
+      if (std::string_view("${native_migration_target_version}").empty())
+        return std::string(status);
+      std::string message = "Updating from ESPHome ${firmware_version} to native ${native_migration_target_version}. ";
+      message += status;
+      if (std::string_view(status) == "Downloading native firmware")
+        message += ". The frame will restart again. Reload this page afterward to open native settings.";
+      else if (std::string_view(status) == "Native candidate rolled back" ||
+               std::string_view(status) == "Configured WireGuard stays on ESPHome")
+        message += ". The frame is still running ESPHome.";
+      else if (!id(auto_update_switch).state)
+        message += ". Turn on Auto Update to continue.";
+      else
+        message += ". The frame will continue automatically when it is ready.";
+      return message;
 
 ota:
   - id: !extend firmware_http_ota

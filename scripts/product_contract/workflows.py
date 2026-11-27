@@ -2354,7 +2354,7 @@ def check_device_workflow_contract(product: dict, errors: list[str]) -> None:
             "gh release download \"$release_tag\"",
             '[[ ! "$CANDIDATE_TAG" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+$ ]]',
             'PUBLIC_MANIFEST=$(jq -r --arg slug "$SLUG"',
-            '[ "$VERSION" != "$CANDIDATE_TAG" ]',
+            '[ "$MANIFEST_TAG" != "$CANDIDATE_TAG" ]',
             '[ "$OTA_MD5" != "$ACTUAL_OTA_MD5" ]',
             'select(.version == $version)',
             '[ "$RELEASE_URL" != "$EXPECTED_RELEASE_URL" ]',

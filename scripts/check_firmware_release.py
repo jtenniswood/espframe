@@ -131,6 +131,33 @@ def test_valid_files_and_directory() -> None:
         run_ok(["verify-directory", "--version", VERSION, "--dir", str(base), "--slugs", SLUG])
 
 
+def test_esp_home_bridge_version_can_differ_from_native_release_tag() -> None:
+    with TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        bridge = "v1.18.1"
+        native = "v2.0.0"
+        manifest, factory, ota = make_release_files(root, REAL_SLUG, bridge)
+        run_ok(["manifest", "--slug", REAL_SLUG, "--version", bridge, "--release-tag", native,
+                "--factory", str(factory), "--ota", str(ota), "--out", str(manifest)])
+        data = json.loads(manifest.read_text())
+        assert data["version"] == bridge and data["release_tag"] == native
+        assert data["builds"][0]["ota"]["release_url"].endswith("/" + native)
+        index = {
+            "device": REAL_SLUG,
+            "versions": [{"version": bridge, "release_tag": native,
+                          "release_url": data["builds"][0]["ota"]["release_url"],
+                          "ota": {"path": ota.name, "md5": firmware_release.md5sum(ota)}}],
+        }
+        write_index = root / "versions.json"
+        write_index.write_text(json.dumps(index))
+        args = ["verify-directory", "--version-is-release-tag", "--dir", str(root), "--slugs", REAL_SLUG]
+        run_ok([*args, "--version", native])
+        run_fails([*args, "--version", "v2.0.1"])
+        del index["versions"][0]["release_tag"]
+        write_index.write_text(json.dumps(index))
+        run_fails([*args, "--version", native])
+
+
 def test_exact_candidate_requires_only_the_requested_release_files() -> None:
     with TemporaryDirectory() as tmp:
         base = Path(tmp)

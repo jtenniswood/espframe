@@ -2699,7 +2699,7 @@ def test_docs_workflow_retains_only_five_complete_stable_releases() -> None:
             'local release_tag="$1"',
             'gh release download "$release_tag"',
             '[[ ! "$CANDIDATE_TAG" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+$ ]]',
-            '[ "$VERSION" != "$CANDIDATE_TAG" ]',
+            '[ "$MANIFEST_TAG" != "$CANDIDATE_TAG" ]',
             '[ "$OTA_MD5" != "$ACTUAL_OTA_MD5" ]',
             'select(.version == $version)',
             '[ "$RELEASE_URL" != "$EXPECTED_RELEASE_URL" ]',

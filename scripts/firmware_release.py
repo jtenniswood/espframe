@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Firmware release helpers used by CI.
 
-The GitHub release tag is the source of truth for public firmware versions.
+The GitHub release tag identifies the package. A bridge may have its own firmware version.
 This script keeps YAML patching, manifest generation, and asset verification in
 one tested place instead of duplicating shell snippets across workflows.
 """
@@ -193,6 +193,14 @@ def load_manifest(path: Path) -> dict:
         raise FirmwareReleaseError(f"{path} is not valid JSON: {exc}") from exc
 
 
+def declared_release_tag(document: dict, version: str) -> str:
+    tag = document.get("release_tag", version)
+    if not isinstance(tag, str):
+        raise FirmwareReleaseError("release_tag must be a version string")
+    assert_release_version(tag)
+    return tag
+
+
 def first_build(manifest: dict, manifest_path: Path) -> dict:
     builds = manifest.get("builds")
     if not isinstance(builds, list) or not builds:
@@ -208,6 +216,7 @@ def verify_manifest(
     version: str,
     ota_md5: str,
     require_factory: bool = True,
+    release_tag: str | None = None,
 ) -> dict:
     assert_release_version(version)
     manifest = load_manifest(manifest_path)
@@ -233,7 +242,10 @@ def verify_manifest(
         raise FirmwareReleaseError(f"{manifest_path} ota.path must be {expected_ota_path}")
     if ota.get("md5") != ota_md5:
         raise FirmwareReleaseError(f"{manifest_path} ota.md5 does not match {expected_ota_path}")
-    expected_release_url = RELEASE_URL_BASE + version
+    manifest_tag = declared_release_tag(manifest, version)
+    if release_tag is not None and manifest_tag != release_tag:
+        raise FirmwareReleaseError(f"{manifest_path} release tag {manifest_tag!r} does not match {release_tag!r}")
+    expected_release_url = RELEASE_URL_BASE + manifest_tag
     if ota.get("release_url") != expected_release_url:
         raise FirmwareReleaseError(f"{manifest_path} release_url must be {expected_release_url}")
 
@@ -253,14 +265,16 @@ def verify_manifest(
     return build
 
 
-def verify_files(slug: str, version: str, manifest: Path, factory: Path | None, ota: Path) -> None:
+def verify_files(
+    slug: str, version: str, manifest: Path, factory: Path | None, ota: Path, release_tag: str | None = None
+) -> None:
     require_file(manifest, "firmware manifest")
     require_file(ota, "OTA firmware")
     require_factory = factory is not None
     if require_factory:
         require_file(factory, "factory firmware")
 
-    verify_manifest(manifest, slug, version, md5sum(ota), require_factory=require_factory)
+    verify_manifest(manifest, slug, version, md5sum(ota), require_factory=require_factory, release_tag=release_tag)
     assert_binary_version(ota, version)
     if factory is not None:
         assert_binary_version(factory, version)
@@ -356,7 +370,9 @@ def versions_index_path(manifest_path: Path) -> Path:
     return manifest_path.parent / "versions.json"
 
 
-def verify_versions_index(index_path: Path, slug: str, current_version: str) -> None:
+def verify_versions_index(
+    index_path: Path, slug: str, current_version: str, current_release_tag: str | None = None
+) -> None:
     require_file(index_path, "firmware versions index")
     try:
         index = json.loads(index_path.read_text())
@@ -385,7 +401,12 @@ def verify_versions_index(index_path: Path, slug: str, current_version: str) -> 
             )
 
         release_url = str(entry.get("release_url", "")).strip()
-        expected_release_url = RELEASE_URL_BASE + version
+        tag = declared_release_tag(entry, version)
+        if not STABLE_RELEASE_VERSION_RE.fullmatch(tag):
+            raise FirmwareReleaseError(f"{index_path} contains invalid stable release tag {tag!r}")
+        if position == 0 and tag != (current_release_tag or current_version):
+            raise FirmwareReleaseError(f"{index_path} current release tag {tag!r} does not match the manifest")
+        expected_release_url = RELEASE_URL_BASE + tag
         if release_url != expected_release_url:
             raise FirmwareReleaseError(f"{index_path} release_url must be {expected_release_url}")
 
@@ -416,18 +437,23 @@ def verify_directory(
     slugs: list[str],
     version: str,
     allow_missing_slugs: set[str] | None = None,
+    version_is_release_tag: bool = False,
 ) -> None:
     optional_slugs = allow_missing_slugs or set()
+    release_tag = version if version_is_release_tag else None
+    expected_version = None if version_is_release_tag else version
     for slug in slugs:
         release_files = locate_release_files(base_dir, slug, allow_missing=slug in optional_slugs)
         if release_files is None:
             continue
         manifest, factory, ota = release_files
-        verify_files(slug, version, manifest, factory, ota)
+        if expected_version is None:
+            expected_version = manifest_version(manifest)
+        verify_files(slug, expected_version, manifest, factory, ota, release_tag=release_tag)
 
         index_path = versions_index_path(manifest)
         if index_path.is_file():
-            verify_versions_index(index_path, slug, version)
+            verify_versions_index(index_path, slug, expected_version, release_tag)
 
         beta = locate_beta_files(base_dir, slug)
         if beta is not None:
@@ -491,7 +517,7 @@ def public_manifest_url(base_url: str, slug: str, beta: bool = False) -> str:
 
 
 def download_and_verify_public_versions(
-    base_url: str, slug: str, version: str, out_dir: Path
+    base_url: str, slug: str, version: str, out_dir: Path, release_tag: str | None = None
 ) -> None:
     manifest_url = public_manifest_url(base_url, slug)
     index_url = urljoin(manifest_url, "versions.json")
@@ -506,16 +532,18 @@ def download_and_verify_public_versions(
             ota_path = str(entry["ota"].get("path", "")).strip()
             if ota_path:
                 download(urljoin(index_url, ota_path), index_path.parent / ota_path)
-    verify_versions_index(index_path, slug, version)
+    verify_versions_index(index_path, slug, version, release_tag)
 
 
-def download_and_verify_public_slug(base_url: str, slug: str, version: str, out_dir: Path, beta: bool = False) -> None:
+def download_and_verify_public_slug(
+    base_url: str, slug: str, version: str, out_dir: Path, beta: bool = False, version_is_release_tag: bool = False
+) -> str:
     manifest_url = public_manifest_url(base_url, slug, beta=beta)
     slug_dir = out_dir / slug / ("beta" if beta else "")
     manifest_path = slug_dir / "manifest.json"
     download(manifest_url, manifest_path)
 
-    expected_version = manifest_version(manifest_path) if beta else version
+    expected_version = manifest_version(manifest_path) if beta or version_is_release_tag else version
     build = first_build(load_manifest(manifest_path), manifest_path)
     ota = build.get("ota")
     if not isinstance(ota, dict) or not ota.get("path"):
@@ -531,7 +559,9 @@ def download_and_verify_public_slug(base_url: str, slug: str, version: str, out_
     elif not beta:
         raise FirmwareReleaseError(f"{manifest_url} has no factory path")
 
-    verify_files(slug, expected_version, manifest_path, factory_path, ota_path)
+    verify_files(slug, expected_version, manifest_path, factory_path, ota_path,
+                 release_tag=version if version_is_release_tag else None)
+    return expected_version
 
 
 def verify_pages(
@@ -541,6 +571,7 @@ def verify_pages(
     retries: int,
     delay: float,
     allow_missing_slugs: set[str] | None = None,
+    version_is_release_tag: bool = False,
 ) -> None:
     optional_slugs = allow_missing_slugs or set()
     last_error: Exception | None = None
@@ -548,15 +579,23 @@ def verify_pages(
         try:
             with TemporaryDirectory() as tmp:
                 out_dir = Path(tmp)
+                firmware_version = None
                 for slug in slugs:
                     try:
-                        download_and_verify_public_slug(base_url, slug, version, out_dir, beta=False)
+                        board_version = download_and_verify_public_slug(
+                            base_url, slug, version, out_dir, version_is_release_tag=version_is_release_tag
+                        )
                     except urllib.error.HTTPError as exc:
                         expected_manifest_url = public_manifest_url(base_url, slug, beta=False)
                         if slug in optional_slugs and exc.code == 404 and exc.geturl() == expected_manifest_url:
                             continue
                         raise
-                    download_and_verify_public_versions(base_url, slug, version, out_dir)
+                    if firmware_version is not None and board_version != firmware_version:
+                        raise FirmwareReleaseError(f"{slug} firmware version differs from the other boards")
+                    firmware_version = board_version
+                    download_and_verify_public_versions(
+                        base_url, slug, board_version, out_dir, version if version_is_release_tag else None
+                    )
                     try:
                         download_and_verify_public_slug(base_url, slug, version, out_dir, beta=True)
                     except urllib.error.HTTPError as exc:
@@ -622,6 +661,8 @@ def candidate_provenance(commit: str, factory: Path, ota: Path) -> dict[str, obj
 
 def cmd_manifest(args: argparse.Namespace) -> None:
     assert_release_version(args.version)
+    release_tag = args.release_tag or args.version
+    assert_release_version(release_tag)
     factory = Path(args.factory)
     ota = Path(args.ota)
     require_file(factory, "factory firmware")
@@ -643,11 +684,13 @@ def cmd_manifest(args: argparse.Namespace) -> None:
                 "ota": {
                     "path": f"{args.slug}.ota.bin",
                     "md5": md5sum(ota),
-                    "release_url": RELEASE_URL_BASE + args.version,
+                    "release_url": RELEASE_URL_BASE + release_tag,
                 },
             },
         ],
     }
+    if release_tag != args.version:
+        data["release_tag"] = release_tag
     if args.source_commit:
         data["espframe_candidate"] = candidate_provenance(args.source_commit, factory, ota)
     out = Path(args.out)
@@ -693,6 +736,7 @@ def cmd_verify_directory(args: argparse.Namespace) -> None:
         args.slugs,
         args.version,
         allow_missing_slugs=set(args.allow_missing_slugs),
+        version_is_release_tag=args.version_is_release_tag,
     )
 
 
@@ -715,6 +759,7 @@ def cmd_verify_pages(args: argparse.Namespace) -> None:
         args.retries,
         args.delay,
         allow_missing_slugs=set(args.allow_missing_slugs),
+        version_is_release_tag=args.version_is_release_tag,
     )
 
 
@@ -731,6 +776,7 @@ def build_parser() -> argparse.ArgumentParser:
     manifest.add_argument("--slug", required=True)
     manifest.add_argument("--chip")
     manifest.add_argument("--version", required=True)
+    manifest.add_argument("--release-tag", help="GitHub release tag if different from the firmware version")
     manifest.add_argument("--factory", required=True)
     manifest.add_argument("--ota", required=True)
     manifest.add_argument("--source-commit")
@@ -747,6 +793,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     verify_directory_cmd = sub.add_parser("verify-directory", help="Verify firmware files for multiple slugs")
     verify_directory_cmd.add_argument("--version", required=True)
+    verify_directory_cmd.add_argument("--version-is-release-tag", action="store_true")
     verify_directory_cmd.add_argument("--dir", required=True)
     verify_directory_cmd.add_argument("--slugs", nargs="+", required=True)
     verify_directory_cmd.add_argument("--allow-missing-slugs", nargs="+", default=[])
@@ -765,6 +812,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     verify_pages_cmd = sub.add_parser("verify-pages", help="Verify public GitHub Pages firmware")
     verify_pages_cmd.add_argument("--version", required=True)
+    verify_pages_cmd.add_argument("--version-is-release-tag", action="store_true")
     verify_pages_cmd.add_argument("--base-url", required=True)
     verify_pages_cmd.add_argument("--slugs", nargs="+", required=True)
     verify_pages_cmd.add_argument("--retries", type=int, default=1)
