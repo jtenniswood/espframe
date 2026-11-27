@@ -201,11 +201,24 @@ set -eu
 printf '%s\n' "$2" >> calls
 case "$2" in
   view) [ "$GH_TEST_MODE" != published ] && echo true || echo false ;;
-  upload) mkdir -p remote; cp firmware/* remote/ ;;
+  upload)
+    case "$4" in
+      native/*) mkdir -p remote-native; cp native/* remote-native/ ;;
+      *) mkdir -p remote; cp firmware/* remote/ ;;
+    esac
+    ;;
   download)
-    cp remote/* published/
-    if [ "$GH_TEST_MODE" = corrupt ]; then
-      printf 'changed without removing version records' >> "published/$DEVICE_SLUGS.factory.bin"
+    destination="${@: -1}"
+    if [ "$destination" = published-native ]; then
+      cp remote-native/* "$destination/"
+      if [ "$GH_TEST_MODE" = corrupt-native ]; then
+        printf 'changed without removing image metadata' >> "$destination/v2-legacy-native.bin"
+      fi
+    else
+      cp remote/* "$destination/"
+      if [ "$GH_TEST_MODE" = corrupt ]; then
+        printf 'changed without removing version records' >> "$destination/$DEVICE_SLUGS.factory.bin"
+      fi
     fi
     ;;
   edit) [ "$4" = --draft=false ]; touch made-public ;;
@@ -213,21 +226,45 @@ case "$2" in
 esac
 """)
         gh.chmod(0o755)
-        for mode in ("valid", "corrupt", "published"):
+        git = base / "git"
+        git.write_text("""#!/bin/bash
+set -eu
+[ "$*" = "show HEAD:scripts/native_stable_releases.py" ]
+cat scripts/native_stable_releases.py
+""")
+        git.chmod(0o755)
+        for mode in ("valid", "corrupt", "corrupt-native", "missing-native", "published"):
             case = base / mode
             case.mkdir()
             (case / "scripts").symlink_to(firmware_release.ROOT / "scripts", target_is_directory=True)
             (case / "firmware").mkdir()
+            (case / "native").mkdir()
             make_release_files(case / "firmware", REAL_SLUG)
+            for board in ("v1", "v2", "v3"):
+                if mode == "missing-native" and board == "v2":
+                    continue
+                image = bytearray(288)
+                image[0] = 0xE9
+                image[12] = 0x12
+                image[23] = 1
+                image[32:36] = bytes.fromhex("3254cdab")
+                image[48:48 + len(VERSION)] = VERSION.encode("ascii")
+                project = f"espframe_legacy_{board}".encode("ascii")
+                image[80:80 + len(project)] = project
+                image[176] = 1
+                (case / "native" / f"{board}-legacy-native.bin").write_bytes(image)
             env = {**os.environ, "PATH": f"{base}{os.pathsep}{os.environ['PATH']}",
-                   "VERSION": VERSION, "DEVICE_SLUGS": REAL_SLUG, "GH_TEST_MODE": mode}
+                   "VERSION": VERSION, "DEVICE_SLUGS": REAL_SLUG, "GH_TEST_MODE": mode,
+                   "RUNNER_TEMP": str(case)}
             result = subprocess.run(
                 ["bash", "-eo", "pipefail", "-c", "\n".join(commands)], cwd=case, env=env,
                 capture_output=True, text=True, timeout=30,
             )
             expected = {
-                "valid": ["view", "upload", "download", "edit"],
-                "corrupt": ["view", "upload", "download"],
+                "valid": ["view", "upload", "upload", "download", "download", "edit"],
+                "corrupt": ["view", "upload", "upload", "download"],
+                "corrupt-native": ["view", "upload", "upload", "download", "download"],
+                "missing-native": ["view", "upload"],
                 "published": ["view"],
             }[mode]
             assert (case / "calls").read_text().splitlines() == expected, result.stderr
