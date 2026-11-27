@@ -134,14 +134,24 @@ jobs:
             *) exit 1 ;;
           esac
           mkdir -p output
-          native_build=$(mktemp -d)
-          trap 'rm -rf "$native_build"' EXIT
-          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
-            -v "$PWD:/workspace" -v "$native_build:/output" -w /workspace espressif/idf:v6.1.1 \
-            idf.py -C firmware/native -B /output -D "SWIPE_BOARD=$board" \
-            -D NATIVE_LEGACY_MIGRATION=ON -D "NATIVE_STABLE_VERSION=$NATIVE_VERSION" build
+          native_volume="espframe-native-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$board"
+          native_container=""
+          cleanup_native_build() {
+            if [ -n "$native_container" ]; then
+              docker rm -f "$native_container" >/dev/null 2>&1 || true
+            fi
+            docker volume rm "$native_volume" >/dev/null 2>&1 || true
+          }
+          trap cleanup_native_build EXIT
+          docker volume create "$native_volume" >/dev/null
+          native_container=$(docker create \
+            --mount "type=volume,source=$native_volume,target=/workspace" -w /workspace espressif/idf:v6.1.1 \
+            idf.py -C firmware/native -B /workspace/native-build -D "SWIPE_BOARD=$board" \
+            -D NATIVE_LEGACY_MIGRATION=ON -D "NATIVE_STABLE_VERSION=$NATIVE_VERSION" build)
+          git archive "$GITHUB_SHA" | docker cp - "$native_container:/workspace"
+          docker start -a "$native_container"
           asset="$board-legacy-native.bin"
-          cp "$native_build/espframe_legacy_$board.bin" "output/$asset"
+          docker cp "$native_container:/workspace/native-build/espframe_legacy_$board.bin" "output/$asset"
           pins=$(python3 scripts/native_stable_releases.py pins "output/$asset" "$board" "$NATIVE_VERSION")
           read -r checksum fingerprint <<< "$pins"
           {
