@@ -385,7 +385,47 @@ void verify_stock_connection_migration() {
   assert(loaded.read() && loaded.immich_url == "http://api/api" && loaded.immich_key == "fixture-immich-key");
 }
 
+static void test_legacy_ota_migration() {
+  using namespace espframe::native;
+  const std::string snapshot = R"json({
+    "immich_url":"https://stock.test/api","interval":"2 minutes","photo_source":"Person",
+    "people_enabled":true,"person_ids":"12345678-1234-1234-1234-123456789abc",
+    "display_mode":"Fill","brightness_day":83,"brightness_night":38,
+    "screen_rotation":"180","schedule_enabled":true,"schedule_on_hour":7,"schedule_off_hour":22,
+    "show_clock":true,"clock_format":"12 Hour","timezone":"Europe/London (GMT+0)",
+    "auto_update":true,"update_frequency":"Weekly","c6_auto_update":false
+  })json";
+  HomeAssistantKey pairing{};
+  pairing.fill(0x23);
+  StockSettings stock{.wifi = WifiCredentials::from("Stock frame", "fixture-password"),
+                      .immich_url = "https://stock.test/api", .immich_key = "fixture-immich-key",
+                      .pairing = pairing, .frame_name = "Kitchen"};
+
+  const auto settings = Settings::convert_esphome_migration(snapshot, stock);
+  assert(settings && settings->ssid == "Stock frame" && settings->password == "fixture-password");
+  assert(settings->immich_url == stock.immich_url && settings->immich_key == stock.immich_key);
+  assert(settings->home_assistant_key == encode_home_assistant_key(pairing) && settings->frame_name == "Kitchen");
+  assert(settings->slide_seconds == 120 && settings->photo_source.preset() == PhotoPreset::Person);
+  assert(settings->photo_filters.criteria.people_enabled &&
+         settings->photo_filters.criteria.person_ids == "12345678-1234-1234-1234-123456789abc");
+  assert(settings->display_mode == DisplayMode::Fill && settings->pair_framing == PairFraming::Fill);
+  assert(settings->screen_rotation == ScreenRotation::UpsideDown && settings->night_brightness() == 38);
+  assert(settings->schedule.enabled && settings->schedule.on_hour == 7 && settings->schedule.off_hour == 22);
+  assert(settings->clock.show && settings->clock.format == "12 Hour" && settings->clock.timezone == "Europe/London (GMT+0)");
+  assert(settings->stock_update_preferences.auto_update == true &&
+         settings->stock_update_preferences.frequency == "Weekly" &&
+         settings->stock_update_preferences.wifi_auto_update == false);
+
+  auto unsafe = snapshot;
+  unsafe.insert(1, R"("wireguard_enabled":true,)");
+  assert(!Settings::convert_esphome_migration(unsafe, stock));
+  assert(!Settings::convert_esphome_migration("{}", stock));
+  stock.immich_url = "https://changed.test/api";
+  assert(!Settings::convert_esphome_migration(snapshot, stock));
+}
+
 int main() {
+  test_legacy_ota_migration();
   using espframe::native::Settings;
   using espframe::native::DisplayMode;
   using espframe::native::PhotoSourceMode;

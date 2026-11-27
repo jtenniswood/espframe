@@ -579,7 +579,16 @@ class SlideLoader {
 void run(void *) {
   if constexpr (!esphome_trial) {
     start_firmware_boot_check();
+#if NATIVE_LEGACY_MIGRATION
+    if (!Settings::import_esphome_migration()) {
+      ESP_LOGE(tag, "Legacy V1 settings import failed");
+      reject_pending_firmware_boot();
+      vTaskDelete(nullptr);
+      return;
+    }
+#else
     start_native_release_updates(network);
+#endif
   }
   static SlideLoader loader;
   if (!loader.start()) {
@@ -1063,8 +1072,12 @@ void run(void *) {
       if (!backlight_ready || awaiting_rotation_frame)
         continue;
       if (report.valid) {
-        if constexpr (!esphome_trial)
-          confirm_firmware_boot();
+        if constexpr (!esphome_trial) {
+#if NATIVE_LEGACY_MIGRATION
+          if (showed_photo)
+#endif
+            confirm_firmware_boot();
+        }
         if (report.contacts != 0 && fade.running()) {
           if (fade.interrupt(snapshot != nullptr))
             pin_fade();
@@ -1641,8 +1654,13 @@ void start_player() {
     ESP_LOGI(tag, "Reset reason: %s", last_reset_reason().data());
     start_usb_setup(network);
   }
-  // The standalone player also loads and normalizes its saved configuration at startup.
+  // Legacy startup checks its migrated document before the player loads it.
+  // Parsing the full ESPHome settings snapshot needs more stack than native setup.
+#if NATIVE_LEGACY_MIGRATION
+  constexpr uint32_t player_stack_bytes = 16384;
+#else
   constexpr uint32_t player_stack_bytes = !esphome_trial ? 8192 : trial_immich ? 6144 : 4096;
+#endif
   const auto result = xTaskCreatePinnedToCore(run, "photo-player", player_stack_bytes, nullptr, player_priority, nullptr,
                                             player_core);
   ESP_ERROR_CHECK(result == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);

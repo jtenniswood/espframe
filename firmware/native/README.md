@@ -622,6 +622,32 @@ slot match, and this boot demonstrated rollback support and confirmed the app.
 The diagnostic build keeps running ESPHome. Settings compatibility and
 successful native startup still need separate checks before migration.
 
+#### Test the automatic V1 handoff locally
+
+Build an app for the legacy ESPHome slots with ESP-IDF:
+
+```sh
+idf.py -C firmware/native -B firmware/native/build/legacy-v1 \
+  -D SWIPE_BOARD=v1 -D NATIVE_LEGACY_MIGRATION=ON build
+```
+
+Serve `espframe_legacy_v1.bin` from a test host on the frame's network. Build
+`builds/guition-esp32-p4-jc8012p4a1.native-migration-bridge.yaml` with
+`native_migration_enabled=true`, the local `native_migration_url`, and the
+candidate's `native_migration_md5`. Use an OTA app upload for the bridge on the
+dedicated V1 running stock ESPHome. Keep the original firmware and USB
+recovery available.
+
+The bridge checks Auto Update, active playback, and rollback readiness before
+it snapshots the current stock settings and fetches the pinned candidate.
+The snapshot stays on the device. The native build reads the retained Wi-Fi,
+Immich, and Home Assistant records and stores its settings in a separate NVS
+namespace. It confirms the boot after displaying an Immich photo and receiving
+a valid touch-controller report. A failed handoff leaves the one-time snapshot
+in place so the bridge cannot keep retrying on rollback. Frames with configured
+WireGuard stay on ESPHome. The public firmware feeds are separate from this
+test build.
+
 #### Test live Immich over Wi-Fi
 
 For a V1 configured through the stock ESPHome installer, build the

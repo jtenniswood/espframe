@@ -154,7 +154,12 @@ esp_err_t esp_timer_create(const esp_timer_create_args_t *config, esp_timer_hand
   return ESP_OK;
 }
 esp_err_t esp_timer_start_once(esp_timer_handle_t timer, uint64_t duration) {
-  assert(timer == &fake.timer && duration == 15'000'000);
+#if NATIVE_LEGACY_MIGRATION
+  constexpr uint64_t timeout = 90'000'000;
+#else
+  constexpr uint64_t timeout = 15'000'000;
+#endif
+  assert(timer == &fake.timer && duration == timeout);
   fake.timer_armed = true;
   return ESP_OK;
 }
@@ -301,4 +306,12 @@ int main(int argc, char **argv) {
          returned_to_ota.boot_verified && returned_to_ota.rejected == staged);
   fake.invalid_state = ESP_OTA_IMG_VALID;
   assert(!firmware_boot_status().rejected);
+
+  fake.pending = true;
+  espframe::native::start_firmware_boot_check();
+  espframe::native::reject_pending_firmware_boot();
+  espframe::native::reject_pending_firmware_boot();
+  fake.timer.callback(nullptr);
+  espframe::native::confirm_firmware_boot();
+  assert(fake.rejected == 2 && fake.restarts == 2 && fake.accepted == 1);
 }

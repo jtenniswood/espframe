@@ -1,4 +1,8 @@
 #include "settings.h"
+#if NATIVE_LEGACY_MIGRATION
+#include "esphome_v1_layout.h"
+#include "legacy_migration_storage.h"
+#endif
 #include "frame_identity_model.h"
 #include "home_assistant_key.h"
 #include "i18n.h"
@@ -27,7 +31,11 @@
 namespace espframe::native {
 namespace {
 
+#if NATIVE_LEGACY_MIGRATION
+constexpr const char *partition = "nvs";
+#else
 constexpr const char *partition = "native_config";
+#endif
 constexpr const char *store_namespace = "player";
 constexpr const char *settings_key = "settings_v1";
 constexpr size_t legacy_max_json_size = 3072;
@@ -894,6 +902,86 @@ bool Settings::read_esphome_trial() {
   return true;
 }
 #endif
+
+#if NATIVE_LEGACY_MIGRATION
+bool Settings::import_esphome_migration() {
+  using namespace espframe_native_ota;
+  const auto *running = esp_ota_get_running_partition();
+  const auto *previous = other_esphome_v1_slot(running);
+  if (!previous)
+    return false;
+  const bool first_boot = is_app_in_ota_state(running, ESP_OTA_IMG_PENDING_VERIFY);
+  if (first_boot && (!is_v1_esphome_app(previous) || !is_app_in_ota_state(previous, ESP_OTA_IMG_VALID) ||
+                     !esp_ota_check_rollback_is_possible()))
+    return false;
+
+  const std::lock_guard lock(storage_mutex);
+  Settings candidate;
+  bool may_create = false;
+  if (!first_boot)
+    return load(candidate);
+  // Rebuild from the fresh bridge snapshot for each pending installation.
+  // A previously failed trial may have written an older native document.
+  if (!load(candidate, &may_create) && !may_create)
+    return false;
+  auto imported = convert_esphome_migration(read_migration_snapshot(),
+      read_stock_settings({.wifi = true, .immich = true, .pairing = true}));
+  return imported && store_settings(*imported) == UpdateResult::Saved;
+}
+#endif
+
+std::optional<Settings> Settings::convert_esphome_migration(const std::string &snapshot, const StockSettings &stock) {
+  const auto document = parse(snapshot.c_str());
+  if (!cJSON_IsObject(document.get()))
+    return std::nullopt;
+
+  const auto *interval = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(document.get(), "interval"));
+  const auto seconds = interval ? interval_seconds(interval) : 0;
+  const auto *source = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(document.get(), "photo_source"));
+  const auto preset = source ? parse_photo_preset(source) : std::nullopt;
+  const auto *url = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(document.get(), "immich_url"));
+  if (seconds < 2 || seconds > 86'400 || !preset || !stock.wifi || !stock.wifi->configured() ||
+      !url || stock.immich_url != url || stock.immich_key.empty() ||
+      cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(document.get(), "wireguard_enabled")))
+    return std::nullopt;
+  cJSON_DeleteItemFromObjectCaseSensitive(document.get(), "photo_source");
+  if (!put_wifi(document.get(), stock.wifi->ssid.data(), stock.wifi->password.data()) ||
+      !cJSON_AddStringToObject(document.get(), "immich_key", stock.immich_key.c_str()) ||
+      !cJSON_AddNumberToObject(document.get(), "slide_seconds", seconds) ||
+      (stock.frame_name && !cJSON_AddStringToObject(document.get(), "frame_name", stock.frame_name->c_str())) ||
+      (stock.pairing && !cJSON_AddStringToObject(document.get(), "home_assistant_key", encode_home_assistant_key(*stock.pairing).c_str())))
+    return std::nullopt;
+  auto *updates = cJSON_AddObjectToObject(document.get(), "firmware_updates");
+  if (!updates)
+    return std::nullopt;
+  for (const auto &[stock_key, native_key] : {std::pair{"auto_update", "auto_update"},
+                                             std::pair{"update_frequency", "update_frequency"},
+                                             std::pair{"c6_auto_update", "wifi_auto_update"}}) {
+    auto *item = cJSON_DetachItemFromObjectCaseSensitive(document.get(), stock_key);
+    if (!item || !cJSON_AddItemToObject(updates, native_key, item)) {
+      cJSON_Delete(item);
+      return std::nullopt;
+    }
+  }
+  Settings imported;
+  if (!parse_all(document.get(), imported) || !imported.has_immich())
+    return std::nullopt;
+  imported.pair_framing = PairFraming::Fill;
+  // Legacy presets carry their filters alongside the selected label.
+  // Preserve the saved criteria rather than resetting them to preset defaults.
+  switch (*preset) {
+    case PhotoPreset::All: imported.photo_source.mode = PhotoSourceMode::Library; break;
+    case PhotoPreset::Favorites: imported.photo_source.mode = PhotoSourceMode::Favorites; break;
+    case PhotoPreset::Memories: imported.photo_source.mode = PhotoSourceMode::Memories; break;
+    case PhotoPreset::Album:
+    case PhotoPreset::Person:
+    case PhotoPreset::Tag:
+      imported.photo_source.legacy_preset = *preset;
+      [[fallthrough]];
+    case PhotoPreset::Custom: imported.photo_source.mode = PhotoSourceMode::Custom; break;
+  }
+  return imported;
+}
 
 bool Settings::read() {
   Settings candidate;

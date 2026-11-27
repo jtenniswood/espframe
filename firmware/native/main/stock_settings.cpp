@@ -19,7 +19,11 @@ bool read_preference(nvs_handle_t storage, const char *key, std::array<uint8_t, 
 StockSettings read_stock_settings(StockSettingsRequest request) {
   // Non-erasing factory installs retain the ESPHome partition. The native
   // partition table and the NVS handle both mark it read-only.
+  #if NATIVE_LEGACY_MIGRATION
+  constexpr char partition[] = "nvs";
+#else
   constexpr char partition[] = "stock_prefs";
+#endif
   StockSettings result;
   if (!request.any() || nvs_flash_init_partition(partition) != ESP_OK)
     return result;
@@ -47,9 +51,14 @@ StockSettings read_stock_settings(StockSettingsRequest request) {
     }
     nvs_close(storage);
   }
+#if NATIVE_LEGACY_MIGRATION
+  if (request.pairing)
+    result.frame_name = read_stock_frame_name(partition);
+#else
   if (result.pairing)
     result.frame_name = read_stock_frame_name(partition);
   nvs_flash_deinit_partition(partition);
+#endif
   return result;
 }
 

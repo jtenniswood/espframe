@@ -143,6 +143,8 @@ struct Settings : PhotoFeedSettings, PhotoConnectionSettings {
   static uint32_t storage_revision();
   bool read();
   bool read_esphome_trial();
+  static bool import_esphome_migration();
+  static std::optional<Settings> convert_esphome_migration(const std::string &snapshot, const StockSettings &stock);
   static bool save(const char *json, std::optional<uint32_t> expected_epoch = {});
   static UsbSaveResult save_usb(const char *json, std::optional<uint32_t> expected_epoch,
                                 StockSettingsRequest request = {}, StockSettings (*read_stock)(StockSettingsRequest) = nullptr);

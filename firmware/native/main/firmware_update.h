@@ -35,6 +35,7 @@ bool frame_restart_available();
 bool run_coprocessor_update(bool (*install)(void *), void *context);
 void request_frame_restart();
 void start_firmware_boot_check();
+void reject_pending_firmware_boot();
 void confirm_firmware_boot();
 
 }  // namespace espframe::native
