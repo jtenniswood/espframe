@@ -342,15 +342,16 @@ jobs:
       - name: Collect release assets
         shell: bash
         run: |
-          mkdir firmware
-          cp board-builds/*.manifest.json board-builds/*.factory.bin board-builds/*.ota.bin firmware/
+          mkdir -p release-candidate/firmware
+          cp board-builds/*.manifest.json board-builds/*.factory.bin board-builds/*.ota.bin release-candidate/firmware/
 
       - name: Verify assembled release assets
+        working-directory: release-candidate
         env:
           VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('v0.0.0-candidate.{0}.{1}', github.run_id, github.run_attempt) }}
           DEVICE_SLUGS: ${{ needs.release-metadata.outputs.device_slugs }}
         run: >-
-          python3 scripts/firmware_release.py verify-directory
+          python3 ../scripts/firmware_release.py verify-directory
           --version "${VERSION}"
           --dir firmware
           --exact
@@ -364,7 +365,7 @@ jobs:
           if [[ "$NATIVE_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             mkdir native
             cp board-builds/*-legacy-native.bin native/
-            python3 scripts/native_stable_releases.py verify-bridges firmware native "$GITHUB_REPOSITORY" "$NATIVE_VERSION"
+            python3 scripts/native_stable_releases.py verify-bridges release-candidate/firmware native "$GITHUB_REPOSITORY" "$NATIVE_VERSION"
           fi
 
       - name: Upload verified firmware candidate
@@ -372,9 +373,9 @@ jobs:
         with:
           name: verified-firmware-candidate
           path: |
-            firmware/*.manifest.json
-            firmware/*.factory.bin
-            firmware/*.ota.bin
+            release-candidate/firmware/*.manifest.json
+            release-candidate/firmware/*.factory.bin
+            release-candidate/firmware/*.ota.bin
           if-no-files-found: error
 
       - name: Upload verified stable native candidate
