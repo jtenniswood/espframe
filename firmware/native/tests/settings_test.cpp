@@ -392,6 +392,18 @@ int main() {
   using espframe::native::ScreenRotation;
   using espframe::native::active_slideshow_interval;
 
+  assert(Settings::save(R"({"ssid":"Test Wi-Fi","password":"","immich_url":"http://photos.test","immich_key":"test-key",
+      "wireguard":{"wireguard_enabled":true}})"));
+  assert(!Settings::wireguard_disable_requested());
+  fail_commit = true;
+  assert(espframe::native::update_configuration(R"({"values":{"wireguard_enabled":false}})").error);
+  fail_commit = false;
+  assert(!Settings::wireguard_disable_requested());
+  const auto disabled = espframe::native::update_configuration(R"({"values":{"wireguard_enabled":false}})");
+  assert(!disabled.error && !disabled.restart_required && Settings::wireguard_disable_requested());
+  const auto reenabled = espframe::native::update_configuration(R"({"values":{"wireguard_enabled":true}})");
+  assert(!reenabled.error && Settings::wireguard_disable_requested());
+
   stored = {{"ssid", "Legacy"}, {"password", "legacy secret"}, {"immich_url", "http://legacy.local/"},
             {"immich_key", "legacy-key"}};
   Settings legacy;

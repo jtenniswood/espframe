@@ -141,6 +141,7 @@ struct Settings : PhotoFeedSettings, PhotoConnectionSettings {
   uint8_t night_brightness() const { return brightness_night.value_or(brightness_day); }
   static constexpr size_t max_json_size = 6144;
   static uint32_t storage_revision();
+  static bool wireguard_disable_requested();
   bool read();
   bool read_esphome_trial();
   static bool save(const char *json, std::optional<uint32_t> expected_epoch = {});

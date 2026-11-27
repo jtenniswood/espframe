@@ -30,6 +30,7 @@ wireguard_config_t config = ESP_WIREGUARD_CONFIG_DEFAULT();
 wireguard_ctx_t context = ESP_WIREGUARD_CONTEXT_DEFAULT();
 std::atomic<uint32_t> desired_lease{};
 std::atomic<bool> callback_pending{};
+std::atomic<bool> stopped_live{};
 uint32_t active_lease{};
 bool connected_interface{};
 int64_t next_diagnostic{};
@@ -42,14 +43,23 @@ void publish(WireguardStatus next) {
   status = next;
 }
 
-void reset_interface() {
+void reset_interface(bool running = true) {
   if (context.netif)
     esp_wireguard_disconnect(&context);
   context = {};
   connected_interface = false;
   next_attempt = 0;
   next_diagnostic = 0;
-  publish({.running = true, .connected = false, .handshake_age = {}});
+  publish({.running = running, .connected = false, .handshake_age = {}});
+}
+
+void stop_on_core(void *) {
+  if (stopped_live.load(std::memory_order_relaxed))
+    return;
+  reset_interface(false);
+  active_lease = 0;
+  stopped_live.store(true, std::memory_order_release);
+  ESP_LOGI(tag, "Tunnel disabled");
 }
 
 err_t resolve_ipv4(const std::string &host, ip_addr_t &address) {
@@ -109,6 +119,11 @@ bool start_interface() {
 }
 
 void poll_on_core(void *) {
+  if (Settings::wireguard_disable_requested()) {
+    stop_on_core(nullptr);
+    callback_pending.store(false, std::memory_order_release);
+    return;
+  }
   const auto station = desired_lease.load(std::memory_order_acquire);
   if (station != active_lease) {
     reset_interface();
@@ -168,6 +183,16 @@ void poll_wireguard(uint32_t station_lease) {
   if (!callback_pending.exchange(true, std::memory_order_acq_rel) &&
       tcpip_try_callback(poll_on_core, nullptr) != ERR_OK)
     callback_pending.store(false, std::memory_order_release);
+}
+
+void apply_wireguard_disable() {
+  // The regular Wi-Fi poll retries if the lwIP callback queue is full.
+  if (Settings::wireguard_disable_requested() && wireguard_status().running)
+    tcpip_try_callback(stop_on_core, nullptr);
+}
+
+bool wireguard_stopped_live() {
+  return stopped_live.load(std::memory_order_acquire);
 }
 
 WireguardStatus wireguard_status() {

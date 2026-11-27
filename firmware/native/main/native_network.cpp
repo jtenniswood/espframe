@@ -70,7 +70,8 @@ NativeNetwork::Address NativeNetwork::address() const {
 }
 
 bool NativeNetwork::wireguard_restart_required(const Settings &saved) const {
-  return settings_->wireguard != saved.wireguard;
+  return saved.wireguard.enabled &&
+         (Settings::wireguard_disable_requested() || settings_->wireguard != saved.wireguard);
 }
 
 FrameIdentity NativeNetwork::identity_for(const std::string &name) const {
@@ -86,7 +87,9 @@ uint32_t NativeNetwork::station_lease() const {
 uint32_t NativeNetwork::photo_connection() const {
   const bool ready = !photo_needs_time_.load(std::memory_order_relaxed) ||
                      photo_time_ready_.load(std::memory_order_acquire);
-  return ready ? station_lease() : 0;
+  const auto lease = ready ? station_lease() : 0;
+  // Give Immich transfers a new connection ID after the tunnel route is removed.
+  return lease && wireguard_stopped_live() ? lease ^ (uint32_t{1} << 31) : lease;
 }
 
 void NativeNetwork::use_photo_connection(const PhotoConnectionSettings &connection) {
@@ -618,7 +621,7 @@ void NativeNetwork::connect_loop_(WifiCredentials saved) {
       wait = std::min(wait, pdMS_TO_TICKS(std::max<int64_t>(1, (remaining_us + 999) / 1000)));
     }
 #endif
-    if (wireguard_enabled) {
+    if (wireguard_enabled && !wireguard_stopped_live()) {
       const bool ready = connected && !hotspot && clock_time_is_valid(std::time(nullptr));
       poll_wireguard(ready ? station_lease() : 0);
       wait = std::min(wait, pdMS_TO_TICKS(2000));

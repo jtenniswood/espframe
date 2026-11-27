@@ -59,6 +59,7 @@ constexpr char new_setup_preferences[] = R"json({
 constexpr std::array ntp_fields{"ntp_server_1", "ntp_server_2", "ntp_server_3"};
 std::mutex storage_mutex;
 std::atomic<uint32_t> revision{};
+std::atomic<bool> wireguard_disable_saved{};
 std::optional<PhotoFeedSettings> published_feed;
 
 bool load_string(nvs_handle_t storage, const char *key, std::string &value, size_t maximum) {
@@ -715,6 +716,10 @@ bool write_document(const cJSON *document, bool clear_legacy = false) {
   const std::unique_ptr<char, decltype(&cJSON_free)> serialized(cJSON_PrintUnformatted(document), cJSON_free);
   if (!serialized || !write(serialized.get(), clear_legacy))
     return false;
+  // Once saved off, the tunnel stays off for this boot, even if a later save enables it.
+  const auto *wireguard = cJSON_GetObjectItemCaseSensitive(document, "wireguard");
+  if (!cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(wireguard, "wireguard_enabled")))
+    wireguard_disable_saved.store(true, std::memory_order_release);
   revision.fetch_add(1, std::memory_order_release);
   return true;
 }
@@ -906,6 +911,10 @@ bool Settings::read() {
 
 uint32_t Settings::storage_revision() {
   return revision.load(std::memory_order_acquire);
+}
+
+bool Settings::wireguard_disable_requested() {
+  return wireguard_disable_saved.load(std::memory_order_acquire);
 }
 
 bool WireguardSettings::add_public_fields(cJSON *object) const {
