@@ -162,12 +162,12 @@
               <option value="">Use saved colour</option><option>Black</option><option>White</option>
             </select>
           </label>
-          <label><input name="portrait_pairs_only" type="checkbox" class="inline-option"> Show paired portraits only</label>
+          <label><input name="portrait_pairs_only" type="checkbox" class="inline-option" checked> Show paired portraits only</label>
           <label>Pairing range
             <select name="portrait_pairing_range">
               <option>Same Day</option>
               <option>Within 1 Day</option>
-              <option>Within 2 Days</option>
+              <option selected>Within 2 Days</option>
               <option>Within 3 Days</option>
               <option>Within 5 Days</option>
               <option>Within 7 Days</option>
@@ -183,13 +183,13 @@
             </select>
           </label>
           <label for="brightness_day">Daytime brightness</label>
-          <input id="brightness_day" name="brightness_day" type="range" min="10" max="100" value="64">
-          <output for="brightness_day">64%</output>
+          <input id="brightness_day" name="brightness_day" type="range" min="10" max="100" value="100">
+          <output for="brightness_day">100%</output>
           <label for="brightness_night">Nighttime brightness</label>
-          <input id="brightness_night" name="brightness_night" type="range" min="10" max="100" value="40">
-          <output for="brightness_night">40%</output>
+          <input id="brightness_night" name="brightness_night" type="range" min="10" max="100" value="70">
+          <output for="brightness_night">70%</output>
           <small>Switches at estimated sunrise and sunset for your timezone.</small>
-          <label><input name="show_clock" type="checkbox" class="inline-option" checked> Show clock</label>
+          <label><input name="show_clock" type="checkbox" class="inline-option"> Show clock</label>
           <label>Time format
             <select name="clock_format">
               <option>24 Hour</option>
@@ -210,8 +210,8 @@
           </details>
           <details>
             <summary>Photo captions</summary>
-            <label><input name="photo_metadata_location_enabled" type="checkbox" class="inline-option" checked> Show location</label>
-            <label><input name="photo_metadata_date_enabled" type="checkbox" class="inline-option" checked> Show date</label>
+            <label><input name="photo_metadata_location_enabled" type="checkbox" class="inline-option"> Show location</label>
+            <label><input name="photo_metadata_date_enabled" type="checkbox" class="inline-option"> Show date</label>
             <label>Date format
               <select name="photo_metadata_date_format">
                 <option>Date Taken</option>
@@ -227,17 +227,17 @@
           </details>
           <details>
             <summary>Screen tone</summary>
-            <label><input name="base_tone_enabled" type="checkbox" class="inline-option"> Adjust photo tone</label>
+            <label><input name="base_tone_enabled" type="checkbox" class="inline-option" checked> Adjust photo tone</label>
             <label for="base_tone">Base warmth</label>
-            <input id="base_tone" name="base_tone" type="range" min="0" max="100" value="0">
-            <output for="base_tone">0%</output>
-            <label><input name="warm_tones_enabled" type="checkbox" class="inline-option"> Warm photos at night</label>
+            <input id="base_tone" name="base_tone" type="range" min="0" max="100" value="23">
+            <output for="base_tone">23%</output>
+            <label><input name="warm_tones_enabled" type="checkbox" class="inline-option" checked> Warm photos at night</label>
             <label for="warm_tone_intensity">Night warmth</label>
-            <input id="warm_tone_intensity" name="warm_tone_intensity" type="range" min="10" max="100" value="50">
-            <output for="warm_tone_intensity">50%</output>
+            <input id="warm_tone_intensity" name="warm_tone_intensity" type="range" min="10" max="100" value="64">
+            <output for="warm_tone_intensity">64%</output>
             <label>Warm tone until sunrise
               <select name="warm_tone_override">
-                <option value="">Use frame setting</option><option value="false">Off</option><option value="true">On</option>
+                <option value="">Use frame setting</option><option value="false">Off</option><option value="true" selected>On</option>
               </select>
             </label>
             <small>Uses sunrise and sunset in the frame’s timezone.</small>
