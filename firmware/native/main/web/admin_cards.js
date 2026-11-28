@@ -394,7 +394,7 @@ window.espframeNativeWifiFirmware = function (card, state, refresh, showBanner) 
 
 window.espframeNativeFirmware = function (card, state, refreshUi, compareVersions, showBanner) {
   const path = "/api/firmware/releases";
-  const versionPattern = /^v\d+\.\d+\.\d+-preview\.\d+$/;
+  const versionPattern = /^v\d+\.\d+\.\d+(?:-preview\.\d+)?$/;
   let supported = false;
   let requestInFlight = false;
   let selectedVersion = "";
@@ -418,8 +418,10 @@ window.espframeNativeFirmware = function (card, state, refreshUi, compareVersion
       if (!isCurrent()) return;
       supported = release.available === true;
       state.installed_version = typeof release.current === "string" ? release.current : "";
+      const preview = state.installed_version.includes("-preview.");
       state.firmware_version_options = Array.isArray(release.versions) ? release.versions
-        .filter(version => typeof version === "string" && versionPattern.test(version))
+        .filter(version => typeof version === "string" && versionPattern.test(version) &&
+          version.includes("-preview.") === preview)
         .map(version => ({ version })) : [];
       state.firmware_versions_loaded = true;
       state.latest_version = state.firmware_version_options[0]?.version || "";
@@ -428,7 +430,7 @@ window.espframeNativeFirmware = function (card, state, refreshUi, compareVersion
       state.firmware_installing = release.status === "installing" || release.status === "restarting";
       state.firmware_install_error = release.status === "unavailable" ? "Could not check for a firmware update." :
         release.status === "failed" ? "The frame could not install that release." :
-        supported ? "" : "Release updates require a versioned Native Preview.";
+        supported ? "" : "Release updates require versioned native firmware.";
       if (selectedVersion && selectedVersion === state.installed_version) {
         const boot = await fetch("/api/firmware", { cache: "no-store", signal: AbortSignal.timeout(2500) });
         const verified = boot.ok && (await boot.json()).boot_verified === true;
