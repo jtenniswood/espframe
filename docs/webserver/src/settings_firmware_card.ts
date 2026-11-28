@@ -192,7 +192,10 @@
     if (els.fwFrequencyField) els.fwFrequencyField.style.display = S.auto_update ? "" : "none";
     if (els.fwStatus) {
       els.fwStatus.className = "fw-status" + (S.firmware_install_error ? " error" : "");
-      els.fwStatus.textContent = S.firmware_install_error || "";
+      var upToDate = nativeAdmin && S.firmware_versions_loaded && isSpecificFirmwareVersion(S.latest_version) &&
+        firmwareVersionsSame(S.latest_version, installedFirmwareVersion()) &&
+        !S.firmware_checking && !S.firmware_installing && !S.firmware_uploading;
+      els.fwStatus.textContent = S.firmware_install_error || (upToDate ? "Firmware is up to date." : "");
     }
     if (els.fwActionBtn) {
       var busy = !!(S.firmware_checking || S.firmware_installing || S.firmware_uploading);

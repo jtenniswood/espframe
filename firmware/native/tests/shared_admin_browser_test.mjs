@@ -332,6 +332,14 @@ const browserTest = String.raw`
     button(previous, 'Install').click()
     if (!downgrading) throw new Error('Installing an older release did not ask for confirmation')
     await until(() => updates.textContent.includes('Current version v0.1.0-preview.8'), 'the older release')
+    await fetch('/test/stable-release')
+    await until(() => updates.textContent.includes('Current version v2.0.0'), 'the stable release')
+    button(updates, 'Check for Update').click()
+    await until(() => updates.textContent.includes('Firmware is up to date.'), 'a successful stable update check')
+    if (!updates.textContent.includes('Available version v2.0.0') ||
+        button(updates, 'Install Update') || previous.querySelector('select').value !== 'v1.18.0') {
+      throw new Error('The stable Firmware card did not show the latest and previous stable versions')
+    }
     disclosure('Upload firmware file').click()
     const upload = disclosure('Upload firmware file').closest('.inline-disclosure')
     const image = field(upload, 'Native firmware image')
@@ -556,6 +564,9 @@ const server = createServer(async (req, res) => {
         return json({ status: 'accepted', restart_required: true })
       }
       return json({ status: 'ready', epoch: snapshot.reset_epoch })
+    case '/test/stable-release':
+      release = { ...release, current: 'v2.0.0', versions: [], status: 'ready' }
+      return res.writeHead(204).end()
     case releasePath:
       if (releaseFeedOffline) return res.writeHead(503).end()
       if (req.method === 'POST') {
@@ -565,6 +576,8 @@ const server = createServer(async (req, res) => {
         const version = Buffer.concat(chunks).toString()
         releaseRequests.push(version)
         if (version) release = { ...release, current: version, status: 'idle' }
+        else if (release.current === 'v2.0.0')
+          release = { ...release, status: 'ready', versions: ['v2.0.0', 'v1.18.0', 'v9.9.9-preview.1'] }
         else release = { ...release, status: 'ready', versions: releaseRequests.length > 1
           ? ['v0.1.0-preview.10', 'v0.1.0-preview.9', 'v0.1.0-preview.8', 'v9.9.9'] : [] }
         return res.writeHead(202).end()
@@ -664,7 +677,7 @@ try {
   assert.ok(uploadedBootChecks >= 2)
   assert.deepEqual(deviceActions, ['reboot', 'reboot', 'customization'])
   assert.deepEqual(logPositions, [0, 1, 1, 2, 3, 0])
-  assert.deepEqual(releaseRequests, ['', '', 'v0.1.0-preview.10', 'v0.1.0-preview.8'])
+  assert.deepEqual(releaseRequests, ['', '', 'v0.1.0-preview.10', 'v0.1.0-preview.8', ''])
   assert.deepEqual(wifiRequests, ['check', 'install'])
   assert.equal(restartsObserved, 1)
   assert.ok(unchangedReads > 0, 'idle polling should receive empty 304 replies')
